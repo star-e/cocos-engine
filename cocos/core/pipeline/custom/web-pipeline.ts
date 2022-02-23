@@ -34,6 +34,7 @@ import { PipelineSceneData } from '../pipeline-scene-data';
 import { RenderScene } from '../../renderer/scene';
 import { legacyCC } from '../../global-exports';
 import { LayoutGraphData } from './layout-graph';
+import { RenderGraphBuilder } from './render-graph-builder';
 
 export class WebSetter extends Setter {
     constructor (data: RenderData) {
@@ -295,7 +296,7 @@ export class WebCopyPassBuilder extends CopyPassBuilder {
 }
 
 export class WebPipeline extends Pipeline {
-    addRenderTexture (name: string, format: Format, width: number, height: number) {
+    addRenderTexture (name: string, format: Format, width: number, height: number, residency: ResourceResidency = ResourceResidency.Persistent) {
         const desc = new ResourceDesc();
         desc.dimension = ResourceDimension.TEXTURE2D;
         desc.width = width;
@@ -305,7 +306,7 @@ export class WebPipeline extends Pipeline {
         desc.format = format;
         desc.flags = ResourceFlags.ALLOW_RENDER_TARGET | ResourceFlags.ALLOW_UNORDERED_ACCESS;
 
-        return this._resourceGraph.addVertex(name, desc, new ResourceTraits(ResourceResidency.Persistent));
+        return this._resourceGraph.addVertex(name, desc, new ResourceTraits(residency));
     }
     addRenderTarget (name: string, format: Format, width: number, height: number) {
         const desc = new ResourceDesc();
@@ -334,9 +335,21 @@ export class WebPipeline extends Pipeline {
         this._pipelineSceneData = pplScene;
     }
     endFrame () {
+        this.build();
         this._renderGraph = null;
         this._pipelineSceneData = null;
     }
+
+    build () {
+        if (!this._renderGraph) {
+            throw new Error('RenderGraph cannot be built without being created');
+        }
+        if (!this._renderGraphBuilder) {
+            this._renderGraphBuilder = new RenderGraphBuilder(this._renderGraph, this.resourceGraph, this._layoutGraph);
+        }
+        this._renderGraphBuilder.build();
+    }
+
     addRasterPass (width: number, height: number, layoutName: string, name = 'Raster'): RasterPassBuilder {
         const pass = new RasterPass();
         const data = new RenderData();
@@ -372,6 +385,9 @@ export class WebPipeline extends Pipeline {
     get renderGraph () {
         return this._renderGraph;
     }
+    get resourceGraph () {
+        return this._resourceGraph;
+    }
     protected _updateRasterPassConstants (pass: Setter, width: number, height: number) {
         const shadingWidth = width;
         const shadingHeight = height;
@@ -386,5 +402,6 @@ export class WebPipeline extends Pipeline {
     private readonly _layoutGraph: LayoutGraphData = new LayoutGraphData();
     private readonly _resourceGraph: ResourceGraph = new ResourceGraph();
     private _renderGraph: RenderGraph | null = null;
+    private _renderGraphBuilder: RenderGraphBuilder | null = null;
     private _pipelineSceneData: PipelineSceneData | null = null;
 }

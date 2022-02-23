@@ -275,7 +275,7 @@ export function QuantizeDirLightShadowCamera (out: Frustum, pipeline: RenderPipe
 
         Frustum.createOrtho(out, x * 2.0, y * 2.0, near,  far, _matShadowViewInv);
     } else {
-        const invisibleOcclusionRange = dirLight.shadowInvisibleOcclusionRange;
+        const invisibleOcclusionRange: number = dirLight.shadowInvisibleOcclusionRange;
         const shadowMapWidth = shadowInfo.size.x;
 
         // Raw data

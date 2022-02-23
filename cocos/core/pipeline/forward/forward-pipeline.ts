@@ -29,26 +29,52 @@
  */
 
 import { ccclass, displayOrder, type, serializable } from 'cc.decorator';
-import { EDITOR } from 'internal:constants';
+import { DEV, EDITOR } from 'internal:constants';
+import { assert } from '../../platform';
 import { RenderPipeline, IRenderPipelineInfo } from '../render-pipeline';
 import { ForwardFlow } from './forward-flow';
 import { RenderTextureConfig } from '../pipeline-serialization';
 import { ShadowFlow } from '../shadow/shadow-flow';
-import { UBOGlobal, UBOShadow, UBOCamera, UNIFORM_SHADOWMAP_BINDING, UNIFORM_SPOT_LIGHTING_MAP_TEXTURE_BINDING } from '../define';
-import { Swapchain, RenderPass } from '../../gfx';
+import { UBOGlobal, UBOShadow, UBOCamera, UNIFORM_SHADOWMAP_BINDING,
+    UNIFORM_SPOT_LIGHTING_MAP_TEXTURE_BINDING, supportsR32FloatTexture } from '../define';
+import { Swapchain, RenderPass, Format, LoadOp, StoreOp, ClearFlagBit, Color } from '../../gfx';
 import { builtinResMgr } from '../../builtin';
 import { Texture2D } from '../../assets/texture-2d';
-import { Camera } from '../../renderer/scene';
+import { Camera, DirectionalLight, Light, LightType, Shadows, ShadowType, SKYBOX_FLAG } from '../../renderer/scene';
 import { errorID } from '../../platform/debug';
 import { PipelineSceneData } from '../pipeline-scene-data';
-import { RenderGraph } from '../custom/render-graph';
-import { LayoutGraphData } from '../custom/layout-graph';
-import { DeviceResourceGraph } from '../custom/executor';
-import { Pipeline } from '../custom/pipeline';
-import { WebPipeline } from '../custom/web-pipeline';
-import { WebDescriptorHierarchy } from '../custom/web-descriptor-hierarchy';
+import { PipelineEventType } from '../pipeline-event';
+import { decideProfilerCamera } from '../pipeline-funcs';
+import { sceneCulling, validPunctualLightsCulling } from '../scene-culling';
+import { AccessType, AttachmentType, RasterView } from '../custom/render-graph';
+import { WebPipeline, WebSetter } from '../custom/web-pipeline';
+import { QueueHint, ResourceResidency } from '../custom/types';
 
 const PIPELINE_TYPE = 0;
+
+function _setShadowCameraValues (queue: WebSetter, light: Readonly<Light>, shadows: Readonly<Shadows>) {
+    queue.setMat4('cc_matLightPlaneProj', shadows.matLight);
+    switch (light.type) {
+    case LightType.DIRECTIONAL:
+        // if (!shadows.fixedArea) {
+        // } else {
+        // }
+        // queue.setMat4('cc_matLightView');
+        // queue.setMat4('cc_matLightViewProj');
+        // queue.setFloat4('cc_shadowInvProjDepthInfo');
+        // queue.setFloat4('cc_shadowProjDepthInfo');
+        // queue.setFloat4('cc_shadowProjInfo');
+        // queue.setFloat4('cc_shadowNFLSInfo');
+        // queue.setFloat4('cc_shadowWHPBInfo');
+        // queue.setFloat4('cc_shadowLPNNInfo');
+        // queue.setFloat4('cc_shadowColor');
+        break;
+    case LightType.SPOT:
+        break;
+    default:
+        throw Error('Unsupported light type for shadow');
+    }
+}
 
 /**
  * @en The forward render pipeline
@@ -67,24 +93,32 @@ export class ForwardPipeline extends RenderPipeline {
         return this._postRenderPass;
     }
 
+    _renderAutomata!: WebPipeline;
+
+    _shadowFlow!: ShadowFlow;
+    _forwardFlow!: ForwardFlow;
+
     public initialize (info: IRenderPipelineInfo): boolean {
         super.initialize(info);
-
-        if (this._flows.length === 0) {
-            const shadowFlow = new ShadowFlow();
-            shadowFlow.initialize(ShadowFlow.initInfo);
-            this._flows.push(shadowFlow);
-
-            const forwardFlow = new ForwardFlow();
-            forwardFlow.initialize(ForwardFlow.initInfo);
-            this._flows.push(forwardFlow);
-        }
-
         return true;
     }
 
     public activate (swapchain: Swapchain): boolean {
         if (EDITOR) { console.info('Forward render pipeline initialized.'); }
+
+        if (DEV) {
+            assert(this._flows.length === 0, 'flows.length should be zero');
+        }
+
+        this._renderAutomata = new WebPipeline();
+
+        this._shadowFlow = new ShadowFlow();
+        this._shadowFlow.initialize(ShadowFlow.initInfo);
+        this._flows.push(this._shadowFlow);
+
+        this._forwardFlow = new ForwardFlow();
+        this._forwardFlow.initialize(ForwardFlow.initInfo);
+        this._flows.push(this._forwardFlow);
 
         this._macros = { CC_PIPELINE_TYPE: PIPELINE_TYPE };
         this._pipelineSceneData = new PipelineSceneData();
@@ -101,6 +135,72 @@ export class ForwardPipeline extends RenderPipeline {
         return true;
     }
 
+    protected _buildShadowPass (automata: WebPipeline,
+        light: Readonly<Light>,
+        shadows: Readonly<Shadows>,
+        passName: Readonly<string>,
+        width: Readonly<number>,
+        height: Readonly<number>,
+        bCastShadow: Readonly<boolean>) {
+        if (!automata.resourceGraph.contains(this._dsShadowMap)) {
+            const format = supportsR32FloatTexture(this.device) ? Format.R32F : Format.RGBA8;
+            automata.addRenderTexture(this._dsShadowMap, format, width, height);
+        }
+        const pass = automata.addRasterPass(width, height, '_', passName);
+        pass.addRasterView(this._dsShadowMap, new RasterView('_',
+            AccessType.WRITE, AttachmentType.DEPTH_STENCIL,
+            LoadOp.CLEAR, StoreOp.STORE,
+            ClearFlagBit.DEPTH_STENCIL,
+            new Color(0, 0, 0, 0)));
+        if (bCastShadow) {
+            const queue = pass.addQueue(QueueHint.COUNT).addScene(`${passName}_shadowScene`);
+            _setShadowCameraValues(queue, light, shadows);
+        }
+    }
+
+    protected _buildShadowPasses (automata: WebPipeline, validLights: Light[],
+        mainLight: Readonly<DirectionalLight> | null,
+        pplScene: Readonly<PipelineSceneData>,
+        name: Readonly<string>): void {
+        const shadows = pplScene.shadows;
+        if (!shadows.enabled || shadows.type !== ShadowType.ShadowMap) {
+            return;
+        }
+        const castShadowObjects = pplScene.castShadowObjects;
+        const validPunctualLights = pplScene.validPunctualLights;
+
+        // force clean up
+        validLights.length = 0;
+
+        // pick spot lights
+        let numSpotLights = 0;
+        for (let i = 0; numSpotLights < shadows.maxReceived && i < validPunctualLights.length; ++i) {
+            const light = validPunctualLights[i];
+            if (light.type === LightType.SPOT) {
+                validLights.push(light);
+                ++numSpotLights;
+            }
+        }
+
+        // build shadow map
+        const bCastShadow = castShadowObjects.length !== 0;
+        const mapWidth = bCastShadow ? shadows.size.x : 1;
+        const mapHeight = bCastShadow ? shadows.size.y : 1;
+
+        // main light
+        if (mainLight) {
+            const passName = `${name}-MainLight`;
+            this._buildShadowPass(automata, mainLight, shadows,
+                passName, mapWidth, mapHeight, bCastShadow);
+        }
+        // spot lights
+        for (let i = 0; i !== validLights.length; ++i) {
+            const passName = `${name}-SpotLight${i.toString()}`;
+            this._buildShadowPass(automata, validLights[i], shadows,
+                passName, mapWidth, mapHeight, bCastShadow);
+        }
+    }
+
     protected _ensureEnoughSize (cameras: Camera[]) {
         let newWidth = this._width;
         let newHeight = this._height;
@@ -113,6 +213,109 @@ export class ForwardPipeline extends RenderPipeline {
             this._width = newWidth;
             this._height = newHeight;
         }
+    }
+
+    private readonly _validLights: Light[] = [];
+    private readonly _dsShadowMap = 'dsShadowMap';
+    private readonly _dsForwardPassRT = 'dsForwardPassColor';
+    private readonly _dsForwardPassDS = 'dsForwardPassDS';
+    public render (cameras: Camera[]) {
+        if (cameras.length === 0) {
+            return;
+        }
+        // build graph
+        const automata = this._renderAutomata;
+        automata.beginFrame(this._pipelineSceneData);
+        for (let i = 0; i < cameras.length; i++) {
+            const camera = cameras[i];
+            if (camera.scene) {
+                this._buildShadowPasses(automata, this._validLights,
+                    camera.scene.mainLight,
+                    this._pipelineSceneData,
+                    `Camera${i.toString()}`);
+
+                const window = camera.window;
+                const width = Math.floor(window.width);
+                const height = Math.floor(window.height);
+                if (!this._renderAutomata.resourceGraph.contains(this._dsForwardPassRT)) {
+                    this._renderAutomata.addRenderTexture(this._dsForwardPassRT, Format.RGBA8, width, height, ResourceResidency.Backbuffer);
+                    this._renderAutomata.addRenderTexture(this._dsForwardPassDS, Format.DEPTH_STENCIL, width, height);
+                }
+                const forwardPass = automata.addRasterPass(width, height, '_', `CameraForwardPass${i.toString()}`);
+                if (this._renderAutomata.resourceGraph.contains(this._dsShadowMap)) {
+                    forwardPass.addRasterView(this._dsShadowMap, new RasterView('_',
+                        AccessType.READ, AttachmentType.RENDER_TARGET,
+                        LoadOp.CLEAR, StoreOp.DISCARD,
+                        ClearFlagBit.NONE,
+                        new Color(0, 0, 0, 0)));
+                }
+                const passView = new RasterView('_',
+                    AccessType.WRITE, AttachmentType.RENDER_TARGET,
+                    LoadOp.CLEAR, StoreOp.STORE,
+                    ClearFlagBit.NONE,
+                    new Color(0, 0, 0, 0));
+                if (!(camera.clearFlag & ClearFlagBit.COLOR)) {
+                    if (camera.clearFlag & SKYBOX_FLAG) {
+                        passView.loadOp = LoadOp.DISCARD;
+                    } else {
+                        passView.loadOp = LoadOp.LOAD;
+                        passView.accessType = AccessType.READ_WRITE;
+                    }
+                } else {
+                    passView.clearColor.x = camera.clearColor.x;
+                    passView.clearColor.y = camera.clearColor.y;
+                    passView.clearColor.z = camera.clearColor.z;
+                    passView.clearColor.w = camera.clearColor.w;
+                }
+                const passDSView = new RasterView('_',
+                    AccessType.WRITE, AttachmentType.DEPTH_STENCIL,
+                    LoadOp.CLEAR, StoreOp.STORE,
+                    ClearFlagBit.DEPTH_STENCIL,
+                    new Color(0, 0, 0, 0));
+                if ((camera.clearFlag & ClearFlagBit.DEPTH_STENCIL) !== ClearFlagBit.DEPTH_STENCIL) {
+                    if (!(camera.clearFlag & ClearFlagBit.DEPTH)) passDSView.loadOp = LoadOp.LOAD;
+                    if (!(camera.clearFlag & ClearFlagBit.STENCIL)) passDSView.loadOp = LoadOp.LOAD;
+                }
+                forwardPass.addRasterView(this._dsForwardPassRT, passView);
+                forwardPass.addRasterView(this._dsForwardPassDS, passDSView);
+                forwardPass
+                    .addQueue(QueueHint.RENDER_OPAQUE)
+                    .addSceneOfCamera(camera);
+                forwardPass
+                    .addQueue(QueueHint.RENDER_TRANSPARENT)
+                    .addSceneOfCamera(camera);
+            }
+        }
+        automata.endFrame();
+        // execute
+        this._commandBuffers[0].begin();
+        this.emit(PipelineEventType.RENDER_FRAME_BEGIN, cameras);
+        this._ensureEnoughSize(cameras);
+        decideProfilerCamera(cameras);
+
+        for (let i = 0; i < cameras.length; i++) {
+            const camera = cameras[i];
+            if (camera.scene) {
+                this.emit(PipelineEventType.RENDER_CAMERA_BEGIN, camera);
+                validPunctualLightsCulling(this, camera);
+                sceneCulling(this, camera);
+                this._pipelineUBO.updateGlobalUBO(camera.window);
+                this._pipelineUBO.updateCameraUBO(camera);
+
+                this._shadowFlow.render(camera);
+
+                for (let j = 0, len = this._forwardFlow.stages.length; j < len; j++) {
+                    if (this._forwardFlow.stages[j].enabled) {
+                        this._forwardFlow.stages[j].render(camera);
+                    }
+                }
+
+                this.emit(PipelineEventType.RENDER_CAMERA_END, camera);
+            }
+        }
+        this.emit(PipelineEventType.RENDER_FRAME_END, cameras);
+        this._commandBuffers[0].end();
+        this._device.queue.submit(this._commandBuffers);
     }
 
     public destroy () {

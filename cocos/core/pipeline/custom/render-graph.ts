@@ -321,6 +321,12 @@ export class ResourceGraph implements impl.BidirectionalGraph
     vertexNameMap (): ResourceGraphNameMap {
         return new ResourceGraphNameMap(this._names);
     }
+    contains (name: string): boolean {
+        if (this._names.includes(name)) {
+            return true;
+        }
+        return false;
+    }
     //-----------------------------------------------------------------
     // PropertyGraph
     get (tag: string): ResourceGraphNameMap | ResourceGraphDescMap | ResourceGraphTraitsMap {
@@ -667,6 +673,12 @@ export class SubpassGraph implements impl.BidirectionalGraph
     }
     vertexNameMap (): SubpassGraphNameMap {
         return new SubpassGraphNameMap(this._names);
+    }
+    contains (name: string): boolean {
+        if (this._names.includes(name)) {
+            return true;
+        }
+        return false;
     }
     //-----------------------------------------------------------------
     // PropertyGraph
@@ -1207,6 +1219,12 @@ export class RenderGraph implements impl.BidirectionalGraph
     }
     vertexNameMap (): RenderGraphNameMap {
         return new RenderGraphNameMap(this._names);
+    }
+    contains (name: string): boolean {
+        if (this._names.includes(name)) {
+            return true;
+        }
+        return false;
     }
     //-----------------------------------------------------------------
     // PropertyGraph
