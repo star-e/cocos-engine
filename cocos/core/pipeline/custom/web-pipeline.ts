@@ -36,9 +36,8 @@ import { legacyCC } from '../../global-exports';
 import { LayoutGraphData } from './layout-graph';
 import { RenderDependencyGraph } from './render-dependency-graph';
 
-export class WebSetter extends Setter {
+export class WebSetter {
     constructor (data: RenderData) {
-        super();
         this._data = data;
     }
     public setMat4 (name: string, mat: Mat4): void {}

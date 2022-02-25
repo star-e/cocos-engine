@@ -47,6 +47,7 @@ class ComputePassBuilder;
 class MovePassBuilder;
 class CopyPassBuilder;
 class Pipeline;
+class Factory;
 
 } // namespace render
 

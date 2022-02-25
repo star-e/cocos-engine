@@ -41,10 +41,10 @@ namespace render {
 
 namespace example {
 
+namespace {
+
 using RDG = RenderDependencyGraph;
 using RESG = ResourceGraph;
-
-namespace {
 
 // validation
 void checkComputeValue(const PmrTransparentMap<PmrString, boost::container::pmr::vector<ComputeView>>& values0) {
@@ -480,20 +480,6 @@ int RenderCompiler::compile() {
     } catch (const std::invalid_argument& /*e*/) {
         return 1;
     }
-
-    addVertex(
-        "name",
-        UpdateFrequency::PER_INSTANCE,
-        PipelineLayoutData(scratch),
-        uint32_t(0),
-        layoutGraph);
-
-    addVertex(RenderPhaseTag{},
-        std::forward_as_tuple("name"),
-        std::forward_as_tuple(UpdateFrequency::PER_INSTANCE),
-        std::forward_as_tuple(),
-        std::forward_as_tuple(),
-        layoutGraph);
 
     return 0;
 }

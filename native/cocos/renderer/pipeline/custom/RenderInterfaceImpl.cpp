@@ -23,13 +23,20 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-
-#include "base/memory/AllocatedObj.h"
+#include "RenderInterfaceTypes.h"
 
 namespace cc {
 
-// Now define all the base classes for each allocation
-using Object = AllocatedObject;
+namespace render {
+
+Pipeline* Factory::createPipeline() {
+    return nullptr;
+}
+
+DescriptorHierarchy* Factory::createDescriptorHierarchy(){
+    return nullptr;
+}
+
+} // namespace render
 
 } // namespace cc

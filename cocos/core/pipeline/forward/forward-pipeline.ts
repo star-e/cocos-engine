@@ -50,6 +50,8 @@ import { AccessType, AttachmentType, RasterView } from '../custom/render-graph';
 import { WebPipeline } from '../custom/web-pipeline';
 import { Setter } from '../custom/pipeline';
 import { QueueHint, ResourceResidency } from '../custom/types';
+import { DeviceResourceGraph } from '../custom/executor';
+import { createCustomPipeline } from '../custom';
 
 const PIPELINE_TYPE = 0;
 

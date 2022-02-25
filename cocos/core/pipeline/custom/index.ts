@@ -1,7 +1,7 @@
-/****************************************************************************
+/*
  Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
 
- http://www.cocos.com
+ https://www.cocos.com/
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated engine source code (the "Software"), a limited,
@@ -21,15 +21,21 @@
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
-****************************************************************************/
+ */
 
-#pragma once
+/**
+ * @packageDocumentation
+ * @module custom-pipeline
+ */
 
-#include "base/memory/AllocatedObj.h"
+import { DescriptorHierarchy, Pipeline } from './pipeline';
+import { WebPipeline } from './web-pipeline';
+import { WebDescriptorHierarchy } from './web-descriptor-hierarchy';
 
-namespace cc {
+export function createDescriptorHierarchy (): DescriptorHierarchy {
+    return new WebDescriptorHierarchy();
+}
 
-// Now define all the base classes for each allocation
-using Object = AllocatedObject;
-
-} // namespace cc
+export function createCustomPipeline (): Pipeline {
+    return new WebPipeline();
+}

@@ -11,6 +11,7 @@ set(ENGINE_NAME cocos_engine)
 ################################# options ############################################
 # default fallback options
 cc_set_if_undefined(USE_SE_V8                ON)
+cc_set_if_undefined(USE_SE_SM                OFF)
 cc_set_if_undefined(USE_V8_DEBUGGER          ON)
 cc_set_if_undefined(USE_SOCKET               ON)
 cc_set_if_undefined(USE_AUDIO                ON)
@@ -101,6 +102,7 @@ cc_inspect_values(
     CC_USE_VULKAN
     USE_SE_V8
     USE_V8_DEBUGGER
+    USE_SE_SM
     USE_SOCKET
     USE_AUDIO
     USE_EDIT_BOX
@@ -111,8 +113,6 @@ cc_inspect_values(
     USE_DRAGONBONES
     USE_SPINE
     USE_WEBSOCKET_SERVER
-    USE_SE_V8
-    USE_V8_DEBUGGER
     USE_PHYSICS_PHYSX
     USE_JOB_SYSTEM_TBB
     USE_JOB_SYSTEM_TASKFLOW
@@ -614,15 +614,9 @@ cocos_source_files(MODULE ccunzip
 cocos_source_files(
                  cocos/base/memory/AllocatedObj.cpp
                  cocos/base/memory/AllocatedObj.h
-                 cocos/base/memory/JeAlloc.cpp
-                 cocos/base/memory/JeAlloc.h
                  cocos/base/memory/MemDef.h
                  cocos/base/memory/Memory.cpp
                  cocos/base/memory/Memory.h
-                 cocos/base/memory/MemTracker.cpp
-                 cocos/base/memory/MemTracker.h
-                 cocos/base/memory/NedPooling.cpp
-                 cocos/base/memory/NedPooling.h
                  cocos/base/memory/StdAlloc.h
                  cocos/base/memory/StlAlloc.h
                  cocos/base/memory/MemoryHook.cpp
@@ -1199,6 +1193,7 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/RenderGraphTypes.cpp
                  cocos/renderer/pipeline/custom/RenderGraphTypes.h
                  cocos/renderer/pipeline/custom/RenderInterfaceFwd.h
+                 cocos/renderer/pipeline/custom/RenderInterfaceImpl.cpp
                  cocos/renderer/pipeline/custom/RenderInterfaceTypes.cpp
                  cocos/renderer/pipeline/custom/RenderInterfaceTypes.h
 )
@@ -2424,6 +2419,23 @@ if(USE_SE_JSC)
     )
 endif()
 
+if(USE_SE_SM)
+    cocos_source_files(MODULE ccbindings
+                    cocos/bindings/jswrapper/sm/Base.h
+        NO_WERROR   cocos/bindings/jswrapper/sm/Class.cpp
+                    cocos/bindings/jswrapper/sm/Class.h
+                    cocos/bindings/jswrapper/sm/HelperMacros.h
+        NO_WERROR   cocos/bindings/jswrapper/sm/HelperMacros.cpp
+        NO_WERROR   cocos/bindings/jswrapper/sm/Object.cpp
+                    cocos/bindings/jswrapper/sm/Object.h
+        NO_WERROR   cocos/bindings/jswrapper/sm/ScriptEngine.cpp
+                    cocos/bindings/jswrapper/sm/ScriptEngine.h
+                    cocos/bindings/jswrapper/sm/SeApi.h
+        NO_WERROR   cocos/bindings/jswrapper/sm/Utils.cpp
+                    cocos/bindings/jswrapper/sm/Utils.h
+    )
+endif()
+
 cocos_source_files(MODULE ccbindings
                  cocos/bindings/jswrapper/config.cpp
                  cocos/bindings/jswrapper/config.h
@@ -2586,19 +2598,22 @@ list(APPEND COCOS_SOURCE_LIST ${CC_EXTERNAL_SOURCES})
 ### generate source files
 
 
-macro(compile_ts file_without_ext)
+function(compile_ts input_file_ts output_file)
+    get_filename_component(outdir ${output_file} DIRECTORY)
+    get_filename_component(from_ts ${input_file_ts} NAME)
     add_custom_command(
-        OUTPUT ${file_without_ext}.js
-        COMMAND ${TSC_EXECUTABLE} --module commonjs ${file_without_ext}.ts
-        DEPENDS ${file_without_ext}.ts
+        OUTPUT ${output_file}
+        COMMAND ${CMAKE_COMMAND} -E echo " transform ${from_ts} file ${output_file}"
+        COMMAND ${TSC_EXECUTABLE} --module commonjs ${input_file_ts} --outDir ${outdir}
+        DEPENDS ${input_file_ts}
         VERBATIM USES_TERMINAL
     )
-endmacro()
+endfunction()
 
-compile_ts(${CWD}/cocos/core/builtin/effects)
-compile_ts(${CWD}/cocos/core/builtin/shader-sources/glsl1)
-compile_ts(${CWD}/cocos/core/builtin/shader-sources/glsl3)
-compile_ts(${CWD}/cocos/core/builtin/shader-sources/glsl4)
+compile_ts(${CWD}/../cocos/core/builtin/effects.ts ${CWD}/cocos/core/builtin/effects.js)
+compile_ts(${CWD}/../cocos/core/builtin/shader-sources/glsl1.ts ${CWD}/cocos/core/builtin/shader-sources/glsl1.js)
+compile_ts(${CWD}/../cocos/core/builtin/shader-sources/glsl3.ts ${CWD}/cocos/core/builtin/shader-sources/glsl3.js)
+compile_ts(${CWD}/../cocos/core/builtin/shader-sources/glsl4.ts ${CWD}/cocos/core/builtin/shader-sources/glsl4.js)
 
 set(CC_GENERATED_FILES
     ${CWD}/cocos/core/builtin/Effects.cpp
@@ -2796,6 +2811,7 @@ function(cc_apply_definations target)
         $<IF:$<BOOL:${USE_PHYSICS_PHYSX}>,USE_PHYSICS_PHYSX=1,USE_PHYSICS_PHYSX=0>
         $<IF:$<BOOL:${CC_EDITOR}>,CC_EDITOR=1,CC_EDITOR=0>
         $<$<BOOL:${USE_SE_JSC}>:SCRIPT_ENGINE_TYPE=3>
+        $<$<BOOL:${USE_SE_SM}>:SCRIPT_ENGINE_TYPE=1>
         $<$<CONFIG:Debug>:CC_DEBUG=1>
     )
 endfunction()
