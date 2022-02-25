@@ -34,7 +34,7 @@ import { PipelineSceneData } from '../pipeline-scene-data';
 import { RenderScene } from '../../renderer/scene';
 import { legacyCC } from '../../global-exports';
 import { LayoutGraphData } from './layout-graph';
-import { RenderGraphBuilder } from './render-graph-builder';
+import { RenderDependencyGraph } from './render-dependency-graph';
 
 export class WebSetter extends Setter {
     constructor (data: RenderData) {
@@ -344,10 +344,10 @@ export class WebPipeline extends Pipeline {
         if (!this._renderGraph) {
             throw new Error('RenderGraph cannot be built without being created');
         }
-        if (!this._renderGraphBuilder) {
-            this._renderGraphBuilder = new RenderGraphBuilder(this._renderGraph, this.resourceGraph, this._layoutGraph);
+        if (!this._renderDependencyGraph) {
+            this._renderDependencyGraph = new RenderDependencyGraph(this._renderGraph, this.resourceGraph, this._layoutGraph);
         }
-        this._renderGraphBuilder.build();
+        this._renderDependencyGraph.build();
     }
 
     addRasterPass (width: number, height: number, layoutName: string, name = 'Raster'): RasterPassBuilder {
@@ -402,6 +402,6 @@ export class WebPipeline extends Pipeline {
     private readonly _layoutGraph: LayoutGraphData = new LayoutGraphData();
     private readonly _resourceGraph: ResourceGraph = new ResourceGraph();
     private _renderGraph: RenderGraph | null = null;
-    private _renderGraphBuilder: RenderGraphBuilder | null = null;
+    private _renderDependencyGraph: RenderDependencyGraph | null = null;
     private _pipelineSceneData: PipelineSceneData | null = null;
 }

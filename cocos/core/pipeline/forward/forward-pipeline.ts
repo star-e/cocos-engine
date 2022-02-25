@@ -47,12 +47,13 @@ import { PipelineEventType } from '../pipeline-event';
 import { decideProfilerCamera } from '../pipeline-funcs';
 import { sceneCulling, validPunctualLightsCulling } from '../scene-culling';
 import { AccessType, AttachmentType, RasterView } from '../custom/render-graph';
-import { WebPipeline, WebSetter } from '../custom/web-pipeline';
+import { WebPipeline } from '../custom/web-pipeline';
+import { Setter } from '../custom/pipeline';
 import { QueueHint, ResourceResidency } from '../custom/types';
 
 const PIPELINE_TYPE = 0;
 
-function _setShadowCameraValues (queue: WebSetter, light: Readonly<Light>, shadows: Readonly<Shadows>) {
+function _setShadowCameraValues (queue: Setter, light: Readonly<Light>, shadows: Readonly<Shadows>) {
     queue.setMat4('cc_matLightPlaneProj', shadows.matLight);
     switch (light.type) {
     case LightType.DIRECTIONAL:
@@ -153,7 +154,8 @@ export class ForwardPipeline extends RenderPipeline {
             ClearFlagBit.DEPTH_STENCIL,
             new Color(0, 0, 0, 0)));
         if (bCastShadow) {
-            const queue = pass.addQueue(QueueHint.COUNT).addScene(`${passName}_shadowScene`);
+            const queue = pass.addQueue(QueueHint.COUNT);
+            queue.addScene(`${passName}_shadowScene`);
             _setShadowCameraValues(queue, light, shadows);
         }
     }
@@ -284,6 +286,7 @@ export class ForwardPipeline extends RenderPipeline {
                 forwardPass
                     .addQueue(QueueHint.RENDER_TRANSPARENT)
                     .addSceneOfCamera(camera);
+                automata.addPresentPass(`CameraPresentPass${i.toString()}`, this._dsForwardPassRT);
             }
         }
         automata.endFrame();
