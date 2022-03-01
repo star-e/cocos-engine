@@ -24,16 +24,17 @@
 ****************************************************************************/
 
 #include "RenderInterfaceTypes.h"
+#include "NativePipelineTypes.h"
 
 namespace cc {
 
 namespace render {
 
 Pipeline* Factory::createPipeline() {
-    return nullptr;
+    return new NativePipeline();
 }
 
-DescriptorHierarchy* Factory::createDescriptorHierarchy(){
+DescriptorHierarchy* Factory::createDescriptorHierarchy() {
     return nullptr;
 }
 

@@ -35,6 +35,8 @@ import { RenderScene } from '../../renderer/scene';
 import { legacyCC } from '../../global-exports';
 import { LayoutGraphData } from './layout-graph';
 import { RenderDependencyGraph } from './render-dependency-graph';
+import { DeviceResourceGraph } from './executor';
+import { WebImplExample } from './web-pipeline-impl';
 
 export class WebSetter {
     constructor (data: RenderData) {
