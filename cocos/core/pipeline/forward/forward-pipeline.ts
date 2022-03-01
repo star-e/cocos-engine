@@ -193,13 +193,13 @@ export class ForwardPipeline extends RenderPipeline {
 
         // main light
         if (mainLight) {
-            const passName = `${name}-MainLight`;
+            const passName = `${name}-MainLight-Shadow`;
             this._buildShadowPass(automata, mainLight, shadows,
                 passName, mapWidth, mapHeight, bCastShadow);
         }
         // spot lights
         for (let i = 0; i !== validLights.length; ++i) {
-            const passName = `${name}-SpotLight${i.toString()}`;
+            const passName = `${name}-SpotLight${i.toString()}-Shadow`;
             this._buildShadowPass(automata, validLights[i], shadows,
                 passName, mapWidth, mapHeight, bCastShadow);
         }

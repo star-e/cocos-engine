@@ -346,6 +346,7 @@ export class WebPipeline extends Pipeline {
         if (!this._renderDependencyGraph) {
             this._renderDependencyGraph = new RenderDependencyGraph(this._renderGraph, this.resourceGraph, this._layoutGraph);
         }
+        this._renderDependencyGraph.reset();
         this._renderDependencyGraph.build();
     }
 
