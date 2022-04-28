@@ -25,6 +25,7 @@
 
 #include <memory>
 #include "NativePipelineTypes.h"
+#include "base/Variant.h"
 #include "cocos/base/StringUtil.h"
 #include "cocos/renderer/gfx-base/GFXDescriptorSetLayout.h"
 #include "cocos/renderer/pipeline/Enum.h"
@@ -38,6 +39,11 @@
 #include "cocos/scene/RenderWindow.h"
 #include "gfx-base/GFXDevice.h"
 #include "profiler/DebugRenderer.h"
+#include "RenderGraphGraphs.h"
+#include <variant>
+#include "FGDispatcherTypes.h"
+
+#define USE_FRAME_GRAPH 0
 
 namespace cc {
 
@@ -164,8 +170,7 @@ bool NativePipeline::destroy() noexcept {
     return true;
 }
 
-// NOLINTNEXTLINE
-void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
+void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &cameras) {
     const auto *sceneData     = pipelineSceneData.get();
     auto *      commandBuffer = device->getCommandBuffer();
     float       shadingScale  = sceneData->getShadingScale();
@@ -180,13 +185,7 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
         auto colorHandle = framegraph::FrameGraph::stringToHandle("outputTexture");
 
         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData2 &data) {
-            gfx::Color clearColor;
-            if (hasFlag(static_cast<gfx::ClearFlags>(camera->getClearFlag()), gfx::ClearFlagBit::COLOR)) {
-                clearColor.x = camera->getClearColor().x;
-                clearColor.y = camera->getClearColor().y;
-                clearColor.z = camera->getClearColor().z;
-            }
-            clearColor.w = camera->getClearColor().w;
+            gfx::Color clearColor = camera->getClearColor();
             // color
             framegraph::Texture::Descriptor colorTexInfo;
             colorTexInfo.format = sceneData->isHDR() ? gfx::Format::RGBA16F : gfx::Format::RGBA8;
@@ -199,10 +198,20 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
 
             data.outputTex = builder.create(colorHandle, colorTexInfo);
             framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+
             colorAttachmentInfo.usage      = framegraph::RenderTargetAttachment::Usage::COLOR;
             colorAttachmentInfo.clearColor = clearColor;
-            colorAttachmentInfo.loadOp     = gfx::LoadOp::CLEAR;
 
+            const auto clearFlags = camera->getClearFlag();
+            if (!hasFlag(clearFlags, gfx::ClearFlagBit::COLOR)) {
+                if (hasFlag(clearFlags, static_cast<gfx::ClearFlagBit>(pipeline::skyboxFlag))) {
+                    colorAttachmentInfo.loadOp = gfx::LoadOp::DISCARD;
+                } else {
+                    colorAttachmentInfo.loadOp = gfx::LoadOp::LOAD;
+                }
+            } else {
+                colorAttachmentInfo.loadOp = gfx::LoadOp::CLEAR;
+            }
             colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
 
             data.outputTex = builder.write(data.outputTex, colorAttachmentInfo);
@@ -272,6 +281,85 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
             framegraph::FrameGraph::gc(INTERVAL_IN_SECONDS * 60);
         }
     }
+
+}
+
+using std::vector;
+using std::pair;
+using ccstd::pmr::string;
+using cc::render::RenderGraph;
+using TestDataType = vector<pair<PassType, vector<vector<vector<uint8_t>>>>>;
+using cc::render::SubpassGraph;
+void testData(RenderGraph& rg, const TestDataType& data, boost::container::pmr::memory_resource* res) {
+    auto headTag = RenderGraph::VertexTag{cc::render::RasterTag{}};
+    auto startID = add_vertex(rg, RasterTag{}, "head");
+
+    for(size_t i = 0; i < data.size(); ++i) {
+        const auto& pass = data[i];
+        const ccstd::string name = "pass" + std::to_string(i + 1);
+
+        switch(pass.first) {
+            case PassType::RASTER:
+                {
+                    RasterPass raster(res);
+                    // const string name = pass.first; 
+                    const auto vertexID = add_vertex(rg, RenderGraph::Name, name.c_str());
+                    bool isOutput = false;
+                    const auto& subpasses = pass.second; 
+                    for(size_t j = 0; j < subpasses.size(); ++j) {
+                        assert(subpasses[j].size() == 2); // inputs and outputs
+                        const auto& attachments = subpasses[j];
+                        RasterView view(res);
+                        for (size_t k = 0; k < attachments.size(); ++k) {
+                            const auto& viewName = std::to_string(k);
+                            view.slotName = viewName.c_str();
+                            view.accessType = isOutput ? AccessType::WRITE : AccessType::READ;
+                            view.attachmentType = AttachmentType::RENDER_TARGET;
+                            view.loadOp = gfx::LoadOp::CLEAR;
+                            view.storeOp = gfx::StoreOp::STORE;
+                            view.clearFlags = gfx::ClearFlagBit::ALL;
+                            view.clearColor = gfx::Color({1.0, 0.0, 0.0, 1.0});
+                            raster.rasterViews.emplace(std::move(view));
+                        }
+                        isOutput = true;
+                    }
+                    rg.rasterPasses.emplace_back(raster);                                
+                }
+        }
+
+    }
+}
+
+void NativePipeline::extractToRenderGraph(const ccstd::vector<scene::Camera *> &cameras) {
+    boost::container::pmr::memory_resource* resource = boost::container::pmr::get_default_resource();
+    cc::render::RenderGraph renderGraph(resource);
+
+    TestDataType data = {
+        {
+            PassType::RASTER, {
+                {{}, {0, 1, 2}},
+                {{0, 1, 2, 4}, {3}},
+            },
+        },
+        {
+            PassType::RASTER, {
+                {{3}, {5}},
+            },
+        }
+    }; 
+
+    testData(renderGraph, data, resource);
+    // for(const auto* camera : cameras) {}
+
+}
+
+// NOLINTNEXTLINE
+void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
+#if USE_FRAME_GRAPH
+    extractToFrameGraph(cameras);
+#else
+    extractToRenderGraph(cameras);
+#endif
 }
 
 const MacroRecord &NativePipeline::getMacros() const {

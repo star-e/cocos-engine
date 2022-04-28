@@ -431,11 +431,33 @@ void FrameGraphDispatcher::buildBarriers() {
                 visitor,
                 get(colors, rag));
         }
+
+        for (const auto &pair : batchedBarriers) {
+            CC_LOG_INFO("pass %d", pair.first);
+            CC_LOG_INFO("fronts:");
+            for (const auto &front : pair.second.frontBarriers) {
+                CC_LOG_INFO("%d", front.resourceID);
+            }
+            CC_LOG_INFO("rear:");
+            for (const auto &rear : pair.second.rearBarriers) {
+                CC_LOG_INFO("%d", rear.resourceID);
+            }
+        }
     }
 }
 #pragma endregion graphProcess
 
 #pragma region assisstantFuncDefinition
+template<typename Graph>
+bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph& graph) {
+    auto e = edge(srcVertex, dstVertex, graph);
+    if (!e.second) {
+        auto res = add_edge(srcVertex, dstVertex, graph);
+        CC_ENSURES(res.second);
+        return true;
+    }
+    return false;
+}
 
 bool isStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs) {
     bool res = true;
@@ -493,8 +515,7 @@ AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex c
             // current READ, no WRITE before in this frame, it's expected to be external.
             bool dirtyExternalRes = trans.lastStatus.vertID == INVALID_ID;
             if (!dirtyExternalRes) {
-                auto res = add_edge(trans.lastStatus.vertID, curVertID, rag);
-                CC_ENSURES(res.second);
+                tryAddEdge(trans.lastStatus.vertID, curVertID, rag);
             }
             trans.currStatus = {curVertID, visibility, access, passType, Range{}};
             lastVertID       = trans.lastStatus.vertID;
@@ -503,8 +524,7 @@ AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex c
             if (needTransition) {
                 trans.lastStatus = trans.currStatus;
                 trans.currStatus = {curVertID, visibility, access, passType, Range{}};
-                auto res         = add_edge(trans.lastStatus.vertID, curVertID, rag);
-                CC_ENSURES(res.second);
+                tryAddEdge(trans.lastStatus.vertID, curVertID, rag);
                 lastVertID = trans.lastStatus.vertID;
             }
         }
@@ -555,8 +575,7 @@ void processRasterPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph,
         addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::RASTER, rasterView.slotName, visibility, access}, Range{});
         auto lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::RASTER, rasterView.slotName, visibility, access});
         if (lastVertId != INVALID_ID) {
-            auto res = add_edge(lastVertId, vertID, rag);
-            CC_ENSURES(res.second);
+            tryAddEdge(lastVertId, vertID, rag);
             dependent = true;
         }
     }
@@ -568,15 +587,13 @@ void processRasterPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph,
             addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access}, Range{});
             auto lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access});
             if (lastVertId != INVALID_ID) {
-                auto res = add_edge(lastVertId, vertID, rag);
-                CC_ENSURES(res.second);
+                tryAddEdge(lastVertId, vertID, rag);
                 dependent = true;
             }
         }
     }
     if (!dependent) {
-        auto res = add_edge(EXPECT_START_ID, vertID, rag);
-        CC_ENSURES(res.second);
+        tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
 }
 
@@ -592,15 +609,13 @@ void processComputePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph
             addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access}, Range{});
             auto lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access});
             if (lastVertId != INVALID_ID) {
-                auto res = add_edge(lastVertId, vertID, rag);
-                CC_ENSURES(res.second);
+                tryAddEdge(lastVertId, vertID, rag);
                 dependent = true;
             }
         }
     }
     if (!dependent) {
-        auto res = add_edge(EXPECT_START_ID, vertID, rag);
-        CC_ENSURES(res.second);
+        tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
 }
 
@@ -627,20 +642,17 @@ void processCopyPass(RAG &rag, const LGD & /*lgd*/, const ResourceGraph &rescGra
         addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COPY, pair.target, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY}, targetRange);
         uint32_t lastVertSrc = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::COPY, pair.source, defaultVisibility, gfx::MemoryAccessBit::READ_ONLY});
         if (lastVertSrc != INVALID_ID) {
-            auto res = add_edge(lastVertSrc, vertID, rag);
-            CC_ENSURES(res.second);
+            tryAddEdge(lastVertSrc, vertID, rag);
             dependent = true;
         }
         uint32_t lastVertDst = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::COPY, pair.source, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY});
         if (lastVertDst != INVALID_ID) {
-            auto res = add_edge(lastVertDst, vertID, rag);
-            CC_ENSURES(res.second);
+            tryAddEdge(lastVertDst, vertID, rag);
             dependent = true;
         }
     }
     if (!dependent) {
-        auto res = add_edge(EXPECT_START_ID, vertID, rag);
-        CC_ENSURES(res.second);
+        tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
 }
 
@@ -656,15 +668,13 @@ void processRaytracePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGrap
             addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access}, Range{});
             auto lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::COMPUTE, computeView.name, visibility, access});
             if (lastVertId != INVALID_ID) {
-                auto res = add_edge(lastVertId, vertID, rag);
-                CC_ENSURES(res.second);
+                tryAddEdge(lastVertId, vertID, rag);
                 dependent = true;
             }
         }
     }
     if (!dependent) {
-        auto res = add_edge(EXPECT_START_ID, vertID, rag);
-        CC_ENSURES(res.second);
+        tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
 }
 
@@ -677,15 +687,13 @@ void processPresentPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph
         auto                    lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::PRESENT, pair.first, visibility, gfx::MemoryAccessBit::WRITE_ONLY});
         addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::PRESENT, pair.first, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY}, Range{});
         if (lastVertId != INVALID_ID) {
-            auto res = add_edge(lastVertId, vertID, rag);
-            CC_ENSURES(res.second);
+            tryAddEdge(lastVertId, vertID, rag);
             dependent = true;
         }
     }
     if (!dependent) {
         // LOG("~~~~~~~~~~ Found an empty pipeline! ~~~~~~~~~~");
-        auto res = add_edge(EXPECT_START_ID, vertID, rag);
-        CC_ENSURES(res.second);
+        tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
 }
 

@@ -90,6 +90,10 @@ public:
     scene::Model*                              profiler{nullptr};
     IntrusivePtr<pipeline::PipelineSceneData>  pipelineSceneData;
     framegraph::FrameGraph                     frameGraph;
+
+private:
+    void extractToFrameGraph(const ccstd::vector<scene::Camera *> &cameras);
+    void extractToRenderGraph(const ccstd::vector<scene::Camera *> &cameras);
 };
 
 } // namespace render

@@ -62,12 +62,11 @@ ResourceAccessGraph::Vertex::Vertex(Vertex const& rhs, const allocator_type& all
 : outEdges(rhs.outEdges, alloc),
   inEdges(rhs.inEdges, alloc) {}
 
-FrameGraphDispatcher::FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn, const allocator_type& alloc) noexcept
+FrameGraphDispatcher::FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn) noexcept
 : resourceGraph(resourceGraphIn),
   graph(graphIn),
   layoutGraph(layoutGraphIn),
-  scratch(scratchIn),
-  _externalResMap(alloc) {}
+  scratch(scratchIn) {}
 
 } // namespace render
 

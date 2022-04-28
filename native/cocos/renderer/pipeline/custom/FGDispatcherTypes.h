@@ -224,7 +224,7 @@ struct FrameGraphDispatcher {
         return {resourceGraph.get_allocator().resource()};
     }
 
-    FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn, const allocator_type& alloc) noexcept;
+    FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn) noexcept;
     FrameGraphDispatcher(FrameGraphDispatcher&& rhs)      = delete;
     FrameGraphDispatcher(FrameGraphDispatcher const& rhs) = delete;
     FrameGraphDispatcher& operator=(FrameGraphDispatcher&& rhs) = delete;
