@@ -45,6 +45,14 @@
     #include "cocos/network/WebSocket.h"
 #endif
 
+#if CC_USE_DRAGONBONES
+    #include "editor-support/dragonbones-creator-support/ArmatureCacheMgr.h"
+#endif
+
+#if CC_USE_SPINE
+    #include "editor-support/spine-creator-support/SkeletonCacheMgr.h"
+#endif
+
 #include "application/ApplicationManager.h"
 #include "application/BaseApplication.h"
 #include "base/Scheduler.h"
@@ -60,10 +68,10 @@ namespace {
 
 bool setCanvasCallback(se::Object * /*global*/) {
     se::AutoHandleScope scope;
-    se::ScriptEngine *  se       = se::ScriptEngine::getInstance();
-    auto *              window   = CC_CURRENT_ENGINE()->getInterface<cc::ISystemWindow>();
-    auto                handler  = window->getWindowHandler();
-    auto                viewSize = window->getViewSize();
+    se::ScriptEngine *se = se::ScriptEngine::getInstance();
+    auto *window = CC_CURRENT_ENGINE()->getInterface<cc::ISystemWindow>();
+    auto handler = window->getWindowHandler();
+    auto viewSize = window->getViewSize();
 
     std::stringstream ss;
     {
@@ -92,7 +100,10 @@ Engine::Engine() {
     FileUtils::getInstance()->addSearchPath("data", true);
     EventDispatcher::init();
     se::ScriptEngine::getInstance();
-    CC_PROFILER;
+
+#if CC_USE_PROFILER
+    Profiler::getInstance();
+#endif
 }
 
 Engine::~Engine() {
@@ -100,22 +111,32 @@ Engine::~Engine() {
     AudioEngine::end();
 #endif
 
-    Root::getInstance()->getPipeline()->destroy();
+#if CC_USE_DRAGONBONES
+    dragonBones::ArmatureCacheMgr::destroyInstance();
+#endif
 
-    EventDispatcher::destroy();
+#if CC_USE_SPINE
+    spine::SkeletonCacheMgr::destroyInstance();
+#endif
+
+    cc::EventDispatcher::destroy();
+    cc::network::HttpClient::destroyInstance();
+    Root::getInstance()->destroy();
+
+#if CC_USE_PROFILER
+    Profiler::destroyInstance();
+#endif
+    DebugRenderer::destroyInstance();
+    FreeTypeFontFace::destroyFreeType();
+
+    se::ScriptEngine::getInstance()->cleanup();
     se::ScriptEngine::destroyInstance();
     ProgramLib::destroyInstance();
     BuiltinResMgr::destroyInstance();
-    gfx::DeviceManager::destroy();
+    FileUtils::destroyInstance();
 
     CCObject::deferredDestroy();
-
-    BasePlatform *platform = BasePlatform::getPlatform();
-    platform->setHandleEventCallback(nullptr);
-
-    CC_PROFILER_DESTROY;
-    DebugRenderer::destroyInstance();
-    FreeTypeFontFace::destroyFreeType();
+    gfx::DeviceManager::destroy();
 }
 
 int32_t Engine::init() {
@@ -159,29 +180,19 @@ int Engine::restart() {
 }
 
 void Engine::close() { // NOLINT
-    if (cc::EventDispatcher::initialized()) {
-        cc::EventDispatcher::dispatchCloseEvent();
-    }
-
-    auto *scriptEngine = se::ScriptEngine::getInstance();
-
-    cc::DeferredReleasePool::clear();
 #if CC_USE_AUDIO
     cc::AudioEngine::stopAll();
 #endif
+
     //#if CC_USE_SOCKET
     //    cc::network::WebSocket::closeAllConnections();
     //#endif
-    cc::network::HttpClient::destroyInstance();
 
+    cc::DeferredReleasePool::clear();
     _scheduler->removeAllFunctionsToBePerformedInCocosThread();
     _scheduler->unscheduleAll();
 
-    scriptEngine->cleanup();
-    cc::EventDispatcher::destroy();
-
-    // exit
-    exit(0);
+    BasePlatform::getPlatform()->setHandleEventCallback(nullptr);
 }
 
 uint Engine::getTotalFrames() const {
@@ -224,8 +235,8 @@ void Engine::tick() {
 
         static std::chrono::steady_clock::time_point prevTime;
         static std::chrono::steady_clock::time_point now;
-        static float                                 dt   = 0.F;
-        static double                                dtNS = NANOSECONDS_60FPS;
+        static float dt = 0.F;
+        static double dtNS = NANOSECONDS_60FPS;
 
         ++_totalFrames;
 
@@ -249,9 +260,9 @@ void Engine::tick() {
 
         cc::DeferredReleasePool::clear();
 
-        now  = std::chrono::steady_clock::now();
+        now = std::chrono::steady_clock::now();
         dtNS = dtNS * 0.1 + 0.9 * static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(now - prevTime).count());
-        dt   = static_cast<float>(dtNS) / NANOSECONDS_PER_SECOND;
+        dt = static_cast<float>(dtNS) / NANOSECONDS_PER_SECOND;
     }
 
     CC_PROFILER_END_FRAME;
@@ -294,8 +305,8 @@ int32_t Engine::restartVM() {
 }
 
 bool Engine::handleEvent(const OSEvent &ev) {
-    bool        isHandled = false;
-    OSEventType type      = ev.eventType();
+    bool isHandled = false;
+    OSEventType type = ev.eventType();
     if (type == OSEventType::TOUCH_OSEVENT) {
         cc::EventDispatcher::dispatchTouchEvent(OSEvent::castEvent<TouchEvent>(ev));
         isHandled = true;
@@ -317,7 +328,7 @@ bool Engine::handleEvent(const OSEvent &ev) {
     return isHandled;
 }
 
-bool Engine::handleTouchEvent(const TouchEvent& ev) { // NOLINT(readability-convert-member-functions-to-static)
+bool Engine::handleTouchEvent(const TouchEvent &ev) { // NOLINT(readability-convert-member-functions-to-static)
     cc::EventDispatcher::dispatchTouchEvent(ev);
     return true;
 }

@@ -68,13 +68,14 @@ public:
     GeometryRenderer();
     ~GeometryRenderer() override;
     GeometryRenderer(const GeometryRenderer &) = delete;
-    GeometryRenderer(GeometryRenderer &&)      = delete;
+    GeometryRenderer(GeometryRenderer &&) = delete;
     GeometryRenderer &operator=(const GeometryRenderer &) = delete;
     GeometryRenderer &operator=(GeometryRenderer &&) = delete;
 
     void activate(gfx::Device *device, const GeometryRendererInfo &info = GeometryRendererInfo());
     void render(gfx::RenderPass *renderPass, gfx::CommandBuffer *cmdBuff, PipelineSceneData *sceneData);
     void destroy();
+    bool empty() const;
 
     void addDashedLine(const Vec3 &v0, const Vec3 &v1, gfx::Color color, bool depthTest = true);
     void addLine(const Vec3 &v0, const Vec3 &v1, gfx::Color color, bool depthTest = true);
@@ -103,7 +104,7 @@ private:
     void update();
     void reset();
 
-    gfx::Device *          _device{nullptr};
+    gfx::Device *_device{nullptr};
     GeometryVertexBuffers *_buffers{nullptr};
 };
 

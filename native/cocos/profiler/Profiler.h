@@ -36,11 +36,11 @@ class ProfilerBlock;
 struct ProfilerBlockDepth;
 
 enum class ShowOption : uint32_t {
-    CORE_STATS        = 0x01,
-    MEMORY_STATS      = 0x02,
-    OBJECT_STATS      = 0x04,
+    CORE_STATS = 0x01,
+    MEMORY_STATS = 0x02,
+    OBJECT_STATS = 0x04,
     PERFORMANCE_STATS = 0x08,
-    ALL               = CORE_STATS | MEMORY_STATS | OBJECT_STATS | PERFORMANCE_STATS,
+    ALL = CORE_STATS | MEMORY_STATS | OBJECT_STATS | PERFORMANCE_STATS,
 };
 
 /**
@@ -49,12 +49,12 @@ enum class ShowOption : uint32_t {
 class Profiler {
 public:
     Profiler(const Profiler &) = delete;
-    Profiler(Profiler &&)      = delete;
+    Profiler(Profiler &&) = delete;
     Profiler &operator=(const Profiler &) = delete;
     Profiler &operator=(Profiler &&) = delete;
 
     static Profiler *getInstance();
-    static void      destroyInstance();
+    static void destroyInstance();
 
     void setEnable(ShowOption option, bool b = true);
     bool isEnabled(ShowOption option) const;
@@ -63,7 +63,7 @@ public:
     void endFrame();
     void update();
 
-    inline bool         isMainThread() const { return _mainThreadId == std::this_thread::get_id(); }
+    inline bool isMainThread() const { return _mainThreadId == std::this_thread::get_id(); }
     inline MemoryStats &getMemoryStats() { return _memoryStats; }
     inline ObjectStats &getObjectStats() { return _objectStats; }
 
@@ -71,23 +71,23 @@ private:
     Profiler();
     ~Profiler();
 
-    void        doIntervalUpdate();
+    void doIntervalUpdate();
     static void doFrameUpdate();
-    void        printStats();
+    void printStats();
 
     void beginBlock(const ccstd::string &name);
     void endBlock();
     void gatherBlocks(ProfilerBlock *parent, uint32_t depth, std::vector<ProfilerBlockDepth> &outBlocks);
 
     static Profiler *instance;
-    uint32_t         _options{static_cast<uint32_t>(ShowOption::ALL)};
-    utils::Timer     _timer;
-    CoreStats        _coreStats;
-    MemoryStats      _memoryStats;
-    ObjectStats      _objectStats;
-    ProfilerBlock *  _root{nullptr};
-    ProfilerBlock *  _current{nullptr};
-    std::thread::id  _mainThreadId;
+    uint32_t _options{static_cast<uint32_t>(ShowOption::ALL)};
+    utils::Timer _timer;
+    CoreStats _coreStats;
+    MemoryStats _memoryStats;
+    ObjectStats _objectStats;
+    ProfilerBlock *_root{nullptr};
+    ProfilerBlock *_current{nullptr};
+    std::thread::id _mainThreadId;
 
     friend class AutoProfiler;
 };
@@ -117,7 +117,6 @@ private:
  */
 #if CC_USE_PROFILER
     #define CC_PROFILER                           cc::Profiler::getInstance()
-    #define CC_PROFILER_DESTROY                   cc::Profiler::destroyInstance()
     #define CC_PROFILER_SET_ENABLE(option, b)     CC_PROFILER->setEnable(option, (b))
     #define CC_PROFILER_IS_ENABLED(option)        CC_PROFILER->isEnabled(option)
     #define CC_PROFILER_UPDATE                    CC_PROFILER->update()
@@ -153,7 +152,6 @@ private:
         }
 #else
     #define CC_PROFILER
-    #define CC_PROFILER_DESTROY
     #define CC_PROFILER_SET_ENABLE(option, b)
     #define CC_PROFILER_IS_ENABLED(option) false
     #define CC_PROFILER_UPDATE

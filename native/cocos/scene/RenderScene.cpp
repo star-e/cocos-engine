@@ -51,7 +51,7 @@ RenderScene::~RenderScene() = default;
 
 void RenderScene::activate() {
     const auto *sceneData = Root::getInstance()->getPipeline()->getPipelineSceneData();
-    _octree               = sceneData->getOctree();
+    _octree = sceneData->getOctree();
 }
 
 bool RenderScene::initialize(const IRenderSceneInfo &info) {
@@ -109,6 +109,7 @@ void RenderScene::removeCamera(Camera *camera) {
 void RenderScene::removeCameras() {
     for (const auto &camera : _cameras) {
         camera->detachFromScene();
+        camera->destroy();
     }
     _cameras.clear();
 }

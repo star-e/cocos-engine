@@ -39,7 +39,7 @@
 namespace cc {
 
 CocosApplication::CocosApplication() {
-    _engine      = BaseEngine::createEngine();
+    _engine = BaseEngine::createEngine();
     _systemWidow = _engine->getInterface<ISystemWindow>();
     CC_ASSERT(_systemWidow != nullptr);
 }
@@ -78,9 +78,9 @@ int CocosApplication::init() {
     se->start();
 
 #if (CC_PLATFORM == CC_PLATFORM_MAC_IOS)
-    auto     logicSize  = _systemWidow->getViewSize();
-    IScreen *screen     = _engine->getInterface<IScreen>();
-    float    pixelRatio = screen->getDevicePixelRatio();
+    auto logicSize = _systemWidow->getViewSize();
+    IScreen *screen = _engine->getInterface<IScreen>();
+    float pixelRatio = screen->getDevicePixelRatio();
     cc::EventDispatcher::dispatchResizeEvent(logicSize.x * pixelRatio, logicSize.y * pixelRatio);
 #endif
     return 0;
@@ -121,7 +121,7 @@ void CocosApplication::onResume() {
 }
 
 void CocosApplication::onClose() {
-    // TODO(cc): Handling close events
+    close();
 }
 
 void CocosApplication::setDebugIpAndPort(const ccstd::string &serverAddr, uint32_t port, bool isWaitForConnect) {
