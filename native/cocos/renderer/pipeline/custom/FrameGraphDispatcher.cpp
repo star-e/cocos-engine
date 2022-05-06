@@ -430,25 +430,13 @@ void FrameGraphDispatcher::buildBarriers() {
                 visitor,
                 get(colors, rag));
         }
-
-        for (const auto &pair : batchedBarriers) {
-            CC_LOG_INFO("pass %d", pair.first);
-            CC_LOG_INFO("fronts:");
-            for (const auto &front : pair.second.frontBarriers) {
-                CC_LOG_INFO("%d", front.resourceID);
-            }
-            CC_LOG_INFO("rear:");
-            for (const auto &rear : pair.second.rearBarriers) {
-                CC_LOG_INFO("%d", rear.resourceID);
-            }
-        }
     }
 }
 #pragma endregion graphProcess
 
 #pragma region assisstantFuncDefinition
-template<typename Graph>
-bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph& graph) {
+template <typename Graph>
+bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph &graph) {
     auto e = edge(srcVertex, dstVertex, graph);
     if (!e.second) {
         auto res = add_edge(srcVertex, dstVertex, graph);
@@ -591,7 +579,7 @@ void processRasterPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph,
             }
         }
     }
-    
+
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
