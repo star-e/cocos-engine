@@ -23,17 +23,8 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#include <algorithm>
 #include <memory>
-#include <string>
-#include <variant>
-#include "FGDispatcherTypes.h"
 #include "NativePipelineTypes.h"
-#include "RenderGraphGraphs.h"
-#include "RenderGraphTypes.h"
-#include "LayoutGraphGraphs.h"
-#include "base/Variant.h"
-#include "base/std/container/string.h"
 #include "cocos/base/StringUtil.h"
 #include "cocos/renderer/gfx-base/GFXDescriptorSetLayout.h"
 #include "cocos/renderer/pipeline/Enum.h"
@@ -45,12 +36,8 @@
 #include "cocos/renderer/pipeline/custom/RenderInterfaceFwd.h"
 #include "cocos/scene/RenderScene.h"
 #include "cocos/scene/RenderWindow.h"
-#include "gfx-base/GFXDef-common.h"
 #include "gfx-base/GFXDevice.h"
-#include "pipeline/custom/LayoutGraphTypes.h"
 #include "profiler/DebugRenderer.h"
-
-#define USE_FRAME_GRAPH 0
 
 namespace cc {
 
@@ -127,21 +114,21 @@ void generateConstantMacros(
     gfx::Device *device,
     std::string &constantMacros, bool clusterEnabled) {
     constantMacros = StringUtil::format(
-            R"(
-            #define CC_DEVICE_SUPPORT_FLOAT_TEXTURE %d
-            #define CC_ENABLE_CLUSTERED_LIGHT_CULLING %d
-            #define CC_DEVICE_MAX_VERTEX_UNIFORM_VECTORS %d
-            #define CC_DEVICE_MAX_FRAGMENT_UNIFORM_VECTORS %d
-            #define CC_DEVICE_CAN_BENEFIT_FROM_INPUT_ATTACHMENT %d
-            #define CC_PLATFORM_ANDROID_AND_WEBGL 0
-            #define CC_ENABLE_WEBGL_HIGHP_STRUCT_VALUES 0
-            )",
-            hasAnyFlags(device->getFormatFeatures(gfx::Format::RGBA32F),
-                        gfx::FormatFeature::RENDER_TARGET | gfx::FormatFeature::SAMPLED_TEXTURE),
-            clusterEnabled ? 1 : 0,
-            device->getCapabilities().maxVertexUniformVectors,
-            device->getCapabilities().maxFragmentUniformVectors,
-            device->hasFeature(gfx::Feature::INPUT_ATTACHMENT_BENEFIT));
+        R"(
+#define CC_DEVICE_SUPPORT_FLOAT_TEXTURE %d
+#define CC_ENABLE_CLUSTERED_LIGHT_CULLING %d
+#define CC_DEVICE_MAX_VERTEX_UNIFORM_VECTORS %d
+#define CC_DEVICE_MAX_FRAGMENT_UNIFORM_VECTORS %d
+#define CC_DEVICE_CAN_BENEFIT_FROM_INPUT_ATTACHMENT %d
+#define CC_PLATFORM_ANDROID_AND_WEBGL 0
+#define CC_ENABLE_WEBGL_HIGHP_STRUCT_VALUES 0
+        )",
+        hasAnyFlags(device->getFormatFeatures(gfx::Format::RGBA32F),
+                    gfx::FormatFeature::RENDER_TARGET | gfx::FormatFeature::SAMPLED_TEXTURE),
+        clusterEnabled ? 1 : 0,
+        device->getCapabilities().maxVertexUniformVectors,
+        device->getCapabilities().maxFragmentUniformVectors,
+        device->hasFeature(gfx::Feature::INPUT_ATTACHMENT_BENEFIT));
 }
 
 } // namespace
@@ -177,7 +164,8 @@ bool NativePipeline::destroy() noexcept {
     return true;
 }
 
-void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &cameras) {
+// NOLINTNEXTLINE
+void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
     const auto *sceneData     = pipelineSceneData.get();
     auto *      commandBuffer = device->getCommandBuffer();
     float       shadingScale  = sceneData->getShadingScale();
@@ -192,7 +180,13 @@ void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &c
         auto colorHandle = framegraph::FrameGraph::stringToHandle("outputTexture");
 
         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData2 &data) {
-            gfx::Color clearColor = camera->getClearColor();
+            gfx::Color clearColor;
+            if (hasFlag(static_cast<gfx::ClearFlags>(camera->getClearFlag()), gfx::ClearFlagBit::COLOR)) {
+                clearColor.x = camera->getClearColor().x;
+                clearColor.y = camera->getClearColor().y;
+                clearColor.z = camera->getClearColor().z;
+            }
+            clearColor.w = camera->getClearColor().w;
             // color
             framegraph::Texture::Descriptor colorTexInfo;
             colorTexInfo.format = sceneData->isHDR() ? gfx::Format::RGBA16F : gfx::Format::RGBA8;
@@ -205,20 +199,10 @@ void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &c
 
             data.outputTex = builder.create(colorHandle, colorTexInfo);
             framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-
             colorAttachmentInfo.usage      = framegraph::RenderTargetAttachment::Usage::COLOR;
             colorAttachmentInfo.clearColor = clearColor;
+            colorAttachmentInfo.loadOp     = gfx::LoadOp::CLEAR;
 
-            const auto clearFlags = camera->getClearFlag();
-            if (!hasFlag(clearFlags, gfx::ClearFlagBit::COLOR)) {
-                if (hasFlag(clearFlags, static_cast<gfx::ClearFlagBit>(pipeline::skyboxFlag))) {
-                    colorAttachmentInfo.loadOp = gfx::LoadOp::DISCARD;
-                } else {
-                    colorAttachmentInfo.loadOp = gfx::LoadOp::LOAD;
-                }
-            } else {
-                colorAttachmentInfo.loadOp = gfx::LoadOp::CLEAR;
-            }
             colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
 
             data.outputTex = builder.write(data.outputTex, colorAttachmentInfo);
@@ -260,14 +244,14 @@ void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &c
 
         auto forwardExec = [](const RenderData2 & /*data*/,
                               const framegraph::DevicePassResourceTable &table) {
-                // do nothing
-            };
+            // do nothing
+        };
 
         auto passHandle = framegraph::FrameGraph::stringToHandle("forwardPass");
 
         frameGraph.addPass<RenderData2>(
-                static_cast<uint>(ForwardInsertPoint::IP_FORWARD),
-                passHandle, forwardSetup, forwardExec);
+            static_cast<uint>(ForwardInsertPoint::IP_FORWARD),
+            passHandle, forwardSetup, forwardExec);
 
         frameGraph.presentFromBlackboard(colorHandle,
                                          camera->getWindow()->getFramebuffer()->getColorTextures()[0], true);
@@ -288,419 +272,6 @@ void NativePipeline::extractToFrameGraph(const ccstd::vector<scene::Camera *> &c
             framegraph::FrameGraph::gc(INTERVAL_IN_SECONDS * 60);
         }
     }
-}
-
-using ccstd::pmr::string;
-using std::pair;
-using std::vector;
-using std::pair;
-using std::map;
-using TestDataType = vector<pair<PassType, vector<vector<vector<string>>>>>;
-using ResourceInfo = vector<pair<string, gfx::DescriptorType>>;
-using LayoutInfo = vector<vector<pair<UpdateFrequency, vector<pair<gfx::ShaderStageFlagBit, vector<pair<DescriptorIndex, vector<string>>>>>>>>;
-
-void testData(const TestDataType &rasterData, const ResourceInfo &rescInfo, const LayoutInfo& layoutInfo, RenderGraph &renderGraph, ResourceGraph &rescGraph, LayoutGraphData& layoutGraphData) {
-
-    for (const auto& resc: rescInfo) {
-        string      name           = std::get<0>(resc);
-        auto        rescVertexID   = add_vertex(rescGraph, ManagedTag{}, name.c_str());
-    }
-
-    const auto& mem_resource = layoutGraphData.get_allocator();
-
-    for (size_t i = 0; i < layoutInfo.size(); ++i) {
-        const ccstd::string name = "pass" + std::to_string(i);
-        auto layoutVtxID = add_vertex(layoutGraphData, RenderStageTag{}, name.c_str());
-        auto& layouts = get(LayoutGraphData::Layout, layoutGraphData, layoutVtxID);
-
-        for (size_t j = 0; j < layoutInfo[i].size(); ++j) {
-            const auto& freqPair = layoutInfo[i][j];
-            UpdateFrequency freq = freqPair.first;
-
-            DescriptorSetData descSetData(mem_resource);
-
-            const auto& dsData = freqPair.second;
-            for (size_t k = 0; k < dsData.size(); ++k) {
-                gfx::ShaderStageFlagBit shaderStage = dsData[k].first;
-                DescriptorTableData dsTableData(mem_resource);
-
-                for(size_t l = 0; l < dsData[k].second.size(); ++l) {
-                    DescriptorBlockData blockData(mem_resource);
-                    const auto& dsTypePair = dsData[k].second[l];
-                    DescriptorIndex index = dsTypePair.first;
-                    for (size_t m = 0; m < dsTypePair.second.size(); ++m) {
-                        const string& resName = dsTypePair.second[m];
-                        DescriptorData ds;
-                        ds.descriptorID = rescGraph.valueIndex[resName];
-                        blockData.descriptors.emplace_back(ds);
-
-                    }
-                    dsTableData.descriptorBlocks.emplace_back(blockData);
-                }
-                descSetData.tables.emplace(shaderStage, dsTableData);
-            }
-            layouts.descriptorSets.emplace(freq, descSetData);
-        }
-    }
-
-    uint32_t passCount = 0;
-    for (size_t i = 0; i < rasterData.size(); ++i) {
-        const auto &pass = rasterData[i];
-        switch (pass.first) {
-            case PassType::RASTER: {
-                // const string name = pass.first;
-                const auto &subpasses = pass.second;
-                for (size_t j = 0; j < subpasses.size(); ++j) {
-                    const ccstd::string name     = "pass" + std::to_string(passCount++);
-                    const auto          vertexID = add_vertex(renderGraph, RasterTag{}, name.c_str());
-                    assert(subpasses[j].size() == 2); // inputs and outputs
-                    const auto &attachments = subpasses[j];
-                    auto &      raster      = get(RasterTag{}, vertexID, renderGraph);
-                    bool        isOutput    = false;
-
-                    for (size_t k = 0; k < attachments.size(); ++k) {
-                        for (size_t l = 0; l < attachments[k].size(); ++l) {
-                            const auto &inputsOrOutputs = attachments[k];
-                            const auto &viewName        = inputsOrOutputs[l];
-                            raster.rasterViews.emplace(viewName.c_str(), RasterView{
-                                                           viewName.c_str(),
-                                                           isOutput ? AccessType::WRITE : AccessType::READ,
-                                                           AttachmentType::RENDER_TARGET,
-                                                           gfx::LoadOp::CLEAR,
-                                                           gfx::StoreOp::STORE,
-                                                           gfx::ClearFlagBit::ALL,
-                                                           gfx::Color({1.0, 0.0, 0.0, 1.0}),
-                                                       });
-
-                        }
-                        isOutput = true;
-                    }
-                }
-            }
-        }
-    }
-
-    FrameGraphDispatcher fgDispatcher(rescGraph, renderGraph, layoutGraphData, layoutGraphData.resource());
-    fgDispatcher.buildBarriers();
-
-    // fill resource graph
-}
-
-void NativePipeline::extractToRenderGraph(const ccstd::vector<scene::Camera *> &cameras) {
-    boost::container::pmr::memory_resource *resource = boost::container::pmr::get_default_resource();
-    RenderGraph                 renderGraph(resource);
-    ResourceGraph               rescGraph(resource);
-    LayoutGraphData                 layoutGraph(resource);
-
-
-    ResourceInfo resources = {
-        {"0", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"1", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"2", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"3", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"4", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"5", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"6", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"7", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"8", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"9", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"10", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"11", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"12", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"13", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"14", gfx::DESCRIPTOR_TEXTURE_TYPE},
-        {"15", gfx::DESCRIPTOR_TEXTURE_TYPE},
-    };
-
-
-    /* #pragma region test-case-0
-
-    TestDataType data = {
-        {
-            PassType::RASTER,
-            {
-                {{}, {"0", "1", "2"}},
-                {{"0", "1", "2", "4"}, {"3"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"3"}, {"5"}},
-            },
-        }};
-    // using LayoutInfo = vector<vector<pair<UpdateFrequency, vector<pair<gfx::ShaderStageFlagBit, vector<string>>>>>>;
-    using ShaderStageMap = map<string, gfx::ShaderStageFlagBit>;
-    //using FrequencyPair = pair<UpdateFrequency, ShaderStagePairList>;
-    LayoutInfo layoutInfo = {
-        {{UpdateFrequency::PER_PASS,
-            {{
-                {gfx::ShaderStageFlagBit::VERTEX, {
-                    {
-                        DescriptorIndex::SAMPLER_TEXTURE,
-                        {"0", "2"},
-                    },
-                }},
-                {gfx::ShaderStageFlagBit::FRAGMENT, {
-                    {DescriptorIndex::TEXTURE, {"1"}},
-                }},
-            }}}},
-        {{UpdateFrequency::PER_PASS, {
-            {
-                {gfx::ShaderStageFlagBit::VERTEX, {{
-                    DescriptorIndex::SAMPLER_TEXTURE,
-                    {"0", "2"},
-                },
-                    {
-                        DescriptorIndex::TEXTURE,
-                        {"4"},
-                    }}},
-                {gfx::ShaderStageFlagBit::FRAGMENT, {
-                    {
-                        DescriptorIndex::SAMPLER_TEXTURE,
-                        {"1", "3"},
-                    },
-                }},
-            },
-        }}},
-        {{UpdateFrequency::PER_BATCH, {
-            {
-                {gfx::ShaderStageFlagBit::VERTEX, {
-                    {
-                        DescriptorIndex::SAMPLER_TEXTURE,
-                        {"3", "5"},
-                    },
-                }},
-            },
-        }}},
-    };
-
-    #pragma endregion test-case-0
-*/
-
-    TestDataType data = {
-        {
-            PassType::RASTER,
-            {
-                {{}, {"0", "1"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"0"}, {"2", "3"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"1"}, {"4", "5"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"3", "5"}, {"6"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"2", "4", "6"}, {"7"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{}, {"8"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"8"}, {"9"}},
-            },
-        },
-        {
-            PassType::RASTER,
-            {
-                {{"7", "9"}, {"10"}},
-            },
-        },
-
-    };
-
-    LayoutInfo layoutInfo = {
-        {
-            {   UpdateFrequency::PER_BATCH, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"0", "1"},
-                                }
-                            }
-                        },
-                    }
-                },             
-            },
-        }, 
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::VERTEX, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"0"},
-                                }
-                            }
-                        },
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"2", "3"},
-                                }
-                            }
-                        },
-                    }
-                },             
-            },
-
-        }, 
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"4", "5"},
-                                },
-                                {
-                                    DescriptorIndex::TEXTURE, {"1"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            }
-
-        },
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"3", "5", "6"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            }
-
-        },
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"2"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            },
-            {   UpdateFrequency::PER_QUEUE, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::VERTEX, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"4"},
-                                },
-                            },
-                        },
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"6"},
-                                },
-                                {
-                                    DescriptorIndex::TEXTURE, {"7"},
-                                }
-                            }
-                        },
-                    }
-                },             
-            }
-        },
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"8"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            },
-        },
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"8", "9"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            },
-        },
-        {
-            {   UpdateFrequency::PER_PASS, 
-                {
-                    {
-                        {
-                            gfx::ShaderStageFlagBit::FRAGMENT, {
-                                {
-                                    DescriptorIndex::SAMPLER_TEXTURE, {"7", "9", "10"},
-                                },
-                            }
-                        },
-                    }
-                },             
-            },
-        }
-
-    };
-
-    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph);
-    // for(const auto* camera : cameras) {}
-}
-
-// NOLINTNEXTLINE
-void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
-#if USE_FRAME_GRAPH
-    extractToFrameGraph(cameras);
-#else
-    extractToRenderGraph(cameras);
-#endif
 }
 
 const MacroRecord &NativePipeline::getMacros() const {

@@ -22,7 +22,6 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
 ****************************************************************************/
-
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/range/algorithm.hpp>
 #include "FGDispatcherGraphs.h"
@@ -592,9 +591,11 @@ void processRasterPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph,
             }
         }
     }
+    
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
+    std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
 void processComputePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph, AccessTable &accessRecord, uint32_t passID, const ComputePass &pass) {
@@ -617,6 +618,7 @@ void processComputePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
+    std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
 void processCopyPass(RAG &rag, const LGD & /*lgd*/, const ResourceGraph &rescGraph, AccessTable &accessRecord, uint32_t passID, const CopyPass &pass) {
@@ -654,6 +656,7 @@ void processCopyPass(RAG &rag, const LGD & /*lgd*/, const ResourceGraph &rescGra
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
+    std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
 void processRaytracePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph, AccessTable &accessRecord, uint32_t passID, const RaytracePass &pass) {
@@ -676,6 +679,7 @@ void processRaytracePass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGrap
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
+    std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
 void processPresentPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass) {
@@ -695,6 +699,7 @@ void processPresentPass(RAG &rag, const LGD &lgd, const ResourceGraph &rescGraph
         // LOG("~~~~~~~~~~ Found an empty pipeline! ~~~~~~~~~~");
         tryAddEdge(EXPECT_START_ID, vertID, rag);
     }
+    std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
 #pragma endregion assisstantFuncDefinition
