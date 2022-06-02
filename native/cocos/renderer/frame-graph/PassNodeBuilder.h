@@ -26,6 +26,7 @@
 #pragma once
 
 #include "PassNode.h"
+#include "frame-graph/Handle.h"
 
 namespace cc {
 namespace framegraph {
@@ -55,6 +56,8 @@ public:
     inline void subpass(bool end = false, bool clearActionIgnorable = true) const noexcept;
     inline void setViewport(const gfx::Rect &scissor) noexcept;
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor) noexcept;
+
+    // void addFullBarrier(const Handle& handle, );
 
     void writeToBlackboard(const StringHandle &name, const Handle &handle) const noexcept;
     Handle readFromBlackboard(const StringHandle &name) const noexcept;

@@ -29,6 +29,7 @@
 #include "RenderTargetAttachment.h"
 #include "base/std/container/string.h"
 #include "gfx-base/GFXDef.h"
+#include "gfx-base/states/GFXTextureBarrier.h"
 
 namespace cc {
 namespace framegraph {
@@ -63,6 +64,13 @@ private:
         gfx::Texture *renderTarget{nullptr};
     };
 
+    struct Barriers {
+        ccstd::vector<gfx::TextureBarrier*> frontTextureBarriers;
+        ccstd::vector<gfx::TextureBarrier*> rearTextureBarriers;
+        ccstd::vector<gfx::GeneralBarrier*> frontBufferBarrier;
+        ccstd::vector<gfx::GeneralBarrier*> rearBufferBarrier;
+    };
+
     void append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments);
     void append(const FrameGraph &graph, const RenderTargetAttachment &attachment,
                 ccstd::vector<RenderTargetAttachment> *attachments, gfx::SubpassInfo *subpass, const ccstd::vector<Handle> &reads);
@@ -74,6 +82,7 @@ private:
     ccstd::vector<Attachment> _attachments{};
     uint16_t _usedRenderTargetSlotMask{0};
     DevicePassResourceTable _resourceTable;
+    Barriers _barriers;
 
     gfx::Viewport _viewport;
     gfx::Rect _scissor;

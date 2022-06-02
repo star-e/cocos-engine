@@ -32,6 +32,7 @@
 #include "RenderTargetAttachment.h"
 #include "VirtualResource.h"
 #include "gfx-base/GFXDef.h"
+#include "State.h"
 
 namespace cc {
 namespace framegraph {
@@ -53,6 +54,7 @@ public:
     inline void sideEffect();
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
+    inline void addBarrier(const ResourceBarrier& barrier);
 
 private:
     bool canMerge(const FrameGraph &graph, const PassNode &passNode) const;
@@ -69,6 +71,10 @@ private:
     ccstd::vector<RenderTargetAttachment> _attachments{};
     ccstd::vector<VirtualResource *> _resourceRequestArray{};
     ccstd::vector<VirtualResource *> _resourceReleaseArray{};
+    ccstd::vector<ResourceBarrier> _frontResourceBarrier;
+    ccstd::vector<ResourceBarrier> _rearResourceBarrier;
+    
+
     const StringHandle _name;
     uint32_t _refCount{0};
     PassNode *_head{nullptr};
