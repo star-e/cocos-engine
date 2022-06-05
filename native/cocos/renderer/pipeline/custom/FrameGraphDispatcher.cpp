@@ -84,6 +84,7 @@ void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
 using PmrString = ccstd::pmr::string;
 using RAG = ResourceAccessGraph;
 using LGD = LayoutGraphData;
+using gfx::PassType;
 using BarrierMap = FlatMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
 using AccessVertex = ResourceAccessGraph::vertex_descriptor;
 using InputStatusTuple = std::tuple<PassType /*passType*/, PmrString /*resourceName*/, gfx::ShaderStageFlagBit /*visibility*/, gfx::MemoryAccessBit /*access*/>;

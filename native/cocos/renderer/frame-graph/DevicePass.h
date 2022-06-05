@@ -30,6 +30,7 @@
 #include "base/std/container/string.h"
 #include "gfx-base/GFXDef.h"
 #include "gfx-base/states/GFXTextureBarrier.h"
+#include "State.h"
 
 namespace cc {
 namespace framegraph {
@@ -65,10 +66,8 @@ private:
     };
 
     struct Barriers {
-        ccstd::vector<gfx::TextureBarrier*> frontTextureBarriers;
-        ccstd::vector<gfx::TextureBarrier*> rearTextureBarriers;
-        ccstd::vector<gfx::GeneralBarrier*> frontBufferBarrier;
-        ccstd::vector<gfx::GeneralBarrier*> rearBufferBarrier;
+        ccstd::vector<ResourceBarrier> frontTextureBarriers;
+        ccstd::vector<ResourceBarrier> rearTextureBarriers;
     };
 
     void append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments);

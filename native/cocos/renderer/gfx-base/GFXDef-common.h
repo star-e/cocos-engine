@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include "base/TypeDef.h"
 #include "base/memory/Memory.h"
 #include "base/std/container/string.h"
@@ -32,9 +33,9 @@
 #include "math/Math.h"
 
 #ifdef Status
-// Fix linux compile errors 
-// In /usr/include/X11/Xlib.h Status defined as int
-#undef Status
+    // Fix linux compile errors
+    // In /usr/include/X11/Xlib.h Status defined as int
+    #undef Status
 #endif
 
 /**
@@ -760,6 +761,16 @@ enum class QueueType : uint32_t {
 };
 CC_ENUM_CONVERSION_OPERATOR(QueueType);
 
+enum class PassType {
+    RASTER,
+    COMPUTE,
+    COPY,
+    MOVE,
+    RAYTRACE,
+    PRESENT,
+};
+CC_ENUM_CONVERSION_OPERATOR(PassType);
+
 enum class QueryType : uint32_t {
     OCCLUSION,
     PIPELINE_STATISTICS,
@@ -926,21 +937,21 @@ struct Color {
 using ColorList = ccstd::vector<Color>;
 
 struct BindingMappingInfo {
- /**
- * For non-vulkan backends, to maintain compatibility and maximize
- * descriptor cache-locality, descriptor-set-based binding numbers need
- * to be mapped to backend-specific bindings based on maximum limit
- * of available descriptor slots in each set.
- *
- * The GFX layer assumes the binding numbers for each descriptor type inside each set
- * are guaranteed to be consecutive, so the mapping procedure is reduced
- * to a simple shifting operation. This data structure specifies the
- * capacity for each descriptor type in each set.
- *
- * The `setIndices` field defines the binding ordering between different sets.
- * The last set index is treated as the 'flexible set', whose capacity is dynamically
- * assigned based on the total available descriptor slots on the runtime device.
- */
+    /**
+     * For non-vulkan backends, to maintain compatibility and maximize
+     * descriptor cache-locality, descriptor-set-based binding numbers need
+     * to be mapped to backend-specific bindings based on maximum limit
+     * of available descriptor slots in each set.
+     *
+     * The GFX layer assumes the binding numbers for each descriptor type inside each set
+     * are guaranteed to be consecutive, so the mapping procedure is reduced
+     * to a simple shifting operation. This data structure specifies the
+     * capacity for each descriptor type in each set.
+     *
+     * The `setIndices` field defines the binding ordering between different sets.
+     * The last set index is treated as the 'flexible set', whose capacity is dynamically
+     * assigned based on the total available descriptor slots on the runtime device.
+     */
     IndexList maxBlockCounts{0};
     IndexList maxSamplerTextureCounts{0};
     IndexList maxSamplerCounts{0};
@@ -1311,6 +1322,11 @@ struct ALIGNAS(8) TextureBarrierInfo {
     AccessFlags prevAccesses{AccessFlagBit::NONE};
     AccessFlags nextAccesses{AccessFlagBit::NONE};
 
+    uint32_t baseMipLevel{0};
+    uint32_t levelCount{1};
+    uint32_t baseSlice{0};
+    uint32_t sliceCount{1};
+
     uint64_t discardContents{0}; // @ts-boolean
 
     Queue *srcQueue{nullptr}; // @ts-nullable
@@ -1319,6 +1335,20 @@ struct ALIGNAS(8) TextureBarrierInfo {
     EXPOSE_COPY_FN(TextureBarrierInfo)
 };
 using TextureBarrierInfoList = ccstd::vector<TextureBarrierInfo>;
+
+struct ALIGNAS(8) BufferBarrierInfo {
+    AccessFlags prevAccesses{AccessFlagBit::NONE};
+    AccessFlags nextAccesses{AccessFlagBit::NONE};
+
+    uint32_t offset;
+    uint32_t size;
+
+    Queue *srcQueue{nullptr}; // @ts-nullable
+    Queue *dstQueue{nullptr}; // @ts-nullable
+
+    EXPOSE_COPY_FN(BufferBarrierInfo)
+};
+using BufferBarrierInfoList = ccstd::vector<BufferBarrierInfo>;
 
 struct FramebufferInfo {
     RenderPass *renderPass{nullptr};

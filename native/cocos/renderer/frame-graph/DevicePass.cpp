@@ -115,13 +115,26 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
 }
 
 void DevicePass::execute() {
-    auto *cmdBuff = gfx::Device::getInstance()->getCommandBuffer();
+    auto *device = gfx::Device::getInstance();
+    auto *cmdBuff = device->getCommandBuffer();
 
     begin(cmdBuff);
 
     for (uint32_t i = 0; i < utils::toUint(_subpasses.size()); ++i) {
         Subpass &subpass = _subpasses[i];
         _resourceTable._subpassIndex = i;
+
+        
+        ccstd::vector<gfx::TextureBarrier> frontTexBarriers(_barriers.frontTextureBarriers.size());
+        for (size_t i = 0; i < _barriers.frontTextureBarriers.size(); ++i) {
+            
+
+
+        }
+
+        for(const auto& frontTexBarrier : _barriers.frontTextureBarriers) {
+            cmdBuff->addTextureBarriers(const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint32_t textureBarrierCount)
+        }
 
         for (LogicPass &pass : subpass.logicPasses) {
             gfx::Viewport &viewport = pass.customViewport ? pass.viewport : _viewport;

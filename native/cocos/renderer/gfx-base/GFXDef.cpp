@@ -23,12 +23,14 @@
  THE SOFTWARE.
 ****************************************************************************/
 
+#include <string.h>
 #include "base/Utils.h"
 #include "base/std/container/array.h"
 #include "base/std/hash/hash.h"
 
 #include "GFXDef.h"
 #include "GFXTexture.h"
+#include "gfx-base/GFXDef-common.h"
 
 namespace cc {
 namespace gfx {
@@ -217,6 +219,15 @@ ccstd::hash_t Hasher<TextureBarrierInfo>::operator()(const TextureBarrierInfo &i
 
 bool operator==(const TextureBarrierInfo &lhs, const TextureBarrierInfo &rhs) {
     return !memcmp(&lhs, &rhs, sizeof(TextureBarrierInfo));
+}
+
+template<>
+ccstd::hash_t Hasher<BufferBarrierInfo>::operator()(const BufferBarrierInfo &info) const {
+    return quickHashTrivialStruct(&info);
+}
+
+bool operator==(const BufferBarrierInfo &lhs, const BufferBarrierInfo &rhs) {
+    return !memcmp(&lhs, &rhs, sizeof(BufferBarrierInfo));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

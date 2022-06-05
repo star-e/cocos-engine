@@ -24,11 +24,39 @@
 ****************************************************************************/
 
 #include "State.h"
+#include "gfx-base/GFXDef-common.h"
+#include "pipeline/custom/GslUtils.h"
 
 namespace cc {
 namespace framegraph {
 
-gfx::GFXObject* getBarrier(const VirtualResource* res, const ResourceBarrier& barrierInfo) noexcept {
+namespace {
+    /* struct AccessKey {
+        ResourceType type;
+        AccessStatus status;
+        gfx::Format format;
+    
+        bool operator==(const AccessKey& other) const {
+            bool res = false;
+            if(type == ResourceType::BUFFER) {
+                res = status.access == other.status.access && status.visibility == other.status.visibility &&
+                    status.passType == other.status.passType;
+            } else {
+                res = status.access == other.status.access && status.visibility == other.status.visibility &&
+                    status.passType == other.status.passType && format == other.format;
+            }
+            return false;
+        }
+    };
+
+    gfx::AccessFlagBit getAccess()
+
+    const ccstd::unordered_map<AccessKey, gfx::AccessFlagBit> accessMap = {
+        {{ResourceType::BUFFER, {}}, {}}  
+    }; */
+}
+
+gfx::GFXObject* getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept {
 
     return nullptr;
 }

@@ -1,5 +1,5 @@
-/****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+/***********************************************************************
+ Copyright (c) 2019-2022 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos.com
 
@@ -25,48 +25,25 @@
 
 #pragma once
 
-#include "frame-graph/FrameGraph.h"
-#include "frame-graph/Resource.h"
-#include "frame-graph/VirtualResource.h"
+#include "../GFXObject.h"
 #include "gfx-base/GFXDef-common.h"
 
 namespace cc {
-namespace framegraph {
+namespace gfx {
 
-struct Range {
-    size_t base;
-    size_t len;
+class CC_DLL BufferBarrier : public GFXObject {
+public:
+    explicit BufferBarrier(const BufferBarrierInfo &info);
+
+    static ccstd::hash_t computeHash(const BufferBarrierInfo &info);
+
+    inline const BufferBarrierInfo &getInfo() const { return _info; }
+    inline const ccstd::hash_t &getHash() const { return _hash; }
+
+protected:
+    BufferBarrierInfo _info;
+    ccstd::hash_t _hash{0U};
 };
 
-struct AccessStatus {
-    gfx::PassType passType;
-    gfx::ShaderStageFlagBit visibility;
-    gfx::MemoryAccessBit access;
-};
-
-enum class ResourceType : uint32_t{
-    UNKNOWN,
-    BUFFER,
-    TEXTURE,
-};
-
-struct ResourceBarrier {
-    ResourceType type;
-    union {
-        TextureHandle texture;
-        BufferHandle buffer;
-    };
-
-    AccessStatus beginStatus;
-    AccessStatus endStatus;
-    Range layerRange;
-    union {
-        Range mipRange;
-        Range bufferRange;
-    };
-};
-
-gfx::GFXObject* getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept;
-
-} // namespace framegraph
-} // namespace cc
+} // namespace gfx
+} 
