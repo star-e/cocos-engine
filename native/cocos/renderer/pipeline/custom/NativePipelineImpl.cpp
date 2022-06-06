@@ -77,11 +77,10 @@ SceneTask *NativeSceneTransversal::transverse(SceneVisitor *visitor) const {
 NativePipeline::NativePipeline(const allocator_type &alloc) noexcept
 : device(gfx::Device::getInstance()),
   globalDSManager(std::make_unique<pipeline::GlobalDSManager>()),
-  layoutGraphs(alloc),
+  layoutGraph(alloc),
   pipelineSceneData(ccnew pipeline::PipelineSceneData()), // NOLINT
   resourceGraph(alloc),
-  renderGraph(alloc) {
-}
+  renderGraph(alloc) {}
 
 // NOLINTNEXTLINE
 uint32_t NativePipeline::addRenderTexture(const ccstd::string &name, gfx::Format format, uint32_t width, uint32_t height, scene::RenderWindow *renderWindow) {
@@ -173,13 +172,9 @@ uint32_t NativePipeline::addDepthStencil(const ccstd::string &name, gfx::Format 
 
 void NativePipeline::beginFrame() {
     renderGraph = RenderGraph(get_allocator());
-    if (!layoutGraphs.empty()) {
-        layoutGraph = &layoutGraphs.begin()->second;
-    }
 }
 
 void NativePipeline::endFrame() {
-    layoutGraph = nullptr;
 }
 
 RasterPassBuilder *NativePipeline::addRasterPass(
@@ -198,11 +193,10 @@ RasterPassBuilder *NativePipeline::addRasterPass(
         std::forward_as_tuple(std::move(pass)),
         renderGraph);
 
-    CC_EXPECTS(layoutGraph);
-    auto passLayoutID = locate(LayoutGraphData::null_vertex(), layoutName, *layoutGraph);
+    auto passLayoutID = locate(LayoutGraphData::null_vertex(), layoutName, layoutGraph);
     CC_EXPECTS(passLayoutID);
 
-    return new NativeRasterPassBuilder(&renderGraph, passID, layoutGraph, passLayoutID);
+    return new NativeRasterPassBuilder(&renderGraph, passID, &layoutGraph, passLayoutID);
 }
 
 // NOLINTNEXTLINE
@@ -221,10 +215,9 @@ ComputePassBuilder *NativePipeline::addComputePass(const ccstd::string &layoutNa
         std::forward_as_tuple(),
         renderGraph);
 
-    CC_EXPECTS(layoutGraph);
-    auto passLayoutID = locate(LayoutGraphData::null_vertex(), layoutName, *layoutGraph);
+    auto passLayoutID = locate(LayoutGraphData::null_vertex(), layoutName, layoutGraph);
 
-    return new NativeComputePassBuilder(&renderGraph, passID, layoutGraph, passLayoutID);
+    return new NativeComputePassBuilder(&renderGraph, passID, &layoutGraph, passLayoutID);
 }
 
 // NOLINTNEXTLINE
@@ -277,12 +270,8 @@ SceneTransversal *NativePipeline::createSceneTransversal(const scene::Camera *ca
     return new NativeSceneTransversal(camera, scene);
 }
 
-LayoutGraphBuilder *NativePipeline::createLayoutGraph(const ccstd::string &name) {
-    auto res = layoutGraphs.emplace(std::piecewise_construct,
-                                    std::forward_as_tuple(name.c_str()),
-                                    std::forward_as_tuple());
-    CC_ASSERT(res.second);
-    return ccnew NativeLayoutGraphBuilder(device, &res.first->second);
+LayoutGraphBuilder *NativePipeline::getLayoutGraphBuilder() {
+    return ccnew NativeLayoutGraphBuilder(device, &layoutGraph);
 }
 
 namespace {

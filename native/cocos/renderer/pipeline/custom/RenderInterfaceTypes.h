@@ -30,7 +30,6 @@
  */
 // clang-format off
 #pragma once
-#include "cocos/core/assets/EffectAsset.h"
 #include "cocos/renderer/gfx-base/GFXDef-common.h"
 #include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
 #include "cocos/renderer/pipeline/custom/RenderGraphTypes.h"
@@ -44,8 +43,6 @@ class Quaternion;
 class Vec4;
 class Vec3;
 class Vec2;
-
-class EffectAsset;
 
 namespace pipeline {
 
@@ -102,21 +99,6 @@ public:
 };
 
 inline PipelineRuntime::~PipelineRuntime() noexcept = default;
-
-class DescriptorHierarchy {
-public:
-    DescriptorHierarchy() noexcept = default;
-    DescriptorHierarchy(DescriptorHierarchy&& rhs)      = delete;
-    DescriptorHierarchy(DescriptorHierarchy const& rhs) = delete;
-    DescriptorHierarchy& operator=(DescriptorHierarchy&& rhs) = delete;
-    DescriptorHierarchy& operator=(DescriptorHierarchy const& rhs) = delete;
-
-    virtual ~DescriptorHierarchy() noexcept = 0;
-
-    virtual void addEffect(EffectAsset* asset) = 0;
-};
-
-inline DescriptorHierarchy::~DescriptorHierarchy() noexcept = default;
 
 class Setter {
 public:
@@ -305,6 +287,7 @@ public:
 
     virtual ~LayoutGraphBuilder() noexcept = 0;
 
+    virtual void clear() = 0;
     virtual uint32_t addRenderStage(const ccstd::string& name) = 0;
     virtual uint32_t addRenderPhase(const ccstd::string& name, uint32_t parentID) = 0;
     virtual void addDescriptorBlock(uint32_t nodeID, const DescriptorBlockIndex& index, const DescriptorBlock& block) = 0;
@@ -336,7 +319,7 @@ public:
     virtual void                presentAll() = 0;
 
     virtual SceneTransversal *createSceneTransversal(const scene::Camera *camera, const scene::RenderScene *scene) = 0;
-    virtual LayoutGraphBuilder *createLayoutGraph(const ccstd::string& name) = 0;
+    virtual LayoutGraphBuilder *getLayoutGraphBuilder() = 0;
 };
 
 inline Pipeline::~Pipeline() noexcept = default;
@@ -344,7 +327,6 @@ inline Pipeline::~Pipeline() noexcept = default;
 class Factory {
 public:
     static Pipeline            *createPipeline();
-    static DescriptorHierarchy *createDescriptorHierarchy();
 };
 
 } // namespace render

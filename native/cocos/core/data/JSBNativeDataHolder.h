@@ -1,5 +1,5 @@
 /****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2022 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos.com
 
@@ -23,38 +23,32 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-/**
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
- * The following section is auto-generated.
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
- */
-// clang-format off
 #pragma once
-#include <boost/variant2/variant.hpp>
-#include "cocos/renderer/pipeline/custom/LayoutGraphFwd.h"
-#include "cocos/renderer/pipeline/custom/RenderGraphFwd.h"
+
+#include <cstdint>
+#include "base/Utils.h"
 
 namespace cc {
+class JSBNativeDataHolder final {
+public:
+    JSBNativeDataHolder() = default;
+    explicit JSBNativeDataHolder(uint8_t* data) : _data(data) {};
 
-namespace render {
+    ~JSBNativeDataHolder() {
+        if (_data != nullptr) {
+            free(_data); // Remove data in destructor
+        }
+    }
 
-class PipelineRuntime;
-class Setter;
-class RasterQueueBuilder;
-class RasterPassBuilder;
-class ComputeQueueBuilder;
-class ComputePassBuilder;
-class MovePassBuilder;
-class CopyPassBuilder;
-class SceneVisitor;
-class SceneTask;
-class SceneTransversal;
-class LayoutGraphBuilder;
-class Pipeline;
-class Factory;
+    inline void setData(uint8_t* data) { _data = data; }
+    inline uint8_t* getData() const { return _data; }
 
-} // namespace render
+    inline void destroy() { // Also support to invoke destroy method to free memory before garbage collection
+        free(_data);
+        _data = nullptr;
+    }
 
+private:
+    uint8_t* _data{nullptr};
+};
 } // namespace cc
-
-// clang-format on

@@ -25,15 +25,13 @@
 ****************************************************************************/
 
 import { EffectAsset } from '../../assets';
-import { DescriptorHierarchy } from './pipeline';
 import { Descriptor, DescriptorBlock, DescriptorBlockIndex, DescriptorDB, DescriptorTypeOrder, LayoutGraph, LayoutGraphValue, RenderPhase, UniformBlockDB } from './layout-graph';
 import { ShaderStageFlagBit, Type, Uniform } from '../../gfx';
 import { ParameterType, UpdateFrequency } from './types';
 import { JOINT_UNIFORM_CAPACITY, UBOForwardLight, UBOLocalBatched, UBOMorph } from '../define';
 
-export class WebDescriptorHierarchy extends DescriptorHierarchy {
+export class WebDescriptorHierarchy {
     constructor () {
-        super();
         this._layoutGraph = new LayoutGraph();
     }
 
@@ -144,7 +142,7 @@ export class WebDescriptorHierarchy extends DescriptorHierarchy {
         }
     }
 
-    public addEffect (asset: EffectAsset): void {
+    public addEffect (asset: EffectAsset, parent: number): void {
         const sz = asset.shaders.length;
 
         let hasCCGlobal = false;
@@ -298,7 +296,7 @@ export class WebDescriptorHierarchy extends DescriptorHierarchy {
 
             const phase: RenderPhase = new RenderPhase();
             phase.shaders.add(shader.name);
-            this._layoutGraph.addVertex<LayoutGraphValue.RenderPhase>(LayoutGraphValue.RenderPhase, phase, shader.name, queueDB);
+            this._layoutGraph.addVertex<LayoutGraphValue.RenderPhase>(LayoutGraphValue.RenderPhase, phase, shader.name, queueDB, parent);
 
             for (let k = 0; k < shader.builtins.globals.blocks.length; ++k) {
                 const blockName = shader.builtins.globals.blocks[k].name;
@@ -328,6 +326,10 @@ export class WebDescriptorHierarchy extends DescriptorHierarchy {
             this.sort(queueDB);
             dbsToMerge.push(queueDB);
         }
+    }
+
+    public addGlobal (vName: string, hasCCGlobal, hasCCCamera, hasCCShadow, hasShadowmap, hasEnv, hasDiffuse, hasSpot): number {
+        const dbsToMerge: DescriptorDB[] = [];
 
         const passDB: DescriptorDB = new DescriptorDB();
         // Add pass layout from define.ts
@@ -393,11 +395,14 @@ export class WebDescriptorHierarchy extends DescriptorHierarchy {
             this.setDescriptor(globalSamplerTexTarget, 'cc_spotLightingMap', Type.SAMPLER2D);
         }
 
-        this._layoutGraph.addVertex<LayoutGraphValue.RenderStage>(LayoutGraphValue.RenderStage, LayoutGraphValue.RenderStage, asset.name, passDB);
+        const vid = this._layoutGraph.addVertex<LayoutGraphValue.RenderStage>(LayoutGraphValue.RenderStage, LayoutGraphValue.RenderStage, vName, passDB);
 
         this.mergeDBs(dbsToMerge, passDB);
         this.sort(passDB);
+
+        return vid;
     }
+
     private _layoutGraph: LayoutGraph;
 
     public get layoutGraph () {
