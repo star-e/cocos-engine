@@ -67,6 +67,7 @@ public:
     virtual void dispatch(const DispatchInfo &info) = 0;
     virtual void addBufferBarriers(const BufferBarrier* const *bufferBarriers, const Buffer* const *buffers, uint32_t bufferBarrierCount) {};
     virtual void addTextureBarriers(const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint32_t textureBarrierCount) {};
+    virtual void addGeneralBarriers(const GeneralBarrier *const *generalBarriers, uint32_t size) {};
     virtual void pipelineBarrier(const GeneralBarrier *barrier, const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint32_t textureBarrierCount) = 0;
     virtual void beginQuery(QueryPool *queryPool, uint32_t id) = 0;
     virtual void endQuery(QueryPool *queryPool, uint32_t id) = 0;

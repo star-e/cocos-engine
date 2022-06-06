@@ -70,6 +70,7 @@ class Swapchain;
 class Buffer;
 class GeneralBarrier;
 class TextureBarrier;
+class BufferBarrier;
 class Texture;
 class Sampler;
 class Shader;
@@ -104,6 +105,9 @@ using BufferList = ccstd::vector<Buffer *>;
 using TextureList = ccstd::vector<Texture *>;
 using SamplerList = ccstd::vector<Sampler *>;
 using DescriptorSetLayoutList = ccstd::vector<DescriptorSetLayout *>;
+using BufferBarrierList = ccstd::vector<BufferBarrier*>;
+using TextureBarrierList = ccstd::vector<TextureBarrier*>;
+using GeneralBarrierList = ccstd::vector<GeneralBarrier*>;
 
 /**
  * @en Graphics object type

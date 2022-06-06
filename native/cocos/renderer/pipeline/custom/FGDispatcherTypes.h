@@ -60,7 +60,7 @@ struct AccessStatus {
     uint32_t                vertID{0xFFFFFFFF};
     gfx::ShaderStageFlagBit visibility{gfx::ShaderStageFlagBit::NONE};
     gfx::MemoryAccessBit    access{gfx::MemoryAccessBit::NONE};
-    PassType                passType{PassType::RASTER};
+    gfx::PassType           passType{gfx::PassType::RASTER};
     Range                   range;
 };
 
@@ -301,7 +301,7 @@ struct BarrierNode {
 struct FrameGraphDispatcher {
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
     allocator_type get_allocator() const noexcept { // NOLINT
-        return {resourceGraph.get_allocator().resource()};
+        return {resourceAccessGraph.get_allocator().resource()};
     }
 
     FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn, const allocator_type& alloc) noexcept;
@@ -310,17 +310,24 @@ struct FrameGraphDispatcher {
     FrameGraphDispatcher& operator=(FrameGraphDispatcher&& rhs) = delete;
     FrameGraphDispatcher& operator=(FrameGraphDispatcher const& rhs) = delete;
 
+    using BarrierMap = FlatMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
+
     void enablePassReorder(bool enable);
 
     // how much paralell-execution weights during pass reorder,
     // eg:0.3 means 30% of effort aim to paralellize execution, other 70% aim to decrease memory using.
-    // 0 by default
+    // 0 by default 
     void setParalellWeight(float paralellExecWeight);
 
     void enableMemoryAliasing(bool enable);
 
     void run();
 
+    inline const BarrierMap& getBarriers() const { return barrierMap; }
+
+    BarrierMap barrierMap;
+
+    ResourceAccessGraph                                resourceAccessGraph;
     ResourceGraph&                                     resourceGraph;
     RenderGraph&                                       graph;
     LayoutGraphData&                                   layoutGraph;

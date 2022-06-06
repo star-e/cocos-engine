@@ -56,9 +56,9 @@ namespace {
     }; */
 }
 
-gfx::GFXObject* getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept {
-
-    return nullptr;
+std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept {
+    std::pair<gfx::GFXObject*, gfx::GFXObject*> res;
+    return res;
 }
 
 } // namespace framegraph

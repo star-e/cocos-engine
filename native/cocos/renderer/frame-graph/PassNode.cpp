@@ -184,13 +184,9 @@ Handle PassNode::getWriteResourceNodeHandle(const FrameGraph &graph, const Virtu
     return it == _writes.end() ? Handle{} : *it;
 }
 
-void PassNode::addBarrier(const ResourceBarrier& barrier) {
-    // if constexpr(is_same<...>)
-    if(barrier.type == ResourceType::BUFFER) {
-        
-    } else if(barrier.type == ResourceType::TEXTURE) {
-
-    }
+void PassNode::addBarrier(const ResourceBarrier& barrier, bool front) {
+    auto& barriers = front ? _barriers.frontBarriers : _barriers.rearBarriers;
+    barriers.emplace_back(barrier);
 }
 
 } // namespace framegraph

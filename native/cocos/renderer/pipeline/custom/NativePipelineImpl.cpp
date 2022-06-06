@@ -56,6 +56,7 @@
 #include "gfx-base/GFXSwapchain.h"
 #include "gfx-base/states/GFXSampler.h"
 #include "math/Mat4.h"
+#include "pipeline/custom/FGDispatcherTypes.h"
 #include "pipeline/custom/LayoutGraphFwd.h"
 #include "pipeline/custom/LayoutGraphTypes.h"
 #include "pipeline/custom/NativePipelineFwd.h"
@@ -342,6 +343,11 @@ bool NativePipeline::destroy() noexcept {
 
 // NOLINTNEXTLINE
 void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
+    FrameGraphDispatcher fgDispatcher(resourceGraph, renderGraph, *layoutGraph, renderGraph.resource(), renderGraph.resource());
+    fgDispatcher.enablePassReorder(true);
+    fgDispatcher.setParalellWeight(0.5);
+    fgDispatcher.run();
+
     const auto *sceneData = pipelineSceneData.get();
     auto *commandBuffer = device->getCommandBuffer();
     float shadingScale = sceneData->getShadingScale();

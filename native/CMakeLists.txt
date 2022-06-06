@@ -1145,6 +1145,8 @@ cocos_source_files(
                  cocos/renderer/pipeline/helper/Utils.cpp
 NO_WERROR        cocos/renderer/pipeline/custom/FrameGraphDispatcher.cpp
                  cocos/renderer/pipeline/custom/test/test.h
+                 cocos/renderer/pipeline/custom/NativeLayoutGraphImpl.cpp
+                 cocos/renderer/pipeline/custom/NativeRenderGraphSetup.cpp
                  cocos/renderer/pipeline/custom/FGDispatcherGraphs.h
                  cocos/renderer/pipeline/custom/FGDispatcherTypes.cpp
                  cocos/renderer/pipeline/custom/FGDispatcherTypes.h
@@ -1157,13 +1159,14 @@ NO_WERROR        cocos/renderer/pipeline/custom/FrameGraphDispatcher.cpp
                  cocos/renderer/pipeline/custom/LayoutGraphReflection.h
                  cocos/renderer/pipeline/custom/LayoutGraphTypes.cpp
                  cocos/renderer/pipeline/custom/LayoutGraphTypes.h
-                 cocos/renderer/pipeline/custom/NativeLayoutGraphImpl.cpp
                  cocos/renderer/pipeline/custom/NativePipelineFwd.h
                  cocos/renderer/pipeline/custom/NativePipelineGraphs.h
                  cocos/renderer/pipeline/custom/NativePipelineImpl.cpp
+                 cocos/renderer/pipeline/custom/NativePipelineNames.h
+                 cocos/renderer/pipeline/custom/NativePipelineReflection.cpp
+                 cocos/renderer/pipeline/custom/NativePipelineReflection.h
                  cocos/renderer/pipeline/custom/NativePipelineTypes.cpp
                  cocos/renderer/pipeline/custom/NativePipelineTypes.h
-                 cocos/renderer/pipeline/custom/NativeRenderGraphSetup.cpp
                  cocos/renderer/pipeline/custom/RenderCommonFwd.h
                  cocos/renderer/pipeline/custom/RenderCommonJsb.cpp
                  cocos/renderer/pipeline/custom/RenderCommonJsb.h

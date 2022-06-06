@@ -51,19 +51,18 @@ namespace cc {
 
 namespace render {
 
-void passReorder(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag);
-void memoryAliasing(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag);
-void buildBarriers(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag);
+void passReorder(FrameGraphDispatcher &fgDispatcher);
+void memoryAliasing(FrameGraphDispatcher &fgDispatcher);
+void buildBarriers(FrameGraphDispatcher &fgDispatcher);
 
 void FrameGraphDispatcher::run() {
-    ResourceAccessGraph rag(this->scratch);
     if (_enablePassReorder) {
-        passReorder(*this, rag);
+        passReorder(*this);
     }
     if (_enableMemoryAliasing) {
-        memoryAliasing(*this, rag);
+        memoryAliasing(*this);
     }
-    buildBarriers(*this, rag);
+    buildBarriers(*this);
 }
 
 void FrameGraphDispatcher::enablePassReorder(bool enable) {
@@ -85,7 +84,7 @@ using PmrString = ccstd::pmr::string;
 using RAG = ResourceAccessGraph;
 using LGD = LayoutGraphData;
 using gfx::PassType;
-using BarrierMap = FlatMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
+using BarrierMap = FrameGraphDispatcher::BarrierMap;
 using AccessVertex = ResourceAccessGraph::vertex_descriptor;
 using InputStatusTuple = std::tuple<PassType /*passType*/, PmrString /*resourceName*/, gfx::ShaderStageFlagBit /*visibility*/, gfx::MemoryAccessBit /*access*/>;
 using ResourceHandle = ResourceGraph::vertex_descriptor;
@@ -486,7 +485,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
     ResourceNames &externalResNames; // first meet in this frame
 };
 
-void buildBarriers(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag) {
+void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
     {
         auto *scratch = fgDispatcher.scratch;
         const auto &graph = fgDispatcher.graph;
@@ -494,6 +493,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag)
         const auto &resourceGraph = fgDispatcher.resourceGraph;
         auto &relationGraph = fgDispatcher.relationGraph;
         auto &externalResMap = fgDispatcher.externalResMap;
+        auto& rag = fgDispatcher.resourceAccessGraph;
 
         // record resource current in-access and out-access for every single node
         if (!fgDispatcher._accessGraphBuilt) {
@@ -503,7 +503,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag)
 
         // found pass id in this map ? barriers you should commit when run into this pass
         // : or no extra barrier needed.
-        BarrierMap batchedBarriers;
+        BarrierMap& batchedBarriers = fgDispatcher.barrierMap;
         ResourceNames namesSet;
         {
             // _externalResNames records external resource between frames
@@ -872,12 +872,13 @@ void applyRelation(RelationGraph &relationGraph, const TargetGraph &targetGraph)
     }
 }
 
-void passReorder(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag) {
+void passReorder(FrameGraphDispatcher &fgDispatcher) {
     auto *scratch = fgDispatcher.scratch;
     const auto &graph = fgDispatcher.graph;
     const auto &layoutGraph = fgDispatcher.layoutGraph;
     const auto &resourceGraph = fgDispatcher.resourceGraph;
     auto &relationGraph = fgDispatcher.relationGraph;
+    auto& rag = fgDispatcher.resourceAccessGraph;
 
     if (!fgDispatcher._accessGraphBuilt) {
         buildAccessGraph(graph, layoutGraph, resourceGraph, rag, relationGraph);
@@ -1007,7 +1008,7 @@ void passReorder(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag) {
 
 #pragma endregion PASS_REORDER
 
-void memoryAliasing(FrameGraphDispatcher &fgDispatcher, ResourceAccessGraph &rag) {
+void memoryAliasing(FrameGraphDispatcher &fgDispatcher) {
 }
 
 #pragma region assisstantFuncDefinition

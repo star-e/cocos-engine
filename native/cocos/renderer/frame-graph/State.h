@@ -52,10 +52,7 @@ enum class ResourceType : uint32_t{
 
 struct ResourceBarrier {
     ResourceType type;
-    union {
-        TextureHandle texture;
-        BufferHandle buffer;
-    };
+    Handle handle;
 
     AccessStatus beginStatus;
     AccessStatus endStatus;
@@ -66,7 +63,12 @@ struct ResourceBarrier {
     };
 };
 
-gfx::GFXObject* getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept;
+struct Barriers {
+    ccstd::vector<ResourceBarrier> frontBarriers;
+    ccstd::vector<ResourceBarrier> rearBarriers;
+};
+
+std::pair<gfx::GFXObject* /*barrier*/, gfx::GFXObject* /*resource*/> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept;
 
 } // namespace framegraph
 } // namespace cc

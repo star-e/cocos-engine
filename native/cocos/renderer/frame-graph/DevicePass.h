@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <functional>
 #include "CallbackPass.h"
 #include "RenderTargetAttachment.h"
 #include "base/std/container/string.h"
@@ -45,7 +46,7 @@ public:
     DevicePass &operator=(const DevicePass &) = delete;
     DevicePass &operator=(DevicePass &&) = delete;
 
-    void execute();
+    void execute(const FrameGraph& graph);
 
 private:
     struct LogicPass final {
@@ -65,11 +66,6 @@ private:
         gfx::Texture *renderTarget{nullptr};
     };
 
-    struct Barriers {
-        ccstd::vector<ResourceBarrier> frontTextureBarriers;
-        ccstd::vector<ResourceBarrier> rearTextureBarriers;
-    };
-
     void append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments);
     void append(const FrameGraph &graph, const RenderTargetAttachment &attachment,
                 ccstd::vector<RenderTargetAttachment> *attachments, gfx::SubpassInfo *subpass, const ccstd::vector<Handle> &reads);
@@ -77,11 +73,13 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front);
+
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};
     uint16_t _usedRenderTargetSlotMask{0};
     DevicePassResourceTable _resourceTable;
-    Barriers _barriers;
+    ccstd::vector<std::reference_wrapper<const Barriers>> _barriers;
 
     gfx::Viewport _viewport;
     gfx::Rect _scissor;

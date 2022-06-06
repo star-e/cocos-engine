@@ -54,7 +54,8 @@ public:
     inline void sideEffect();
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
-    inline void addBarrier(const ResourceBarrier& barrier);
+    inline void addBarrier(const ResourceBarrier& barrier, bool front);
+    inline const Barriers& getBarriers() const { return _barriers; }
 
 private:
     bool canMerge(const FrameGraph &graph, const PassNode &passNode) const;
@@ -93,6 +94,8 @@ private:
     bool _customViewport{false};
     gfx::Viewport _viewport;
     gfx::Rect _scissor;
+
+    Barriers _barriers;
 
     friend class FrameGraph;
     friend class DevicePass;

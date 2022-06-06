@@ -29,6 +29,7 @@
 #include <fstream>
 #include "PassNodeBuilder.h"
 #include "Resource.h"
+#include "base/StringHandle.h"
 #include "base/StringUtil.h"
 #include "base/std/container/set.h"
 #include "frame-graph/ResourceEntry.h"
@@ -112,6 +113,7 @@ void FrameGraph::presentLastVersion(const VirtualResource *const virtualResource
 
 void FrameGraph::presentFromBlackboard(const StringHandle &inputName, gfx::Texture *target, bool useMoveSemantic) {
     present(TextureHandle(_blackboard.get(inputName)), target, useMoveSemantic);
+    _blackboard.get(StringHandle());
 }
 
 void FrameGraph::compile() {
@@ -131,7 +133,7 @@ void FrameGraph::compile() {
 void FrameGraph::execute() noexcept {
     if (_passNodes.empty()) return;
     for (auto &pass : _devicePasses) {
-        pass->execute();
+        pass->execute(*this);
     }
 }
 
