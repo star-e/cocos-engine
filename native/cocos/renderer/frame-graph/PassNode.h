@@ -55,7 +55,7 @@ public:
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
     inline void addBarrier(const ResourceBarrier& barrier, bool front);
-    inline const Barriers& getBarriers() const { return _barriers; }
+    inline const Barriers &getBarriers() const;
 
 private:
     bool canMerge(const FrameGraph &graph, const PassNode &passNode) const;
@@ -103,6 +103,10 @@ private:
 };
 
 //////////////////////////////////////////////////////////////////////////
+
+const Barriers &PassNode::getBarriers() const {
+    return _barriers;
+}
 
 void PassNode::sideEffect() {
     _sideEffect = true;

@@ -332,7 +332,7 @@ bool NativePipeline::destroy() noexcept {
 
 // NOLINTNEXTLINE
 void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
-    FrameGraphDispatcher fgDispatcher(resourceGraph, renderGraph, *layoutGraph, renderGraph.resource(), renderGraph.resource());
+    FrameGraphDispatcher fgDispatcher(resourceGraph, renderGraph, layoutGraph, renderGraph.resource(), renderGraph.resource());
     fgDispatcher.enablePassReorder(true);
     fgDispatcher.setParalellWeight(0.5);
     fgDispatcher.run();

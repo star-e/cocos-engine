@@ -105,9 +105,9 @@ using BufferList = ccstd::vector<Buffer *>;
 using TextureList = ccstd::vector<Texture *>;
 using SamplerList = ccstd::vector<Sampler *>;
 using DescriptorSetLayoutList = ccstd::vector<DescriptorSetLayout *>;
-using BufferBarrierList = ccstd::vector<BufferBarrier*>;
-using TextureBarrierList = ccstd::vector<TextureBarrier*>;
-using GeneralBarrierList = ccstd::vector<GeneralBarrier*>;
+using BufferBarrierList = ccstd::vector<BufferBarrier *>;
+using TextureBarrierList = ccstd::vector<TextureBarrier *>;
+using GeneralBarrierList = ccstd::vector<GeneralBarrier *>;
 
 /**
  * @en Graphics object type
@@ -765,7 +765,7 @@ enum class QueueType : uint32_t {
 };
 CC_ENUM_CONVERSION_OPERATOR(QueueType);
 
-enum class PassType {
+enum class PassType : uint32_t {
     RASTER,
     COMPUTE,
     COPY,
