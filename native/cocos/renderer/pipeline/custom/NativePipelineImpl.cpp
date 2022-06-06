@@ -48,6 +48,7 @@
 #include "cocos/renderer/pipeline/custom/RenderCommonTypes.h"
 #include "cocos/renderer/pipeline/custom/RenderGraphGraphs.h"
 #include "cocos/renderer/pipeline/custom/RenderInterfaceFwd.h"
+#include "cocos/renderer/pipeline/custom/FGDispatcherGraphs.h"
 #include "cocos/scene/RenderScene.h"
 #include "cocos/scene/RenderWindow.h"
 #include "gfx-base/GFXBuffer.h"
@@ -337,6 +338,8 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
     fgDispatcher.setParalellWeight(0.5);
     fgDispatcher.run();
 
+    const auto &barriers = fgDispatcher.getBarriers();
+
     const auto *sceneData = pipelineSceneData.get();
     auto *commandBuffer = device->getCommandBuffer();
     float shadingScale = sceneData->getShadingScale();
@@ -348,6 +351,11 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
     commandBuffer->begin();
 
     for (const auto *camera : cameras) {
+        uint32_t passID = 0; //from render graph
+        auto accessNode = get(ResourceAccessGraph::AccessNode, fgDispatcher.resourceAccessGraph, passID);
+        const auto &barrier = barriers.at(passID);
+
+
         auto colorHandle = framegraph::FrameGraph::stringToHandle("outputTexture");
 
         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData2 &data) {
@@ -411,6 +419,37 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
             };
 
             builder.setViewport(getViewport(camera), getScissor(camera));
+
+            auto fullfillBarrier = [this, &barrier, &builder](bool front) {
+                const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
+                for (const auto &res : parts) {
+                    const auto &name = get(ResourceGraph::Name, resourceGraph, res.resourceID);
+                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, res.resourceID);
+                    auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
+                    builder.addBarrier(cc::framegraph::ResourceBarrier{
+                                           type,
+                                           builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
+                                           {res.beginStatus.passType,
+                                            res.beginStatus.visibility,
+                                            res.beginStatus.access},
+                                           {res.endStatus.passType,
+                                            res.endStatus.visibility,
+                                            res.endStatus.access},
+                                           framegraph::Range{
+
+                                           },
+                                           framegraph::Range{
+
+                                           },
+                                       },
+                                       front);
+                }
+            };
+
+            fullfillBarrier(true);
+            //...
+            fullfillBarrier(false);
+
         };
 
         auto forwardExec = [](const RenderData2 & /*data*/,
