@@ -34,8 +34,6 @@
 #include "gfx-base/GFXCommandBuffer.h"
 #include "gfx-base/GFXDef-common.h"
 #include "gfx-base/GFXTexture.h"
-#include "gfx-base/states/GFXGeneralBarrier.h"
-#include "gfx-base/states/GFXTextureBarrier.h"
 
 #include <algorithm>
 
@@ -120,7 +118,7 @@ void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& gr
         const auto& info = front ? _barriers[index].get().frontBarriers : _barriers[index].get().rearBarriers;
         
         for (const auto& barrier : info) {
-            auto res = getBarrier(barrier, graph);
+            auto res = getBarrier(barrier, &graph);
             switch (barrier.type) {
                 case ResourceType::BUFFER: {
                     auto* bufferBarrier = static_cast<gfx::BufferBarrier*>(res.first);

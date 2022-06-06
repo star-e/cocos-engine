@@ -32,7 +32,7 @@
 #include "RenderTargetAttachment.h"
 #include "VirtualResource.h"
 #include "gfx-base/GFXDef.h"
-#include "State.h"
+#include "ImmutableState.h"
 
 namespace cc {
 namespace framegraph {

@@ -30,8 +30,10 @@
 #include "RenderTargetAttachment.h"
 #include "base/std/container/string.h"
 #include "gfx-base/GFXDef.h"
+#include "gfx-base/states/GFXGeneralBarrier.h"
 #include "gfx-base/states/GFXTextureBarrier.h"
-#include "State.h"
+#include "gfx-base/states/GFXBufferBarrier.h"
+#include "ImmutableState.h"
 
 namespace cc {
 namespace framegraph {

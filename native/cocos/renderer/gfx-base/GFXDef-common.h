@@ -87,7 +87,6 @@ class QueryPool;
 class Window;
 class Context;
 
-using TextureBarrierList = ccstd::vector<TextureBarrier *>;
 using BufferDataList = ccstd::vector<const uint8_t *>;
 using BufferSrcList = ccstd::vector<uint8_t *>;
 using CommandBufferList = ccstd::vector<CommandBuffer *>;

@@ -1162,9 +1162,6 @@ cocos_source_files(
                  cocos/renderer/pipeline/custom/NativePipelineFwd.h
                  cocos/renderer/pipeline/custom/NativePipelineGraphs.h
                  cocos/renderer/pipeline/custom/NativePipelineImpl.cpp
-                 cocos/renderer/pipeline/custom/NativePipelineNames.h
-                 cocos/renderer/pipeline/custom/NativePipelineReflection.cpp
-                 cocos/renderer/pipeline/custom/NativePipelineReflection.h
                  cocos/renderer/pipeline/custom/NativePipelineTypes.cpp
                  cocos/renderer/pipeline/custom/NativePipelineTypes.h
                  cocos/renderer/pipeline/custom/RenderCommonFwd.h
@@ -1558,8 +1555,8 @@ cocos_source_files(
                  cocos/renderer/frame-graph/ResourceNode.h
                  cocos/renderer/frame-graph/VirtualResource.cpp
                  cocos/renderer/frame-graph/VirtualResource.h
-                 cocos/renderer/frame-graph/State.h
-                 cocos/renderer/frame-graph/State.cpp
+                 cocos/renderer/frame-graph/ImmutableState.h
+                 cocos/renderer/frame-graph/ImmutableState.cpp
 )
 
 ##### physics

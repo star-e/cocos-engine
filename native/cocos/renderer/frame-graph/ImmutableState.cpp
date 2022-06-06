@@ -23,52 +23,44 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-
-#include "frame-graph/FrameGraph.h"
-#include "frame-graph/Resource.h"
-#include "frame-graph/VirtualResource.h"
+#include "ImmutableState.h"
 #include "gfx-base/GFXDef-common.h"
+#include "pipeline/custom/GslUtils.h"
+#include "FrameGraph.h"
 
 namespace cc {
 namespace framegraph {
 
-struct Range {
-    size_t base;
-    size_t len;
-};
-
-struct AccessStatus {
-    gfx::PassType passType;
-    gfx::ShaderStageFlagBit visibility;
-    gfx::MemoryAccessBit access;
-};
-
-enum class ResourceType : uint32_t{
-    UNKNOWN,
-    BUFFER,
-    TEXTURE,
-};
-
-struct ResourceBarrier {
-    ResourceType type;
-    Handle handle;
-
-    AccessStatus beginStatus;
-    AccessStatus endStatus;
-    Range layerRange;
-    union {
-        Range mipRange;
-        Range bufferRange;
+namespace {
+    /* struct AccessKey {
+        ResourceType type;
+        AccessStatus status;
+        gfx::Format format;
+    
+        bool operator==(const AccessKey& other) const {
+            bool res = false;
+            if(type == ResourceType::BUFFER) {
+                res = status.access == other.status.access && status.visibility == other.status.visibility &&
+                    status.passType == other.status.passType;
+            } else {
+                res = status.access == other.status.access && status.visibility == other.status.visibility &&
+                    status.passType == other.status.passType && format == other.format;
+            }
+            return false;
+        }
     };
-};
 
-struct Barriers {
-    ccstd::vector<ResourceBarrier> frontBarriers;
-    ccstd::vector<ResourceBarrier> rearBarriers;
-};
+    gfx::AccessFlagBit getAccess()
 
-std::pair<gfx::GFXObject* /*barrier*/, gfx::GFXObject* /*resource*/> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph& graph) noexcept;
+    const ccstd::unordered_map<AccessKey, gfx::AccessFlagBit> accessMap = {
+        {{ResourceType::BUFFER, {}}, {}}  
+    }; */
+}
+
+std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph* graph) noexcept {
+    std::pair<gfx::GFXObject*, gfx::GFXObject*> res;
+    return res;
+}
 
 } // namespace framegraph
 } // namespace cc
