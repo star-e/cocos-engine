@@ -1194,19 +1194,21 @@ void processCopyPass(RAG &rag, EmptyGraph &relationGraph, const LGD & /*lgd*/, c
     auto &node = get(RAG::AccessNode, rag, vertID);
     bool dependent = false;
     for (const auto &pair : pass.copyPairs) {
-        auto sourceRange = Range{
-            pair.mipLevels,
-            pair.numSlices,
-            pair.sourceMostDetailedMip,
-            pair.sourceFirstSlice,
-            pair.sourcePlaneSlice,
+        auto sourceRange = Range {
+            TextureRange{
+                pair.sourceFirstSlice,
+                pair.sourcePlaneSlice,
+                pair.mipLevels,
+                pair.numSlices,
+            }
         };
         auto targetRange = Range{
-            pair.mipLevels,
-            pair.numSlices,
-            pair.targetMostDetailedMip,
-            pair.targetFirstSlice,
-            pair.targetPlaneSlice,
+            TextureRange{
+                pair.targetFirstSlice,
+                pair.targetPlaneSlice,
+                pair.mipLevels,
+                pair.numSlices,
+            }
         };
         addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COPY, pair.source, defaultVisibility, gfx::MemoryAccessBit::READ_ONLY}, sourceRange);
         addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::COPY, pair.target, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY}, targetRange);

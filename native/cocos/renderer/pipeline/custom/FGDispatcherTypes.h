@@ -34,6 +34,7 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/range/irange.hpp>
+#include <variant>
 #include "cocos/base/std/container/string.h"
 #include "cocos/base/std/container/vector.h"
 #include "cocos/renderer/pipeline/custom/GraphTypes.h"
@@ -48,13 +49,29 @@ namespace render {
 
 struct NullTag {};
 
-struct Range {
-    uint32_t mipLevels{0xFFFFFFFF};
-    uint32_t numSlices{0xFFFFFFFF};
-    uint32_t mostDetailedMip{0xFFFFFFFF};
-    uint32_t firstSlice{0xFFFFFFFF};
-    uint32_t planeSlice{0xFFFFFFFF};
+struct BufferRange {
+    uint32_t ffset{0};
+    uint32_t ize{0};
 };
+
+inline bool operator<(const BufferRange& lhs, const BufferRange& rhs) noexcept {
+    return std::forward_as_tuple(lhs.ffset, lhs.ize) <
+           std::forward_as_tuple(rhs.ffset, rhs.ize);
+}
+
+struct TextureRange {
+    uint32_t firstSlice{0};
+    uint32_t planeSlice{0};
+    uint32_t mipLevels{1};
+    uint32_t numSlices{1};
+};
+
+inline bool operator<(const TextureRange& lhs, const TextureRange& rhs) noexcept {
+    return std::forward_as_tuple(lhs.firstSlice, lhs.planeSlice, lhs.mipLevels, lhs.numSlices) <
+           std::forward_as_tuple(rhs.firstSlice, rhs.planeSlice, rhs.mipLevels, rhs.numSlices);
+}
+
+using Range = boost::variant2::variant<BufferRange, TextureRange>;
 
 struct AccessStatus {
     uint32_t                vertID{0xFFFFFFFF};
