@@ -230,7 +230,7 @@ void GLES3PrimaryCommandBuffer::dispatch(const DispatchInfo &info) {
     cmdFuncGLES3Dispatch(GLES3Device::getInstance(), gpuInfo);
 }
 
-void GLES3PrimaryCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const TextureBarrier *const * /*textureBarriers*/, const Texture *const * /*textures*/, uint32_t /*textureBarrierCount*/) {
+void GLES3PrimaryCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const BufferBarrier* const* bufferBarriers, const Buffer* const* buffers, uint32_t bufferCount, const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint32_t textureBarrierCount) {
     if (!barrier) return;
 
     const auto *gpuBarrier = static_cast<const GLES3GeneralBarrier *>(barrier)->gpuBarrier();

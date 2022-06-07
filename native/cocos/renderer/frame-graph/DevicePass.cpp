@@ -114,7 +114,7 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
 }
 
 void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front) {
-    auto gatherBarrier = [this, &graph, index](gfx::TextureList& textures, gfx::BufferList& buffers, gfx::TextureBarrierList& texBarriers, gfx::BufferBarrierList& bufBarriers, gfx::GeneralBarrierList& genBarriers, bool front){
+    auto gatherBarrier = [this, &graph, index](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
         const auto& info = front ? _barriers[index].get().frontBarriers : _barriers[index].get().rearBarriers;
         
         for (const auto& barrier : info) {
@@ -133,8 +133,8 @@ void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& gr
                     break;
                 }
                 case ResourceType::UNKNOWN: {
-                    auto* generalBarrier = static_cast<gfx::GeneralBarrier*>(res.first);
-                    genBarriers.push_back(generalBarrier);
+                    //only 1 excution barrier is allowed
+                    *generalBarrier = static_cast<gfx::GeneralBarrier*>(res.first);
                     break;
                 }
                 default:
@@ -145,16 +145,14 @@ void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& gr
 
     gfx::TextureBarrierList textureBarriers;
     gfx::BufferBarrierList bufferBarriers;
-    gfx::GeneralBarrierList generalBarriers;
+    gfx::GeneralBarrier *generalBarrier{nullptr};
 
     gfx::BufferList buffers;
     gfx::TextureList textures;
 
-    gatherBarrier(textures, buffers, textureBarriers, bufferBarriers, generalBarriers, front);
+    gatherBarrier(textures, buffers, textureBarriers, bufferBarriers, &generalBarrier, front);
 
-    cmdBuff->addBufferBarriers(bufferBarriers.data(), buffers.data(), buffers.size());
-    cmdBuff->addTextureBarriers(textureBarriers.data(), textures.data(), textures.size());
-    cmdBuff->addGeneralBarriers(generalBarriers.data(), generalBarriers.size());
+    cmdBuff->pipelineBarrier(generalBarrier, bufferBarriers, buffers, textureBarriers, textures);
 }
 
 void DevicePass::execute(const FrameGraph& graph) {

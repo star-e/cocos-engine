@@ -106,7 +106,6 @@ using SamplerList = ccstd::vector<Sampler *>;
 using DescriptorSetLayoutList = ccstd::vector<DescriptorSetLayout *>;
 using BufferBarrierList = ccstd::vector<BufferBarrier *>;
 using TextureBarrierList = ccstd::vector<TextureBarrier *>;
-using GeneralBarrierList = ccstd::vector<GeneralBarrier *>;
 
 /**
  * @en Graphics object type

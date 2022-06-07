@@ -51,10 +51,11 @@ public:
     Handle read(FrameGraph &graph, const Handle &input);
     Handle write(FrameGraph &graph, const Handle &output);
     void createRenderTargetAttachment(RenderTargetAttachment &&attachment);
+    void addBarrier(const ResourceBarrier &barrier, bool front);
+
     inline void sideEffect();
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
-    inline void addBarrier(const ResourceBarrier& barrier, bool front);
     inline const Barriers &getBarriers() const;
 
 private:
