@@ -26,6 +26,9 @@
 #include "VKBufferBarrier.h"
 #include "../VKGPUObjects.h"
 #include "../VKQueue.h"
+#include "gfx-base/GFXDef-common.h"
+#include "../VKBuffer.h"
+#include "gfx-vulkan/thsvs_simpler_vulkan_synchronization.h"
 
 namespace cc {
 namespace gfx {
@@ -57,6 +60,14 @@ CCVKBufferBarrier::CCVKBufferBarrier(const BufferBarrierInfo &info) : BufferBarr
 
 CCVKBufferBarrier::~CCVKBufferBarrier() {
     CC_SAFE_DELETE(_gpuBarrier);
+}
+
+void CCVKBufferBarrier::prepareSplitBarrier(const CCVKBuffer *buffer) {
+    if(_info.prevAccesses == AccessFlagBit::NONE) {
+        //TODO_Zeqiang: what if transfer pass
+        _gpuBarrier->prevAccesses = buffer->gpuBuffer()->renderAccessTypes;
+        thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 } // namespace gfx

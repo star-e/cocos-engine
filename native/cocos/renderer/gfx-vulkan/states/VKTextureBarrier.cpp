@@ -26,6 +26,7 @@
 #include "VKTextureBarrier.h"
 #include "../VKGPUObjects.h"
 #include "../VKQueue.h"
+#include "../VKTexture.h"
 
 namespace cc {
 namespace gfx {
@@ -55,11 +56,21 @@ CCVKTextureBarrier::CCVKTextureBarrier(const TextureBarrierInfo &info) : Texture
                                                    ? static_cast<CCVKQueue *>(info.dstQueue)->gpuQueue()->queueFamilyIndex
                                                    : VK_QUEUE_FAMILY_IGNORED;
 
-    thsvsGetVulkanImageMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    if(info.prevAccesses != AccessFlagBit::NONE && info.nextAccesses != AccessFlagBit::NONE) {
+        thsvsGetVulkanImageMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 CCVKTextureBarrier::~CCVKTextureBarrier() {
     CC_SAFE_DELETE(_gpuBarrier);
+}
+
+void CCVKTextureBarrier::prepareSplitBarrier(const CCVKTexture* texture) {
+    // prepare when it's split end
+    if(_info.prevAccesses == AccessFlagBit::NONE) {
+        _gpuBarrier->prevAccesses = texture->gpuTexture()->currentAccessTypes;
+        thsvsGetVulkanImageMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 } // namespace gfx

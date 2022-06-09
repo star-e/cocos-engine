@@ -37,11 +37,24 @@ CCVKGeneralBarrier::CCVKGeneralBarrier(const GeneralBarrierInfo &info) : General
     getAccessTypes(info.prevAccesses, _gpuBarrier->prevAccesses);
     getAccessTypes(info.nextAccesses, _gpuBarrier->nextAccesses);
 
-    cmdFuncCCVKCreateGeneralBarrier(CCVKDevice::getInstance(), _gpuBarrier);
+    _gpuBarrier->barrier.prevAccessCount = utils::toUint(_gpuBarrier->prevAccesses.size());
+    _gpuBarrier->barrier.pPrevAccesses = _gpuBarrier->prevAccesses.data();
+    _gpuBarrier->barrier.nextAccessCount = utils::toUint(_gpuBarrier->nextAccesses.size());
+    _gpuBarrier->barrier.pNextAccesses = _gpuBarrier->nextAccesses.data();
+
+    if(info.prevAccesses != AccessFlagBit::NONE && info.nextAccesses != AccessFlagBit::NONE) {
+        thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 CCVKGeneralBarrier::~CCVKGeneralBarrier() {
     CC_SAFE_DELETE(_gpuBarrier);
+}
+
+void CCVKGeneralBarrier::prepareSplitBarrier() {
+    if(_info.prevAccesses != AccessFlagBit::NONE && _info.nextAccesses != AccessFlagBit::NONE) {
+        thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 } // namespace gfx

@@ -32,6 +32,7 @@ namespace cc {
 namespace gfx {
 
 struct CCVKGPUBufferBarrier;
+class CCVKBuffer;
 
 class CC_VULKAN_API CCVKBufferBarrier : public BufferBarrier {
 public:
@@ -39,6 +40,8 @@ public:
     ~CCVKBufferBarrier() override;
 
     inline const CCVKGPUBufferBarrier *gpuBarrier() const { return _gpuBarrier; }
+
+    void  prepareSplitBarrier(const CCVKBuffer* buffer);
 
 protected:
     CCVKGPUBufferBarrier *_gpuBarrier = nullptr;

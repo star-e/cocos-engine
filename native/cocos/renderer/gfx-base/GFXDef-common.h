@@ -1352,6 +1352,16 @@ struct ALIGNAS(8) BufferBarrierInfo {
 };
 using BufferBarrierInfoList = ccstd::vector<BufferBarrierInfo>;
 
+struct PipelineBarrierInfo{
+    GeneralBarrier* const generalBarrier{nullptr}; //excution barrier
+    BufferBarrier* const bufferBarriers{nullptr};
+    const Buffer* const buffers{nullptr};
+    uint32_t bufferBarrierCount{0};
+    TextureBarrier* const textureBarriers{nullptr};
+    const Texture* const textures{nullptr};
+    uint32_t textureBarrierCount{0};
+};
+
 struct FramebufferInfo {
     RenderPass *renderPass{nullptr};
     TextureList colorTextures;

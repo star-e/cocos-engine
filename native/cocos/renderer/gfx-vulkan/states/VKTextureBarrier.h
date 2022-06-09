@@ -32,6 +32,7 @@ namespace cc {
 namespace gfx {
 
 struct CCVKGPUTextureBarrier;
+class CCVKTexture;
 
 class CC_VULKAN_API CCVKTextureBarrier : public TextureBarrier {
 public:
@@ -39,6 +40,8 @@ public:
     ~CCVKTextureBarrier() override;
 
     inline const CCVKGPUTextureBarrier *gpuBarrier() const { return _gpuBarrier; }
+
+    void prepareSplitBarrier(const CCVKTexture* texture);
 
 protected:
     CCVKGPUTextureBarrier *_gpuBarrier = nullptr;
