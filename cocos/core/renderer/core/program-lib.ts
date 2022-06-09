@@ -448,9 +448,18 @@ class ProgramLib {
                 const root = legacyCC.director.root;
                 const ppl: Pipeline = root.customPipeline;
                 insertBuiltinBindings(tmpl, tmplInfo, globalDescriptorSetLayout, 'globals');
-                tmplInfo.setLayouts[SetIndex.GLOBAL] = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_PASS);
-                tmplInfo.setLayouts[SetIndex.LOCAL] = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_INSTANCE);
-                tmplInfo.setLayouts[SetIndex.MATERIAL] = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_BATCH);
+                const lypass = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_PASS);
+                if (lypass) {
+                    tmplInfo.setLayouts[SetIndex.GLOBAL] = lypass;
+                }
+                const lyins = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_INSTANCE);
+                if (lyins) {
+                    tmplInfo.setLayouts[SetIndex.LOCAL] = lyins;
+                }
+                const lymat = ppl.getDescriptorSetLayout(name, UpdateFrequency.PER_BATCH);
+                if (lymat) {
+                    tmplInfo.setLayouts[SetIndex.MATERIAL] = lymat;
+                }
             } else {
                 this.getDescriptorSetLayout(device, name); // ensure set layouts have been created
                 insertBuiltinBindings(tmpl, tmplInfo, globalDescriptorSetLayout, 'globals');
