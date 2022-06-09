@@ -42,7 +42,7 @@ CCVKGeneralBarrier::CCVKGeneralBarrier(const GeneralBarrierInfo &info) : General
     _gpuBarrier->barrier.nextAccessCount = utils::toUint(_gpuBarrier->nextAccesses.size());
     _gpuBarrier->barrier.pNextAccesses = _gpuBarrier->nextAccesses.data();
 
-    if(info.prevAccesses != AccessFlagBit::NONE && info.nextAccesses != AccessFlagBit::NONE) {
+    if(info.type == BarrierType::FULL) {
         thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
     }
 }
@@ -52,7 +52,7 @@ CCVKGeneralBarrier::~CCVKGeneralBarrier() {
 }
 
 void CCVKGeneralBarrier::prepareSplitBarrier() {
-    if(_info.prevAccesses != AccessFlagBit::NONE && _info.nextAccesses != AccessFlagBit::NONE) {
+    if(_info.type == BarrierType::SPLIT_END) {
         thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
     }
 }

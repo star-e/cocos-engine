@@ -797,6 +797,13 @@ enum class ClearFlagBit : uint32_t {
 using ClearFlags = ClearFlagBit;
 CC_ENUM_BITWISE_OPERATORS(ClearFlagBit);
 
+enum class BarrierType : uint32_t {
+    FULL,
+    SPLIT_BEGIN,
+    SPLIT_END,
+};
+CC_ENUM_BITWISE_OPERATORS(BarrierType);
+
 #define EXPOSE_COPY_FN(type)      \
     type &copy(const type &rhs) { \
         *this = rhs;              \
@@ -1316,6 +1323,8 @@ struct ALIGNAS(8) GeneralBarrierInfo {
     AccessFlags prevAccesses{AccessFlagBit::NONE};
     AccessFlags nextAccesses{AccessFlagBit::NONE};
 
+    BarrierType type{BarrierType::FULL};
+
     EXPOSE_COPY_FN(GeneralBarrierInfo)
 };
 using GeneralBarrierInfoList = ccstd::vector<GeneralBarrierInfo>;
@@ -1323,6 +1332,8 @@ using GeneralBarrierInfoList = ccstd::vector<GeneralBarrierInfo>;
 struct ALIGNAS(8) TextureBarrierInfo {
     AccessFlags prevAccesses{AccessFlagBit::NONE};
     AccessFlags nextAccesses{AccessFlagBit::NONE};
+
+    BarrierType type{BarrierType::FULL};
 
     uint32_t baseMipLevel{0};
     uint32_t levelCount{1};
@@ -1341,6 +1352,8 @@ using TextureBarrierInfoList = ccstd::vector<TextureBarrierInfo>;
 struct ALIGNAS(8) BufferBarrierInfo {
     AccessFlags prevAccesses{AccessFlagBit::NONE};
     AccessFlags nextAccesses{AccessFlagBit::NONE};
+
+    BarrierType type{BarrierType::FULL};
 
     uint32_t offset;
     uint32_t size;

@@ -54,8 +54,9 @@ CCVKBufferBarrier::CCVKBufferBarrier(const BufferBarrierInfo &info) : BufferBarr
     _gpuBarrier->barrier.dstQueueFamilyIndex = info.dstQueue
                                                    ? static_cast<CCVKQueue *>(info.dstQueue)->gpuQueue()->queueFamilyIndex
                                                    : VK_QUEUE_FAMILY_IGNORED;
-
-    thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    if(info.type == BarrierType::FULL) {
+        thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
+    }
 }
 
 CCVKBufferBarrier::~CCVKBufferBarrier() {
@@ -63,7 +64,7 @@ CCVKBufferBarrier::~CCVKBufferBarrier() {
 }
 
 void CCVKBufferBarrier::prepareSplitBarrier(const CCVKBuffer *buffer) {
-    if(_info.prevAccesses == AccessFlagBit::NONE) {
+    if(_info.type == BarrierType::SPLIT_END) {
         //TODO_Zeqiang: what if transfer pass
         _gpuBarrier->prevAccesses = buffer->gpuBuffer()->renderAccessTypes;
         thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
