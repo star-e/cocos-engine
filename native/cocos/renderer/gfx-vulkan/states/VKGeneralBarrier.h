@@ -40,8 +40,6 @@ public:
 
     inline const CCVKGPUGeneralBarrier *gpuBarrier() const { return _gpuBarrier; }
 
-    void prepareSplitBarrier();
-
 protected:
     CCVKGPUGeneralBarrier *_gpuBarrier = nullptr;
 };

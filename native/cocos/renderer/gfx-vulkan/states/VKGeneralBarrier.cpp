@@ -42,19 +42,13 @@ CCVKGeneralBarrier::CCVKGeneralBarrier(const GeneralBarrierInfo &info) : General
     _gpuBarrier->barrier.nextAccessCount = utils::toUint(_gpuBarrier->nextAccesses.size());
     _gpuBarrier->barrier.pNextAccesses = _gpuBarrier->nextAccesses.data();
 
-    if(info.type == BarrierType::FULL) {
+    if(info.type != BarrierType::SPLIT_BEGIN) {
         thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
     }
 }
 
 CCVKGeneralBarrier::~CCVKGeneralBarrier() {
     CC_SAFE_DELETE(_gpuBarrier);
-}
-
-void CCVKGeneralBarrier::prepareSplitBarrier() {
-    if(_info.type == BarrierType::SPLIT_END) {
-        thsvsGetVulkanMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
-    }
 }
 
 } // namespace gfx

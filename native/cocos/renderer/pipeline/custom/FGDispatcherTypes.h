@@ -306,6 +306,7 @@ struct EmptyGraph {
 
 struct Barrier {
     RenderGraph::vertex_descriptor resourceID{0xFFFFFFFF};
+    gfx::BarrierType               type{gfx::BarrierType::FULL};
     AccessStatus                   beginStatus;
     AccessStatus                   endStatus;
 };

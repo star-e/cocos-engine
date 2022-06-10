@@ -119,7 +119,7 @@ void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& gr
         
         for (const auto& barrier : info) {
             auto res = getBarrier(barrier, &graph);
-            switch (barrier.type) {
+            switch (barrier.resourceType) {
                 case ResourceType::BUFFER: {
                     auto* bufferBarrier = static_cast<gfx::BufferBarrier*>(res.first);
                     buffers.push_back(static_cast<gfx::Buffer*>(res.second));

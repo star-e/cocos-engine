@@ -54,21 +54,13 @@ CCVKBufferBarrier::CCVKBufferBarrier(const BufferBarrierInfo &info) : BufferBarr
     _gpuBarrier->barrier.dstQueueFamilyIndex = info.dstQueue
                                                    ? static_cast<CCVKQueue *>(info.dstQueue)->gpuQueue()->queueFamilyIndex
                                                    : VK_QUEUE_FAMILY_IGNORED;
-    if(info.type == BarrierType::FULL) {
+    if(info.type != BarrierType::SPLIT_BEGIN) {
         thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
     }
 }
 
 CCVKBufferBarrier::~CCVKBufferBarrier() {
     CC_SAFE_DELETE(_gpuBarrier);
-}
-
-void CCVKBufferBarrier::prepareSplitBarrier(const CCVKBuffer *buffer) {
-    if(_info.type == BarrierType::SPLIT_END) {
-        //TODO_Zeqiang: what if transfer pass
-        _gpuBarrier->prevAccesses = buffer->gpuBuffer()->renderAccessTypes;
-        thsvsGetVulkanBufferMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
-    }
 }
 
 } // namespace gfx

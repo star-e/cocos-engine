@@ -365,7 +365,6 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
         auto accessNode = get(ResourceAccessGraph::AccessNode, fgDispatcher.resourceAccessGraph, passID);
         const auto &barrier = barriers.at(passID);
 
-
         auto colorHandle = framegraph::FrameGraph::stringToHandle("outputTexture");
 
         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData2 &data) {
@@ -432,19 +431,23 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
 
             auto fullfillBarrier = [this, &barrier, &builder](bool front) {
                 const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
-                for (const auto &res : parts) {
-                    const auto &name = get(ResourceGraph::Name, resourceGraph, res.resourceID);
-                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, res.resourceID);
+                for (const auto &resBarrier : parts) {
+                    const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
+                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
                     auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
                     builder.addBarrier(cc::framegraph::ResourceBarrier{
                                            type,
+                                           resBarrier.type,
                                            builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
-                                           {res.beginStatus.passType,
-                                            res.beginStatus.visibility,
-                                            res.beginStatus.access},
-                                           {res.endStatus.passType,
-                                            res.endStatus.visibility,
-                                            res.endStatus.access},
+                                           {
+                                                resBarrier.beginStatus.passType,
+                                                resBarrier.beginStatus.visibility,
+                                                resBarrier.beginStatus.access
+                                           },
+                                           {    resBarrier.endStatus.passType,
+                                                resBarrier.endStatus.visibility,
+                                                resBarrier.endStatus.access
+                                           },
                                            framegraph::Range{
 
                                            },

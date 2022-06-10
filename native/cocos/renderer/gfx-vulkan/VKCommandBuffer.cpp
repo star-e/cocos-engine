@@ -609,7 +609,7 @@ void CCVKCommandBuffer::dispatch(const DispatchInfo &info) {
     }
 }
 
-void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBarrier *const *bufferBarriers, const Buffer *const *buffers, uint32_t bufferBarrierCount, TextureBarrier *const *textureBarriers, const Texture *const *textures, uint textureBarrierCount) {   
+void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const BufferBarrier *const *bufferBarriers, const Buffer *const *buffers, uint32_t bufferBarrierCount, const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint textureBarrierCount) {   
     VkPipelineStageFlags fullSrcStageMask = VK_PIPELINE_STAGE_NONE_KHR;
     VkPipelineStageFlags fullDstStageMask = VK_PIPELINE_STAGE_NONE_KHR;
     VkPipelineStageFlags splitSrcStageMask = VK_PIPELINE_STAGE_NONE_KHR;
@@ -626,7 +626,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
     
     if (textureBarrierCount > 0) {
         for (uint32_t i = 0U; i < textureBarrierCount; ++i) {
-            auto* ccBarrier = static_cast<CCVKTextureBarrier *const>(textureBarriers[i]);
+            auto* ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
             auto* ccTexture = static_cast<const CCVKTexture *const>(textures[i]);
             auto *gpuTexture = ccTexture->gpuTexture();
@@ -638,7 +638,6 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
                 auto& vkImageBarriers = fullBarrier ? fullImageBarriers : splitImageBarriers;
                 auto& srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
                 auto& dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
-                ccBarrier->prepareSplitBarrier(ccTexture);
                 gpuTexture->currentAccessTypes.assign(gpuBarrier->barrier.pNextAccesses, gpuBarrier->barrier.pNextAccesses + gpuBarrier->barrier.nextAccessCount);
                 vkImageBarriers.push_back(gpuBarrier->vkBarrier);
                 if (gpuTexture->swapchain) {
@@ -655,7 +654,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
 
     if(bufferBarrierCount > 0) {
         for (uint32_t i = 0U; i < bufferBarrierCount; ++i) {
-            auto* ccBarrier = static_cast<CCVKBufferBarrier *const>(bufferBarriers[i]);
+            auto* ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
             auto* ccBuffer = static_cast<const CCVKBuffer *const>(buffers[i]);
             auto *gpuBuffer = ccBuffer->gpuBuffer();
@@ -668,7 +667,6 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
                 auto& srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
                 auto& dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
 
-                ccBarrier->prepareSplitBarrier(ccBuffer);
                 gpuBuffer->currentAccessTypes.assign(gpuBarrier->barrier.pNextAccesses, gpuBarrier->barrier.pNextAccesses + gpuBarrier->barrier.nextAccessCount);
                 vkBufferBarriers.push_back(gpuBarrier->vkBarrier);
                 srcStageMask |= gpuBarrier->srcStageMask;
@@ -685,6 +683,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
         fullDstStageMask |= gpuBarrier->dstStageMask;
         splitSrcStageMask |= gpuBarrier->srcStageMask;
         splitDstStageMask |= gpuBarrier->dstStageMask;
+        pMemoryBarrier = &gpuBarrier->vkBarrier;
         ccstd::hash_combine(seed, VK_PIPELINE_STAGE_FLAG_BITS_MAX_ENUM);
     }
 
@@ -701,10 +700,11 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, BufferBar
                     nullptr,
                     VK_EVENT_CREATE_DEVICE_ONLY_BIT_KHR,
                 };
-                event = vkCreateEvent(CCVKDevice::getInstance()->gpuDevice()->vkDevice, 
+                VkResult res = vkCreateEvent(CCVKDevice::getInstance()->gpuDevice()->vkDevice, 
                                       &eventInfo, 
                                       nullptr,
                                       &event);
+                CC_ASSERT(res == VK_SUCCESS);
             }
             _barrierEvents.insert({seed, event});
         }

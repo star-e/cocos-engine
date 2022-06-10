@@ -284,6 +284,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
             if (srcBarrierIter == srcRearBarriers.end()) {
                 srcRearBarriers.emplace_back(Barrier{
                     resourceID,
+                    isAdjacent ? gfx::BarrierType::FULL : gfx::BarrierType::SPLIT_BEGIN,
                     {
                         from,
                         (*fromIter).visibility,
@@ -302,6 +303,8 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
             } else {
                 if (isAdjacent) {
+                    (*srcBarrierIter).type = gfx::BarrierType::FULL;
+
                     (*srcBarrierIter).beginStatus.vertID = from;
                     (*srcBarrierIter).beginStatus.visibility = (*fromIter).visibility;
                     (*srcBarrierIter).beginStatus.access = (*fromIter).access;
@@ -337,6 +340,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                 if (!isAdjacent) {
                     dstFrontBarriers.emplace_back(Barrier{
                         resourceID,
+                        gfx::BarrierType::SPLIT_END,
                         {
                             from,
                             defaultVisibility,
@@ -356,6 +360,8 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
             } else {
                 if (isAdjacent) {
                     // adjacent, barrier should be commit at fromPass, and remove this iter from dstBarriers
+                    (*srcBarrierIter).type = gfx::BarrierType::FULL;
+
                     (*srcBarrierIter).beginStatus.vertID = from;
                     (*srcBarrierIter).beginStatus.visibility = (*fromIter).visibility;
                     (*srcBarrierIter).beginStatus.access = (*fromIter).access;
@@ -446,16 +452,16 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         if (isStatusDependent(externalMap[resName].lastStatus, externalMap[resName].currStatus)) {
                             barrierMap[vert].frontBarriers.emplace_back(Barrier{
                                 rescID,
-                                (*iter).second.currStatus,
+                                gfx::BarrierType::SPLIT_END,
+                                externalMap[resName].lastStatus,
                                 externalMap[resName].currStatus,
                             });
-                        }
+                        } 
                     }
                     externalResNames.insert(resName);
                 } else {
                     if ((*iter).second.currStatus.vertID < vert) {
                         //[pass: vert] is later access than in iter.
-                        externalMap[resName].lastStatus = externalMap[resName].currStatus;
                         externalMap[resName].currStatus = {
                             INVALID_ID,
                             rescAccess.visibility,
@@ -520,6 +526,22 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
                 q,
                 visitor,
                 get(colors, rag));
+        }
+
+        // external res barrier for next frame
+        for (const auto& externalPair: externalResMap) {
+            const auto& transition = externalPair.second;
+            auto resID = resourceGraph.valueIndex.at(externalPair.first);
+            auto passID = transition.currStatus.vertID;
+            if(batchedBarriers.find(passID) == batchedBarriers.end()) {
+                batchedBarriers.emplace(passID, BarrierNode{});
+            }
+            batchedBarriers[passID].rearBarriers.emplace_back(Barrier{
+                                                                  resID,
+                                                                  gfx::BarrierType::SPLIT_BEGIN,
+                                                                  externalResMap[externalPair.first].currStatus,
+                                                                  {}
+                                                              });
         }
     }
 }

@@ -41,8 +41,6 @@ public:
 
     inline const CCVKGPUTextureBarrier *gpuBarrier() const { return _gpuBarrier; }
 
-    void prepareSplitBarrier(const CCVKTexture* texture);
-
 protected:
     CCVKGPUTextureBarrier *_gpuBarrier = nullptr;
 };

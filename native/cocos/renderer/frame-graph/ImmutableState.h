@@ -35,14 +35,14 @@ namespace framegraph {
 class FrameGraph;
 
 struct Range {
-    size_t base;
-    size_t len;
+    size_t base{0};
+    size_t len{0};
 };
 
 struct AccessStatus {
-    gfx::PassType passType;
-    gfx::ShaderStageFlagBit visibility;
-    gfx::MemoryAccessBit access;
+    gfx::PassType passType{gfx::PassType::RASTER};
+    gfx::ShaderStageFlagBit visibility{gfx::ShaderStageFlagBit::NONE};
+    gfx::MemoryAccessBit access{gfx::MemoryAccessBit::NONE};
 };
 
 enum class ResourceType : uint32_t{
@@ -52,8 +52,9 @@ enum class ResourceType : uint32_t{
 };
 
 struct ResourceBarrier {
-    ResourceType type;
-    Handle handle;
+    ResourceType resourceType{ResourceType::UNKNOWN};
+    gfx::BarrierType barrierType{gfx::BarrierType::FULL};
+    Handle handle{0};
 
     AccessStatus beginStatus;
     AccessStatus endStatus;

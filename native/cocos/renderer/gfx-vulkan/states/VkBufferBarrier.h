@@ -41,8 +41,6 @@ public:
 
     inline const CCVKGPUBufferBarrier *gpuBarrier() const { return _gpuBarrier; }
 
-    void  prepareSplitBarrier(const CCVKBuffer* buffer);
-
 protected:
     CCVKGPUBufferBarrier *_gpuBarrier = nullptr;
 };
