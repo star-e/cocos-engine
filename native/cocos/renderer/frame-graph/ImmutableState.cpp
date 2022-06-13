@@ -198,6 +198,8 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
                     flags |= AccessFlags::TRANSFER_WRITE;
                 } else if(status.passType == PassType::COMPUTE || status.passType == PassType::RAYTRACE){
                     flags |= AccessFlags::COMPUTE_SHADER_WRITE;
+                } else if (status.passType == PassType::PRESENT) {
+                    flags |= AccessFlags::PRESENT;
                 }
             }
             return flags;

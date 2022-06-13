@@ -65,6 +65,7 @@
 #include "pipeline/custom/RenderGraphTypes.h"
 #include "pipeline/custom/RenderInterfaceTypes.h"
 #include "profiler/DebugRenderer.h"
+#include "test/test.h"
 
 namespace cc {
 
@@ -360,6 +361,7 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
 
     commandBuffer->begin();
 
+#if 0
     for (const auto *camera : cameras) {
         uint32_t passID = 0; //from render graph
         auto accessNode = get(ResourceAccessGraph::AccessNode, fgDispatcher.resourceAccessGraph, passID);
@@ -486,6 +488,11 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
         frameGraph.presentFromBlackboard(colorHandle,
                                          camera->getWindow()->getFramebuffer()->getColorTextures()[0], true);
     }
+#else
+    testCase1();
+
+#endif
+
     frameGraph.compile();
     frameGraph.execute();
     frameGraph.reset();
