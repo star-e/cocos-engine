@@ -145,14 +145,6 @@ export class WebDescriptorHierarchy {
     public addEffect (asset: EffectAsset, parent: number): void {
         const sz = asset.shaders.length;
 
-        let hasCCGlobal = false;
-        let hasCCCamera = false;
-        let hasCCShadow = false;
-        let hasShadowmap = false;
-        let hasEnv = false;
-        let hasDiffuse = false;
-        let hasSpot = false;
-
         const dbsToMerge: DescriptorDB[] = [];
 
         for (let i = 0; i !== sz; ++i) {
@@ -173,14 +165,14 @@ export class WebDescriptorHierarchy {
 
             for (let k = 0; k < shader.buffers.length; ++k) {
                 const bufferInfo: EffectAsset.IBufferInfo = shader.buffers[k];
-                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_QUEUE,
+                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_BATCH,
                     ParameterType.TABLE, DescriptorTypeOrder.STORAGE_BUFFER, bufferInfo.stageFlags, queueDB);
                 this.setDescriptor(targetBlock, bufferInfo.name, Type.UNKNOWN);
             }
 
             for (let k = 0; k < shader.images.length; ++k) {
                 const imageInfo: EffectAsset.IImageInfo = shader.images[k];
-                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_QUEUE,
+                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_BATCH,
                     ParameterType.TABLE, DescriptorTypeOrder.STORAGE_IMAGE, imageInfo.stageFlags, queueDB);
                 this.setDescriptor(targetBlock, imageInfo.name, imageInfo.type);
             }
@@ -194,14 +186,14 @@ export class WebDescriptorHierarchy {
 
             for (let k = 0; k < shader.samplers.length; ++k) {
                 const samplerInfo: EffectAsset.ISamplerInfo = shader.samplers[k];
-                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_QUEUE,
+                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_BATCH,
                     ParameterType.TABLE, DescriptorTypeOrder.SAMPLER, samplerInfo.stageFlags, queueDB);
                 this.setDescriptor(targetBlock, samplerInfo.name, Type.SAMPLER);
             }
 
             for (let k = 0; k < shader.textures.length; ++k) {
                 const texInfo: EffectAsset.ITextureInfo = shader.textures[k];
-                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_QUEUE,
+                const targetBlock: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_BATCH,
                     ParameterType.TABLE, DescriptorTypeOrder.TEXTURE, texInfo.stageFlags, queueDB);
                 this.setDescriptor(targetBlock, texInfo.name, texInfo.type);
             }
@@ -216,7 +208,7 @@ export class WebDescriptorHierarchy {
             // Add queue layout from define.ts
             const localUniformTarget: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_INSTANCE,
                 ParameterType.TABLE, DescriptorTypeOrder.UNIFORM_BUFFER, ShaderStageFlagBit.VERTEX, queueDB);
-            const localLightTarget: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_QUEUE,
+            const localLightTarget: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_BATCH,
                 ParameterType.TABLE, DescriptorTypeOrder.DYNAMIC_UNIFORM_BUFFER, ShaderStageFlagBit.FRAGMENT, queueDB);
             const localUITarget: DescriptorBlock = this.getLayoutBlock(UpdateFrequency.PER_INSTANCE,
                 ParameterType.TABLE, DescriptorTypeOrder.DYNAMIC_UNIFORM_BUFFER, ShaderStageFlagBit.VERTEX, queueDB);
@@ -297,34 +289,6 @@ export class WebDescriptorHierarchy {
             const phase: RenderPhase = new RenderPhase();
             phase.shaders.add(shader.name);
             this._layoutGraph.addVertex<LayoutGraphValue.RenderPhase>(LayoutGraphValue.RenderPhase, phase, shader.name, queueDB, parent);
-
-            if (shader.builtins.globals.blocks) {
-                for (let k = 0; k < shader.builtins.globals.blocks.length; ++k) {
-                    const blockName = shader.builtins.globals.blocks[k].name;
-                    if (blockName === 'CCGlobal') {
-                        hasCCGlobal = true;
-                    } else if (blockName === 'CCCamera') {
-                        hasCCCamera = true;
-                    } else if (blockName === 'CCShadow') {
-                        hasCCShadow = true;
-                    }
-                }
-            }
-
-            if (shader.builtins.globals.samplerTextures) {
-                for (let k = 0; k < shader.builtins.globals.samplerTextures.length; ++k) {
-                    const samplerName = shader.builtins.globals.samplerTextures[k].name;
-                    if (samplerName === 'cc_shadowMap') {
-                        hasShadowmap = true;
-                    } else if (samplerName === 'cc_environment') {
-                        hasEnv = true;
-                    } else if (samplerName === 'cc_diffuseMap') {
-                        hasDiffuse = true;
-                    } else if (samplerName === 'cc_spotLightingMap') {
-                        hasSpot = true;
-                    }
-                }
-            }
 
             this.merge(queueDB);
             this.sort(queueDB);
