@@ -435,6 +435,17 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
                     const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
                     const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
                     auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
+                    framegraph::Range layerRange;
+                    framegraph::Range mipRange;
+                    if(type == framegraph::ResourceType::BUFFER) {
+                        auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
+                        layerRange = {0, 0};
+                        mipRange = {bufferRange.offset, bufferRange.size};
+                    } else {
+                        auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
+                        layerRange = {textureRange.firstSlice, textureRange.numSlices};
+                        mipRange = {textureRange.mipLevel, textureRange.levelCount};
+                    }
                     builder.addBarrier(cc::framegraph::ResourceBarrier{
                                            type,
                                            resBarrier.type,
@@ -448,12 +459,8 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
                                                 resBarrier.endStatus.visibility,
                                                 resBarrier.endStatus.access
                                            },
-                                           framegraph::Range{
-
-                                           },
-                                           framegraph::Range{
-
-                                           },
+                                           layerRange,
+                                           mipRange,
                                        },
                                        front);
                 }

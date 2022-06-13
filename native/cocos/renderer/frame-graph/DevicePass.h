@@ -77,6 +77,8 @@ private:
 
     void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front);
 
+    bool _enableAutoBarrier{false};
+
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};
     uint16_t _usedRenderTargetSlotMask{0};

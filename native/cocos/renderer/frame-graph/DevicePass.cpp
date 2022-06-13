@@ -114,45 +114,47 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
 }
 
 void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front) {
-    auto gatherBarrier = [this, &graph, index](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
-        const auto& info = front ? _barriers[index].get().frontBarriers : _barriers[index].get().rearBarriers;
-        
-        for (const auto& barrier : info) {
-            auto res = getBarrier(barrier, &graph);
-            switch (barrier.resourceType) {
-                case ResourceType::BUFFER: {
-                    auto* bufferBarrier = static_cast<gfx::BufferBarrier*>(res.first);
-                    buffers.push_back(static_cast<gfx::Buffer*>(res.second));
-                    bufBarriers.push_back(bufferBarrier);
-                    break;
+    if(_enableAutoBarrier) {
+        auto gatherBarrier = [this, &graph, index](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
+            const auto& info = front ? _barriers[index].get().frontBarriers : _barriers[index].get().rearBarriers;
+            
+            for (const auto& barrier : info) {
+                auto res = getBarrier(barrier, &graph);
+                switch (barrier.resourceType) {
+                    case ResourceType::BUFFER: {
+                        auto* bufferBarrier = static_cast<gfx::BufferBarrier*>(res.first);
+                        buffers.push_back(static_cast<gfx::Buffer*>(res.second));
+                        bufBarriers.push_back(bufferBarrier);
+                        break;
+                    }
+                    case ResourceType::TEXTURE: {
+                        auto* textureBarrier = static_cast<gfx::TextureBarrier*>(res.first);
+                        textures.push_back(static_cast<gfx::Texture*>(res.second));
+                        texBarriers.push_back(textureBarrier);
+                        break;
+                    }
+                    case ResourceType::UNKNOWN: {
+                        //only 1 excution barrier is allowed
+                        *generalBarrier = static_cast<gfx::GeneralBarrier*>(res.first);
+                        break;
+                    }
+                    default:
+                        CC_ASSERT(false);
                 }
-                case ResourceType::TEXTURE: {
-                    auto* textureBarrier = static_cast<gfx::TextureBarrier*>(res.first);
-                    textures.push_back(static_cast<gfx::Texture*>(res.second));
-                    texBarriers.push_back(textureBarrier);
-                    break;
-                }
-                case ResourceType::UNKNOWN: {
-                    //only 1 excution barrier is allowed
-                    *generalBarrier = static_cast<gfx::GeneralBarrier*>(res.first);
-                    break;
-                }
-                default:
-                    CC_ASSERT(false);
             }
-        }
-    };
+        };
 
-    gfx::TextureBarrierList textureBarriers;
-    gfx::BufferBarrierList bufferBarriers;
-    gfx::GeneralBarrier *generalBarrier{nullptr};
+        gfx::TextureBarrierList textureBarriers;
+        gfx::BufferBarrierList bufferBarriers;
+        gfx::GeneralBarrier *generalBarrier{nullptr};
 
-    gfx::BufferList buffers;
-    gfx::TextureList textures;
+        gfx::BufferList buffers;
+        gfx::TextureList textures;
 
-    gatherBarrier(textures, buffers, textureBarriers, bufferBarriers, &generalBarrier, front);
+        gatherBarrier(textures, buffers, textureBarriers, bufferBarriers, &generalBarrier, front);
 
-    cmdBuff->pipelineBarrier(generalBarrier, bufferBarriers, buffers, textureBarriers, textures);
+        cmdBuff->pipelineBarrier(generalBarrier, bufferBarriers, buffers, textureBarriers, textures);
+    }
 }
 
 void DevicePass::execute(const FrameGraph& graph) {

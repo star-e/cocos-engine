@@ -50,25 +50,25 @@ namespace render {
 struct NullTag {};
 
 struct BufferRange {
-    uint32_t ffset{0};
-    uint32_t ize{0};
+    uint32_t offset{0};
+    uint32_t size{0};
 };
 
 inline bool operator<(const BufferRange& lhs, const BufferRange& rhs) noexcept {
-    return std::forward_as_tuple(lhs.ffset, lhs.ize) <
-           std::forward_as_tuple(rhs.ffset, rhs.ize);
+    return std::forward_as_tuple(lhs.offset, lhs.size) <
+           std::forward_as_tuple(rhs.offset, rhs.size);
 }
 
 struct TextureRange {
     uint32_t firstSlice{0};
-    uint32_t planeSlice{0};
-    uint32_t mipLevels{1};
     uint32_t numSlices{1};
+    uint32_t mipLevel{0};
+    uint32_t levelCount{1};
 };
 
 inline bool operator<(const TextureRange& lhs, const TextureRange& rhs) noexcept {
-    return std::forward_as_tuple(lhs.firstSlice, lhs.planeSlice, lhs.mipLevels, lhs.numSlices) <
-           std::forward_as_tuple(rhs.firstSlice, rhs.planeSlice, rhs.mipLevels, rhs.numSlices);
+    return std::forward_as_tuple(lhs.firstSlice, lhs.numSlices, lhs.mipLevel, lhs.levelCount) <
+           std::forward_as_tuple(rhs.firstSlice, rhs.numSlices, rhs.mipLevel, rhs.levelCount);
 }
 
 using Range = boost::variant2::variant<BufferRange, TextureRange>;
