@@ -493,8 +493,7 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
                                          camera->getWindow()->getFramebuffer()->getColorTextures()[0], true);
     }
 #else
-    testCase1();
-
+    testCase1(frameGraph, cameras);
 #endif
 
     frameGraph.compile();

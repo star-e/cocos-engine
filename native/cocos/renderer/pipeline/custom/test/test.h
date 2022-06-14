@@ -36,6 +36,9 @@
 #include "gfx-base/GFXDef-common.h"
 #include "../Range.h"
 #include "../../Enum.h"
+#include "frame-graph/FrameGraph.h"
+#include "cocos/scene/RenderScene.h"
+#include "cocos/scene/RenderWindow.h"
 
 namespace cc {
 
@@ -51,12 +54,11 @@ using ResourceInfo = vector<pair<string, gfx::DescriptorType>>;
 using LayoutUnit = std::tuple<string, uint32_t, gfx::ShaderStageFlagBit>;
 using LayoutInfo = vector<vector<LayoutUnit>>;
 
-static framegraph::FrameGraph* _frameGraphInTestData = nullptr;
-
-void testData(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const LayoutInfo &layoutInfo, RenderGraph &renderGraph, ResourceGraph &rescGraph, LayoutGraphData &layoutGraphData) {
+void testData(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const LayoutInfo &layoutInfo, RenderGraph &renderGraph, ResourceGraph &rescGraph, LayoutGraphData &layoutGraphData, framegraph::FrameGraph& framegraph, const ccstd::vector<scene::Camera*>& cameras) {
     for (const auto &resc : rescInfo) {
         string name = std::get<0>(resc);
         auto rescVertexID = add_vertex(rescGraph, ManagedTag{}, name.c_str());
+        rescGraph.descs.emplace_back(ResourceDesc{resc.second == gfx::DESCRIPTOR_BUFFER_TYPE ? ResourceDimension::BUFFER : ResourceDimension::TEXTURE2D});
     }
 
     const auto &mem_resource = layoutGraphData.get_allocator();
@@ -130,42 +132,58 @@ void testData(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const La
     const auto &barriers = fgDispatcher.getBarriers();
 
     struct RenderData {
-        framegraph::TextureHandle outputTex;
-        framegraph::TextureHandle depth;
+        ccstd::vector<std::pair<AccessType, framegraph::TextureHandle>> outputTexes;
     };
 
     for (const auto passID : makeRange(vertices(renderGraph))) {
         visitObject(passID, renderGraph,
                     [&](const RasterPass &pass){
+                        RenderData tmpData;
                         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData &data) {
                             for(const auto& rasterView : pass.rasterViews) {
+                                const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
+                                auto typedHandle = builder.readFromBlackboard(handle);
+                                data.outputTexes.push_back({});
+                                auto &lastTex = data.outputTexes.back();
                                 framegraph::Texture::Descriptor colorTexInfo;
                                 colorTexInfo.format = gfx::Format::RGBA8;
-                                if(static_cast<uint32_t>(rasterView.second.accessType) & static_cast<uint32_t>(AccessType::READ)) {
-                                    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT;
+
+                                if (rasterView.second.accessType == AccessType::READ) {
+                                    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
                                 }
-                                if(static_cast<uint32_t>(rasterView.second.accessType) & static_cast<uint32_t>(AccessType::WRITE)) {
+                                if (rasterView.second.accessType == AccessType::WRITE) {
                                     colorTexInfo.usage = gfx::TextureUsage::COLOR_ATTACHMENT;
                                 }
-                                colorTexInfo.width = 960;
-                                colorTexInfo.height = 640;
-                                const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
-                                data.outputTex = builder.create(handle, colorTexInfo);
+                                lastTex.first = rasterView.second.accessType;
+                                lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+
+                                if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                                    colorTexInfo.width = 960;
+                                    colorTexInfo.height = 640;
+
+                                    lastTex.second = builder.create(handle, colorTexInfo);
+                                }
 
                                 framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
                                 colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ?
                                     framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
                                 colorAttachmentInfo.clearColor = rasterView.second.clearColor;
                                 colorAttachmentInfo.loadOp = rasterView.second.loadOp;
-                                colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
-
-                                data.outputTex = builder.write(data.outputTex, colorAttachmentInfo);
-                                builder.writeToBlackboard(handle, data.outputTex);
-
+                                if (rasterView.second.accessType == AccessType::WRITE) {
+                                    lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
+                                    builder.writeToBlackboard(handle, lastTex.second);
+                                    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                                } else {
+                                    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
+                                    builder.read(lastTex.second);
+                                }
                             }
                             builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
 
-                            const auto &barrier = barriers.at(passID);
+                            if (barriers.find(passID + 1) == barriers.end()) {
+                                return;
+                            }
+                            const auto &barrier = barriers.at(passID + 1);
                             auto fullfillBarrier = [&](bool front) {
                                 const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
                                 for (const auto &resBarrier : parts) {
@@ -209,12 +227,28 @@ void testData(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const La
 
                         };
 
-                        auto forwardExec = [](const RenderData & /*data*/,
-                                              const framegraph::DevicePassResourceTable &table) {};
+
+
+                        auto forwardExec = [](const RenderData & data,
+                                              const framegraph::DevicePassResourceTable &table) {
+                            /*for(const auto& pair: data.outputTexes) {
+                                if(pair.first == AccessType::WRITE) {
+                                    table.getWrite(pair.second);
+                                }
+                                if(pair.first == AccessType::READ) {
+                                    table.getRead(pair.second);
+                                }
+                                if(pair.first == AccessType::READ_WRITE) {
+                                    table.getRead(pair.second);
+                                    table.getWrite(pair.second);
+                                }
+                            }*/
+                        };
 
                         auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
 
-                        _frameGraphInTestData->addPass<RenderData>(static_cast<uint>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
+                        framegraph.addPass<RenderData>(static_cast<uint>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
+
 
                     },
                     [&](const ComputePass &pass){},
@@ -225,11 +259,11 @@ void testData(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const La
                     );
 
     }
-    _frameGraphInTestData->presentFromBlackboard(framegraph::FrameGraph::stringToHandle(tempPresentHandle.c_str()),
-                                         nullptr, true);
+    framegraph.presentFromBlackboard(framegraph::FrameGraph::stringToHandle(tempPresentHandle.c_str()),
+                                     cameras[0]->getWindow()->getFramebuffer()->getColorTextures()[0], true);
 };
 
-void testCase1() {
+void testCase1(framegraph::FrameGraph& framegraph, const ccstd::vector<scene::Camera*>& cameras) {
     boost::container::pmr::memory_resource *resource = boost::container::pmr::get_default_resource();
     RenderGraph renderGraph(resource);
     ResourceGraph rescGraph(resource);
@@ -269,7 +303,7 @@ void testCase1() {
             },
         },
         {
-            PassType::PRESENT,
+            PassType::RASTER,//present
             {
                 {{"5"}, {}},
             },
@@ -299,11 +333,11 @@ void testCase1() {
             {"5", 5, gfx::ShaderStageFlagBit::COMPUTE},
         }};
 
-    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph);
+    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph, framegraph, cameras);
     // for(const auto* camera : cameras) {}
 }
 
-void testCase2() {
+void testCase2(framegraph::FrameGraph& framegraph, const ccstd::vector<scene::Camera*>& cameras) {
     boost::container::pmr::memory_resource *resource = boost::container::pmr::get_default_resource();
     RenderGraph renderGraph(resource);
     ResourceGraph rescGraph(resource);
@@ -429,11 +463,11 @@ void testCase2() {
         },
     };
 
-    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph);
+    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph, framegraph, cameras);
     // for(const auto* camera : cameras) {}
 }
 
-void testCase3() {
+void testCase3(framegraph::FrameGraph& framegraph, const ccstd::vector<scene::Camera*>& cameras) {
     boost::container::pmr::memory_resource *resource = boost::container::pmr::get_default_resource();
     RenderGraph renderGraph(resource);
     ResourceGraph rescGraph(resource);
@@ -661,11 +695,11 @@ void testCase3() {
         },
     };
 
-    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph);
+    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph, framegraph, cameras);
     // for(const auto* camera : cameras) {}
 }
 
-void testCase4() {
+void testCase4(framegraph::FrameGraph& framegraph, ccstd::vector<scene::Camera*>& cameras) {
     boost::container::pmr::memory_resource *resource = boost::container::pmr::get_default_resource();
     RenderGraph renderGraph(resource);
     ResourceGraph rescGraph(resource);
@@ -800,7 +834,7 @@ void testCase4() {
         },
     };
 
-    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph);
+    testData(data, resources, layoutInfo, renderGraph, rescGraph, layoutGraph, framegraph, cameras);
     // for(const auto* camera : cameras) {}
 }
 
