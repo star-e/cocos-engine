@@ -235,10 +235,13 @@ void GLES3PrimaryCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, c
 
     GLuint glBarriers{0};
     GLuint glBarriersByRegion{0};
+
+    if (barrier) {
+        GLES3GPUGeneralBarrier genBarrier = *(static_cast<const GLES3GeneralBarrier *>(barrier)->gpuBarrier());
+        glBarriers |= genBarrier.glBarriers;
+        glBarriersByRegion |= genBarrier.glBarriersByRegion;
+    }
     
-    GLES3GPUGeneralBarrier genBarrier = *(static_cast<const GLES3GeneralBarrier*>(barrier)->gpuBarrier());
-    glBarriers |= genBarrier.glBarriers;
-    glBarriersByRegion |= genBarrier.glBarriersByRegion;
 
     auto fullfill = [&glBarriers, &glBarriersByRegion](auto* barriers, uint32_t count){
         for (size_t i = 0; i < count; ++i) {
@@ -257,7 +260,6 @@ void GLES3PrimaryCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, c
     fullfill(bufferBarriers, bufferBarrierCount);
     fullfill(textureBarriers, textureBarrierCount);
 
-    const auto *gpuBarrier = static_cast<const GLES3GeneralBarrier *>(barrier)->gpuBarrier();
     cmdFuncGLES3MemoryBarrier(GLES3Device::getInstance(), glBarriers, glBarriersByRegion);
 }
 

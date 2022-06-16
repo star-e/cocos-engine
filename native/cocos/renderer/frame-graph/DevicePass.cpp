@@ -113,11 +113,12 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
     }
 }
 
-void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front) {
+void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, bool front) {
     if(_enableAutoBarrier) {
-        auto gatherBarrier = [this, &graph, index](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
-            const auto& info = front ? _barriers[index].get().frontBarriers : _barriers[index].get().rearBarriers;
-            
+        auto gatherBarrier = [this, &graph](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
+            // no barrier is allowed inside renderpass, especially subpass.
+            CC_ASSERT(_barriers.size() <= 2);
+            const auto &info = front ? _barriers.front().get().frontBarriers : _barriers.back().get().rearBarriers;
             for (const auto& barrier : info) {
                 auto res = getBarrier(barrier, &graph);
                 switch (barrier.resourceType) {
@@ -161,14 +162,14 @@ void DevicePass::execute(const FrameGraph& graph) {
     auto *device = gfx::Device::getInstance();
     auto *cmdBuff = device->getCommandBuffer();
 
+    applyBarriers(cmdBuff, graph, true);
+
     begin(cmdBuff);
 
     for (uint32_t i = 0; i < utils::toUint(_subpasses.size()); ++i) {
         Subpass &subpass = _subpasses[i];
         _resourceTable._subpassIndex = i;
     
-        applyBarriers(cmdBuff, graph, i, true);
-
         for (LogicPass &pass : subpass.logicPasses) {
             gfx::Viewport &viewport = pass.customViewport ? pass.viewport : _viewport;
             gfx::Rect &scissor = pass.customViewport ? pass.scissor : _scissor;
@@ -185,13 +186,13 @@ void DevicePass::execute(const FrameGraph& graph) {
             pass.pass->execute(_resourceTable);
         }
 
-        applyBarriers(cmdBuff, graph, i, false);
-
         if (i < _subpasses.size() - 1) next(cmdBuff);
 
     }
 
     end(cmdBuff);
+
+    applyBarriers(cmdBuff, graph, false);
 }
 
 void DevicePass::append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments) {

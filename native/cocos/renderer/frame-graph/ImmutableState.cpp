@@ -153,7 +153,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
                             if(hasFlag(usage, TextureUsage::INPUT_ATTACHMENT)) {
                                 flags |= AccessFlags::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT;
                             } else {
-                                flags |= AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ;
+                                flags |= AccessFlags::COLOR_ATTACHMENT_READ;
                             }
                         } else if(hasFlag(usage, TextureUsage::DEPTH_STENCIL_ATTACHMENT)) {
                             if(hasFlag(usage, TextureUsage::INPUT_ATTACHMENT)) {
@@ -205,7 +205,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
             return flags;
         };
 
-
+        info.type = barrierInfo.barrierType;
         info.prevAccesses = getGFXAccess(barrierInfo.beginStatus);
         info.nextAccesses = getGFXAccess(barrierInfo.endStatus);
         info.baseMipLevel = barrierInfo.mipRange.base;

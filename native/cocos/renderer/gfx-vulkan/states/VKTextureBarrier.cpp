@@ -56,9 +56,7 @@ CCVKTextureBarrier::CCVKTextureBarrier(const TextureBarrierInfo &info) : Texture
                                                    ? static_cast<CCVKQueue *>(info.dstQueue)->gpuQueue()->queueFamilyIndex
                                                    : VK_QUEUE_FAMILY_IGNORED;
 
-    if(info.type != BarrierType::SPLIT_BEGIN) {
-        thsvsGetVulkanImageMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
-    }
+    thsvsGetVulkanImageMemoryBarrier(_gpuBarrier->barrier, &_gpuBarrier->srcStageMask, &_gpuBarrier->dstStageMask, &_gpuBarrier->vkBarrier);
 }
 
 CCVKTextureBarrier::~CCVKTextureBarrier() {

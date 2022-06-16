@@ -144,7 +144,7 @@ void processRaytracePass(RAG &rag, EmptyGraph &relationGraph, const LGD &lgd, co
 void processPresentPass(RAG &rag, EmptyGraph &relationGraph, const LGD &lgd, const ResourceGraph &rescGraph, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass);
 
 // execution order BUT NOT LOGICALLY
-bool isPassExecAdjecent(uint32_t passL, uint32_t passR) { return (passL ^ passR) == 1; }
+bool isPassExecAdjecent(uint32_t passL, uint32_t passR) { return std::abs(int(passL - passR)) == 1; }
 bool isStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs);
 template <typename Graph>
 bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph &graph);
@@ -263,7 +263,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
         // NOLINTNEXTLINE
         for (uint32_t i = 0; i < commonResources.size(); ++i) {
-            const uint32_t resourceID = commonResources[i].vertID;
+            uint32_t resourceID = commonResources[i].vertID;
             auto findAccessByID = [resourceID](const AccessStatus &resAccess) { return resAccess.vertID == resourceID; };
             auto fromIter = std::find_if(fromStatus.begin(), fromStatus.end(), findAccessByID);
             auto toIter = std::find_if(toStatus.begin(), toStatus.end(), findAccessByID);
@@ -294,13 +294,13 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                     },
                     {
                         to,
-                        isAdjacent ? (*toIter).visibility : defaultVisibility,
-                        isAdjacent ? (*toIter).access : defaultAccess,
+                        (*toIter).visibility,
+                        (*toIter).access,
                         (*toIter).passType,
                         (*toIter).range,
                     },
                 });
-
+                srcBarrierIter = std::prev(srcRearBarriers.end());
             } else {
                 if (isAdjacent) {
                     (*srcBarrierIter).type = gfx::BarrierType::FULL;
@@ -335,78 +335,81 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                 }
             }
 
-            if (dstBarrierIter == dstFrontBarriers.end()) {
-                // if isAdjacent, full barrier already in src rear barriers.
-                if (!isAdjacent) {
-                    dstFrontBarriers.emplace_back(Barrier{
-                        resourceID,
-                        gfx::BarrierType::SPLIT_END,
-                        {
-                            from,
-                            defaultVisibility,
-                            defaultAccess,
-                            (*fromIter).passType,
-                            (*fromIter).range,
-                        },
-                        {
-                            to, // next use of resc varies between resources
-                            (*toIter).visibility,
-                            (*toIter).access,
-                            (*toIter).passType,
-                            (*toIter).range,
-                        },
-                    });
-                }
-            } else {
-                if (isAdjacent) {
-                    // adjacent, barrier should be commit at fromPass, and remove this iter from dstBarriers
-                    (*srcBarrierIter).type = gfx::BarrierType::FULL;
-
-                    (*srcBarrierIter).beginStatus.vertID = from;
-                    (*srcBarrierIter).beginStatus.visibility = (*fromIter).visibility;
-                    (*srcBarrierIter).beginStatus.access = (*fromIter).access;
-                    (*srcBarrierIter).beginStatus.passType = (*fromIter).passType;
-                    (*srcBarrierIter).beginStatus.range = (*fromIter).range;
-
-                    (*srcBarrierIter).endStatus.vertID = to;
-                    (*srcBarrierIter).endStatus.visibility = (*toIter).visibility;
-                    (*srcBarrierIter).endStatus.access = (*toIter).access;
-                    (*srcBarrierIter).endStatus.passType = (*toIter).passType;
-                    (*srcBarrierIter).endStatus.range = (*toIter).range;
-
-                    dstFrontBarriers.erase(dstBarrierIter);
+            if ((*srcBarrierIter).type == gfx::BarrierType::SPLIT_BEGIN) {
+                if (dstBarrierIter == dstFrontBarriers.end()) {
+                    // if isAdjacent, full barrier already in src rear barriers.
+                    if (!isAdjacent) {
+                        dstFrontBarriers.emplace_back(Barrier{
+                            resourceID,
+                            gfx::BarrierType::SPLIT_END,
+                            {
+                                from,
+                                (*fromIter).visibility,
+                                (*fromIter).access,
+                                (*fromIter).passType,
+                                (*fromIter).range,
+                            },
+                            {
+                                to, // next use of resc varies between resources
+                                (*toIter).visibility,
+                                (*toIter).access,
+                                (*toIter).passType,
+                                (*toIter).range,
+                            },
+                        });
+                    }
                 } else {
-                    // logic but not exec adjacent
-                    // and more adjacent(further from src) than another pass which hold a use of resourceID
-                    // replace previous one
+                    if (isAdjacent) {
+                        // adjacent, barrier should be commit at fromPass, and remove this iter from dstBarriers
+                        (*srcBarrierIter).type = gfx::BarrierType::FULL;
 
-                    // 1 --> 2 --> 3
-                    //             ↓
-                    // 4 --> 5 --> 6
+                        (*srcBarrierIter).beginStatus.vertID = from;
+                        (*srcBarrierIter).beginStatus.visibility = (*fromIter).visibility;
+                        (*srcBarrierIter).beginStatus.access = (*fromIter).access;
+                        (*srcBarrierIter).beginStatus.passType = (*fromIter).passType;
+                        (*srcBarrierIter).beginStatus.range = (*fromIter).range;
 
-                    // [if] real pass order: 1 - 2 - 4 - 5 - 3 - 6
+                        (*srcBarrierIter).endStatus.vertID = to;
+                        (*srcBarrierIter).endStatus.visibility = (*toIter).visibility;
+                        (*srcBarrierIter).endStatus.access = (*toIter).access;
+                        (*srcBarrierIter).endStatus.passType = (*toIter).passType;
+                        (*srcBarrierIter).endStatus.range = (*toIter).range;
 
-                    // 2 and 5 read from ResA, 6 writes to ResA
-                    // 5 and 6 logically adjacent but not adjacent in execution order.
-                    // barrier for ResA between 2 - 6 can be totally replace by 5 - 6
-                    if (to < (*dstBarrierIter).endStatus.vertID) {
-                        uint32_t siblingPass = (*dstBarrierIter).endStatus.vertID;
-                        (*dstBarrierIter).endStatus.vertID = to;
-                        (*dstBarrierIter).endStatus.visibility = (*toIter).visibility;
-                        (*dstBarrierIter).endStatus.access = (*toIter).access;
-                        (*dstBarrierIter).endStatus.passType = (*toIter).passType;
-                        (*dstBarrierIter).endStatus.range = (*toIter).range;
+                        dstFrontBarriers.erase(dstBarrierIter);
+                    } else {
+                        // logic but not exec adjacent
+                        // and more adjacent(further from src) than another pass which hold a use of resourceID
+                        // replace previous one
 
-                        // remove the further redundant barrier
-                        auto siblingIter = std::find_if(barrierMap[siblingPass].frontBarriers.begin(), barrierMap[siblingPass].frontBarriers.end(),
-                                                        [resourceID](const Barrier &barrier) {
-                                                            return resourceID == barrier.resourceID;
-                                                        });
-                        CC_ASSERT(siblingIter != barrierMap[siblingPass].frontBarriers.end());
-                        barrierMap[siblingPass].frontBarriers.erase(siblingIter);
+                        // 1 --> 2 --> 3
+                        //             ↓
+                        // 4 --> 5 --> 6
+
+                        // [if] real pass order: 1 - 2 - 4 - 5 - 3 - 6
+
+                        // 2 and 5 read from ResA, 6 writes to ResA
+                        // 5 and 6 logically adjacent but not adjacent in execution order.
+                        // barrier for ResA between 2 - 6 can be totally replace by 5 - 6
+                        if (to < (*dstBarrierIter).endStatus.vertID) {
+                            uint32_t siblingPass = (*dstBarrierIter).endStatus.vertID;
+                            (*dstBarrierIter).endStatus.vertID = to;
+                            (*dstBarrierIter).endStatus.visibility = (*toIter).visibility;
+                            (*dstBarrierIter).endStatus.access = (*toIter).access;
+                            (*dstBarrierIter).endStatus.passType = (*toIter).passType;
+                            (*dstBarrierIter).endStatus.range = (*toIter).range;
+
+                            // remove the further redundant barrier
+                            auto siblingIter = std::find_if(barrierMap[siblingPass].frontBarriers.begin(), barrierMap[siblingPass].frontBarriers.end(),
+                                                            [resourceID](const Barrier &barrier) {
+                                                                return resourceID == barrier.resourceID;
+                                                            });
+                            CC_ASSERT(siblingIter != barrierMap[siblingPass].frontBarriers.end());
+                            barrierMap[siblingPass].frontBarriers.erase(siblingIter);
+                        }
                     }
                 }
             }
+            
         }
 
         //----------------------------------------------check external----------------------------------------------
@@ -1154,7 +1157,16 @@ void processRasterPass(RAG &rag, EmptyGraph &relationGraph, const LGD &lgd, cons
         const auto &rasterView = pair.second;
         gfx::ShaderStageFlagBit visibility = getVisibilityByDescName(lgd, passID, pair.first);
         auto access = toGfxAccess(rasterView.accessType);
-        addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::RASTER, rasterView.slotName, visibility, access}, Range{});
+        uint32_t rescID = rescGraph.valueIndex.at(pair.first);
+        auto resourceDesc = get(ResourceGraph::Desc, rescGraph, rescID);
+        Range range;
+        if(resourceDesc.dimension == ResourceDimension::BUFFER) {
+            range = BufferRange{0, resourceDesc.depthOrArraySize};
+        } else {
+            range = TextureRange{0, 1, 0, resourceDesc.mipLevels};
+        }
+
+        addAccessNode(rag, rescGraph, node, InputStatusTuple{PassType::RASTER, rasterView.slotName, visibility, access}, range);
         auto lastVertId = dependencyCheck(rag, accessRecord, vertID, InputStatusTuple{PassType::RASTER, rasterView.slotName, visibility, access});
         if (lastVertId != INVALID_ID) {
             tryAddEdge(lastVertId, vertID, rag);

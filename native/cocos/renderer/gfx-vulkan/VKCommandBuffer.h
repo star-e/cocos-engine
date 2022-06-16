@@ -102,7 +102,7 @@ protected:
     ImageBarrierList _imageMemoryBarriers;
     BufferBarrierList _bufferMemoryBarriers;
     ccstd::queue<VkEvent> _availableEvents;
-    ccstd::unordered_map<uint32_t, VkEvent> _barrierEvents;
+    ccstd::unordered_map<const GFXObject*, VkEvent> _barrierEvents;
     
     ccstd::queue<VkCommandBuffer> _pendingQueue;
 };

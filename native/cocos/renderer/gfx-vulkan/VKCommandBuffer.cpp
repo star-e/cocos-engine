@@ -64,6 +64,12 @@ void CCVKCommandBuffer::doInit(const CommandBufferInfo & /*info*/) {
 }
 
 void CCVKCommandBuffer::doDestroy() {
+    while (!_availableEvents.empty()) {
+        VkEvent event = _availableEvents.front();
+        _availableEvents.pop();
+        vkDestroyEvent(CCVKDevice::getInstance()->gpuDevice()->vkDevice, event, nullptr);
+    }
+
     CC_SAFE_DELETE(_gpuCommandBuffer);
 }
 
@@ -609,118 +615,143 @@ void CCVKCommandBuffer::dispatch(const DispatchInfo &info) {
     }
 }
 
-void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const BufferBarrier *const *bufferBarriers, const Buffer *const *buffers, uint32_t bufferBarrierCount, const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint textureBarrierCount) {   
+void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const BufferBarrier *const *bufferBarriers, const Buffer *const *buffers, uint32_t bufferBarrierCount, const TextureBarrier *const *textureBarriers, const Texture *const *textures, uint textureBarrierCount) {
     VkPipelineStageFlags fullSrcStageMask = VK_PIPELINE_STAGE_NONE_KHR;
     VkPipelineStageFlags fullDstStageMask = VK_PIPELINE_STAGE_NONE_KHR;
     VkPipelineStageFlags splitSrcStageMask = VK_PIPELINE_STAGE_NONE_KHR;
-    VkPipelineStageFlags splitDstStageMask = VK_PIPELINE_STAGE_NONE_KHR; 
+    VkPipelineStageFlags splitDstStageMask = VK_PIPELINE_STAGE_NONE_KHR;
     VkMemoryBarrier const *pMemoryBarrier = nullptr;
 
-    bool hasSplitBegin = false;
     ccstd::vector<VkImageMemoryBarrier> splitImageBarriers;
     ccstd::vector<VkBufferMemoryBarrier> splitBufferBarriers;
     ccstd::vector<VkImageMemoryBarrier> fullImageBarriers;
     ccstd::vector<VkBufferMemoryBarrier> fullBufferBarriers;
+    ccstd::vector<VkEvent> scheduledEvents;
 
-    ccstd::hash_t seed = barrier ? 1 : 0 + textureBarrierCount + bufferBarrierCount;
-    
+    auto signalEvent = [&](const GFXObject *obj, VkPipelineStageFlags stageMask) {
+        VkEvent event;
+        if (!_availableEvents.empty()) {
+            event = _availableEvents.front();
+            _availableEvents.pop();
+        } else {
+            VkEventCreateInfo eventInfo = {
+                VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
+                nullptr,
+                VK_EVENT_CREATE_DEVICE_ONLY_BIT_KHR,
+            };
+            VkResult res = vkCreateEvent(CCVKDevice::getInstance()->gpuDevice()->vkDevice,
+                                         &eventInfo,
+                                         nullptr,
+                                         &event);
+            CC_ASSERT(res == VK_SUCCESS);
+        }
+        vkCmdSetEvent(_gpuCommandBuffer->vkCommandBuffer, event, stageMask);
+        _barrierEvents.insert({obj, event});
+    };
+
     if (textureBarrierCount > 0) {
         for (uint32_t i = 0U; i < textureBarrierCount; ++i) {
-            auto* ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
+            auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
-            auto* ccTexture = static_cast<const CCVKTexture *const>(textures[i]);
+            auto *ccTexture = static_cast<const CCVKTexture *const>(textures[i]);
             auto *gpuTexture = ccTexture->gpuTexture();
 
-            if(ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {
-                hasSplitBegin = true;
+            if (ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {
+                signalEvent(ccTexture, gpuBarrier->srcStageMask);
             } else {
                 bool fullBarrier = ccBarrier->getInfo().type == BarrierType::FULL;
-                auto& vkImageBarriers = fullBarrier ? fullImageBarriers : splitImageBarriers;
-                auto& srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
-                auto& dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
+                if (!fullBarrier) {
+                    auto key = ccstd::hash_value(gpuTexture);
+                    CC_ASSERT(_barrierEvents.find(ccTexture) != _barrierEvents.end());
+                    VkEvent event = _barrierEvents.at(ccTexture);
+                    scheduledEvents.push_back(event);
+                }
+                auto &vkImageBarriers = fullBarrier ? fullImageBarriers : splitImageBarriers;
+                auto &srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
+                auto &dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
                 gpuTexture->currentAccessTypes.assign(gpuBarrier->barrier.pNextAccesses, gpuBarrier->barrier.pNextAccesses + gpuBarrier->barrier.nextAccessCount);
                 vkImageBarriers.push_back(gpuBarrier->vkBarrier);
+                vkImageBarriers.back().subresourceRange.aspectMask = gpuTexture->aspectMask;
                 if (gpuTexture->swapchain) {
-                    vkImageBarriers[vkImageBarriers.size() - 1].image = gpuTexture->swapchainVkImages[gpuTexture->swapchain->curImageIndex];
+                    vkImageBarriers.back().image = gpuTexture->swapchainVkImages[gpuTexture->swapchain->curImageIndex];
                 } else {
-                    vkImageBarriers[vkImageBarriers.size() - 1].image = gpuTexture->vkImage;
+                    vkImageBarriers.back().image = gpuTexture->vkImage;
                 }
                 srcStageMask |= gpuBarrier->srcStageMask;
                 dstStageMask |= gpuBarrier->dstStageMask;
             }
-            ccstd::hash_combine(seed, gpuTexture);
         }
     }
 
-    if(bufferBarrierCount > 0) {
+    if (bufferBarrierCount > 0) {
         for (uint32_t i = 0U; i < bufferBarrierCount; ++i) {
-            auto* ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
+            auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
-            auto* ccBuffer = static_cast<const CCVKBuffer *const>(buffers[i]);
+            auto *ccBuffer = static_cast<const CCVKBuffer *const>(buffers[i]);
             auto *gpuBuffer = ccBuffer->gpuBuffer();
 
-            if(ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {
-                hasSplitBegin = true;
+            if (ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {
+                signalEvent(ccBuffer, gpuBarrier->srcStageMask);
             } else {
                 bool fullBarrier = ccBarrier->getInfo().type == BarrierType::FULL;
-                auto& vkBufferBarriers = fullBarrier ? fullBufferBarriers : splitBufferBarriers;
-                auto& srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
-                auto& dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
+                if (!fullBarrier) {
+                    CC_ASSERT(_barrierEvents.find(ccBuffer) != _barrierEvents.end());
+                    VkEvent event = _barrierEvents.at(ccBuffer);
+                    scheduledEvents.push_back(event);
+                }
+                auto &vkBufferBarriers = fullBarrier ? fullBufferBarriers : splitBufferBarriers;
+                auto &srcStageMask = fullBarrier ? fullSrcStageMask : splitSrcStageMask;
+                auto &dstStageMask = fullBarrier ? fullDstStageMask : splitDstStageMask;
 
                 gpuBuffer->currentAccessTypes.assign(gpuBarrier->barrier.pNextAccesses, gpuBarrier->barrier.pNextAccesses + gpuBarrier->barrier.nextAccessCount);
                 vkBufferBarriers.push_back(gpuBarrier->vkBarrier);
                 srcStageMask |= gpuBarrier->srcStageMask;
                 dstStageMask |= gpuBarrier->dstStageMask;
             }
-            ccstd::hash_combine(seed, gpuBuffer);
         }
     }
 
     if (barrier) {
-        auto* ccBarrier = static_cast<const CCVKGeneralBarrier *>(barrier);
+        auto *ccBarrier = static_cast<const CCVKGeneralBarrier *>(barrier);
         const auto *gpuBarrier = ccBarrier->gpuBarrier();
         fullSrcStageMask |= gpuBarrier->srcStageMask;
         fullDstStageMask |= gpuBarrier->dstStageMask;
         splitSrcStageMask |= gpuBarrier->srcStageMask;
         splitDstStageMask |= gpuBarrier->dstStageMask;
         pMemoryBarrier = &gpuBarrier->vkBarrier;
-        ccstd::hash_combine(seed, VK_PIPELINE_STAGE_FLAG_BITS_MAX_ENUM);
     }
 
-    if(textureBarrierCount || bufferBarrierCount || barrier) {
-        // some split begin while other split end
-        if(hasSplitBegin) {
-             VkEvent event;
-            if(!_availableEvents.empty()) {
-                event = _availableEvents.front();
-                _availableEvents.pop();
-            } else {
-                VkEventCreateInfo eventInfo = {
-                    VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
-                    nullptr,
-                    VK_EVENT_CREATE_DEVICE_ONLY_BIT_KHR,
-                };
-                VkResult res = vkCreateEvent(CCVKDevice::getInstance()->gpuDevice()->vkDevice, 
-                                      &eventInfo, 
-                                      nullptr,
-                                      &event);
-                CC_ASSERT(res == VK_SUCCESS);
-            }
-            _barrierEvents.insert({seed, event});
-        }
+    fullSrcStageMask = fullSrcStageMask & VK_PIPELINE_STAGE_HOST_BIT ? 0x0 : fullSrcStageMask;
+    splitSrcStageMask = splitSrcStageMask & VK_PIPELINE_STAGE_HOST_BIT ? 0x0 : splitSrcStageMask;
+
+    if (textureBarrierCount || bufferBarrierCount || barrier) {
         // split end detect
-        if(!splitBufferBarriers.empty() || !splitImageBarriers.empty()) {
-            CC_ASSERT(_barrierEvents.find(seed) != _barrierEvents.end());
-            VkEvent event = _barrierEvents.at(seed);
-            vkCmdWaitEvents(_gpuCommandBuffer->vkCommandBuffer, 1, &event, splitSrcStageMask, splitDstStageMask, 1, pMemoryBarrier, splitBufferBarriers.size(),
+        if (!splitBufferBarriers.empty() || !splitImageBarriers.empty()) {
+            vkCmdWaitEvents(_gpuCommandBuffer->vkCommandBuffer, scheduledEvents.size(), scheduledEvents.data(), splitSrcStageMask, splitDstStageMask, 0, nullptr, splitBufferBarriers.size(),
                             splitBufferBarriers.data(), splitImageBarriers.size(), splitImageBarriers.data());
-            _barrierEvents.erase(seed);
-            _availableEvents.push(event);
+
+            for (size_t i = 0; i < textureBarrierCount; ++i) {
+                auto event = _barrierEvents.at(textures[i]);
+                auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
+                const auto *gpuBarrier = ccBarrier->gpuBarrier();
+                vkCmdResetEvent(_gpuCommandBuffer->vkCommandBuffer, event, gpuBarrier->dstStageMask);
+                _barrierEvents.erase(textures[i]);
+                _availableEvents.push(event);
+            }
+
+            for (size_t i = 0; i < bufferBarrierCount; ++i) {
+                auto event = _barrierEvents.at(buffers[i]);
+                auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
+                const auto *gpuBarrier = ccBarrier->gpuBarrier();
+                vkCmdResetEvent(_gpuCommandBuffer->vkCommandBuffer, event, gpuBarrier->dstStageMask);
+                _barrierEvents.erase(buffers[i]);
+                _availableEvents.push(event);
+            }
         }
 
-        if(!fullBufferBarriers.empty() || !fullImageBarriers.empty()) {
-            vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer, fullSrcStageMask, fullDstStageMask, 0, 1, pMemoryBarrier,
-                         fullBufferBarriers.size(), fullBufferBarriers.data(), fullImageBarriers.size(), fullImageBarriers.data());
+        if (!fullBufferBarriers.empty() || !fullImageBarriers.empty()) {
+            vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer, fullSrcStageMask, fullDstStageMask, 0, 0, pMemoryBarrier,
+                                 fullBufferBarriers.size(), fullBufferBarriers.data(), fullImageBarriers.size(), fullImageBarriers.data());
         }
     }
 }

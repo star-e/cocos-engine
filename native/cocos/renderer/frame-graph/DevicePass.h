@@ -75,9 +75,9 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
-    void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, uint32_t index, bool front);
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, bool front);
 
-    bool _enableAutoBarrier{false};
+    bool _enableAutoBarrier{true};
 
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};
