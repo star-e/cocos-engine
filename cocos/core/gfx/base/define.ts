@@ -1580,6 +1580,10 @@ export class TextureBarrierInfo {
     constructor (
         public prevAccesses: AccessFlags = AccessFlagBit.NONE,
         public nextAccesses: AccessFlags = AccessFlagBit.NONE,
+        public baseMipLevel: number = 0,
+        public levelCount: number = 1,
+        public baseSlice: number = 0,
+        public sliceCount: number = 1,
         public discardContents: boolean = false,
         public srcQueue: Queue | null = null,
         public dstQueue: Queue | null = null,
@@ -1588,6 +1592,35 @@ export class TextureBarrierInfo {
     public copy (info: Readonly<TextureBarrierInfo>) {
         this.prevAccesses = info.prevAccesses;
         this.nextAccesses = info.nextAccesses;
+        this.baseMipLevel = info.baseMipLevel;
+        this.levelCount = info.levelCount;
+        this.baseSlice = info.baseSlice;
+        this.sliceCount = info.sliceCount;
+        this.discardContents = info.discardContents;
+        this.srcQueue = info.srcQueue;
+        this.dstQueue = info.dstQueue;
+        return this;
+    }
+}
+
+export class BufferBarrierInfo {
+    declare private _token: never; // to make sure all usages must be an instance of this exact class, not assembled from plain object
+
+    constructor (
+        public prevAccesses: AccessFlags = AccessFlagBit.NONE,
+        public nextAccesses: AccessFlags = AccessFlagBit.NONE,
+        public offset: number = 0,
+        public size: number = 0,
+        public discardContents: boolean = false,
+        public srcQueue: Queue | null = null,
+        public dstQueue: Queue | null = null,
+    ) {}
+
+    public copy (info: Readonly<BufferBarrierInfo>) {
+        this.prevAccesses = info.prevAccesses;
+        this.nextAccesses = info.nextAccesses;
+        this.offset = info.offset;
+        this.size = info.size;
         this.discardContents = info.discardContents;
         this.srcQueue = info.srcQueue;
         this.dstQueue = info.dstQueue;

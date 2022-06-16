@@ -40,12 +40,17 @@ import { WebGLPipelineState } from './webgl-pipeline-state';
 import { WebGLTexture } from './webgl-texture';
 import { RenderPass } from '../base/render-pass';
 import { WebGLRenderPass } from './webgl-render-pass';
-import { BufferUsageBit, CommandBufferType, StencilFace, BufferSource,
-    CommandBufferInfo, BufferTextureCopy, Color, Rect, Viewport, DrawInfo, DynamicStates } from '../base/define';
-import { WebGLCmd, WebGLCmdBeginRenderPass, WebGLCmdBindStates, WebGLCmdCopyBufferToTexture,
-    WebGLCmdDraw, WebGLCmdPackage, WebGLCmdUpdateBuffer } from './webgl-commands';
+import {
+    BufferUsageBit, CommandBufferType, StencilFace, BufferSource,
+    CommandBufferInfo, BufferTextureCopy, Color, Rect, Viewport, DrawInfo, DynamicStates,
+} from '../base/define';
+import {
+    WebGLCmd, WebGLCmdBeginRenderPass, WebGLCmdBindStates, WebGLCmdCopyBufferToTexture,
+    WebGLCmdDraw, WebGLCmdPackage, WebGLCmdUpdateBuffer,
+} from './webgl-commands';
 import { GeneralBarrier } from '../base/states/general-barrier';
 import { TextureBarrier } from '../base/states/texture-barrier';
+import { BufferBarrier } from '../base/states/buffer-barrier';
 import { WebGLDeviceManager } from './webgl-define';
 
 export class WebGLCommandBuffer extends CommandBuffer {
@@ -282,16 +287,16 @@ export class WebGLCommandBuffer extends CommandBuffer {
             if (this._curGPUPipelineState) {
                 const glPrimitive = this._curGPUPipelineState.glPrimitive;
                 switch (glPrimitive) {
-                case 0x0004: { // WebGLRenderingContext.TRIANGLES
-                    this._numTris += indexCount / 3 * Math.max(info.instanceCount, 1);
-                    break;
-                }
-                case 0x0005: // WebGLRenderingContext.TRIANGLE_STRIP
-                case 0x0006: { // WebGLRenderingContext.TRIANGLE_FAN
-                    this._numTris += (indexCount - 2) * Math.max(info.instanceCount, 1);
-                    break;
-                }
-                default:
+                    case 0x0004: { // WebGLRenderingContext.TRIANGLES
+                        this._numTris += indexCount / 3 * Math.max(info.instanceCount, 1);
+                        break;
+                    }
+                    case 0x0005: // WebGLRenderingContext.TRIANGLE_STRIP
+                    case 0x0006: { // WebGLRenderingContext.TRIANGLE_FAN
+                        this._numTris += (indexCount - 2) * Math.max(info.instanceCount, 1);
+                        break;
+                    }
+                    default:
                 }
             }
         } else {
@@ -399,7 +404,9 @@ export class WebGLCommandBuffer extends CommandBuffer {
         }
     }
 
-    public pipelineBarrier (GeneralBarrier: Readonly<GeneralBarrier> | null, textureBarriers?: Readonly<TextureBarrier[]>,
+    public pipelineBarrier (GeneralBarrier: Readonly<GeneralBarrier>, bufferBarriers?: Readonly<BufferBarrier[]>,
+        buffers?: Readonly<Buffer[]>,
+        textureBarriers?: Readonly<TextureBarrier[]>,
         textures?: Readonly<Texture[]>) {}
 
     protected bindStates () {
