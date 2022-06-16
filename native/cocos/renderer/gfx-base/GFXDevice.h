@@ -42,7 +42,6 @@
 #include "GFXTexture.h"
 #include "base/RefCounted.h"
 #include "base/std/container/array.h"
-#include "gfx-base/GFXDef.h"
 #include "states/GFXGeneralBarrier.h"
 #include "states/GFXSampler.h"
 #include "states/GFXTextureBarrier.h"

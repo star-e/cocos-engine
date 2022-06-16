@@ -29,7 +29,6 @@
 #include "gfx-base/GFXCommandBuffer.h"
 
 #include "VKGPUObjects.h"
-#include "vulkan/vulkan_core.h"
 
 namespace cc {
 namespace gfx {

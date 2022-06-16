@@ -651,9 +651,9 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const Buf
 
     if (textureBarrierCount > 0) {
         for (uint32_t i = 0U; i < textureBarrierCount; ++i) {
-            auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
+            const auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
-            auto *ccTexture = static_cast<const CCVKTexture *const>(textures[i]);
+            const auto *ccTexture = static_cast<const CCVKTexture *const>(textures[i]);
             auto *gpuTexture = ccTexture->gpuTexture();
 
             if (ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {

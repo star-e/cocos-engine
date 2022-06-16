@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include <stdint.h>
 #include "base/TypeDef.h"
 #include "base/memory/Memory.h"
 #include "base/std/container/string.h"

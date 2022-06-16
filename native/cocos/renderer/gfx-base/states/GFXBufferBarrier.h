@@ -46,4 +46,4 @@ protected:
 };
 
 } // namespace gfx
-} 
+} // namespace cc

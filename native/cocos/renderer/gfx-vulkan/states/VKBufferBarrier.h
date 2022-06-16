@@ -32,7 +32,6 @@ namespace cc {
 namespace gfx {
 
 struct CCVKGPUBufferBarrier;
-class CCVKBuffer;
 
 class CC_VULKAN_API CCVKBufferBarrier : public BufferBarrier {
 public:

@@ -33,7 +33,6 @@
 #include "base/Utils.h"
 #include "gfx-base/GFXCommandBuffer.h"
 #include "gfx-base/GFXDef-common.h"
-#include "gfx-base/GFXTexture.h"
 
 #include <algorithm>
 

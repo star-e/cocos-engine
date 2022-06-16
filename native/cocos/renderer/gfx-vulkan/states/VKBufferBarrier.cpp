@@ -27,7 +27,6 @@
 #include "../VKGPUObjects.h"
 #include "../VKQueue.h"
 #include "gfx-base/GFXDef-common.h"
-#include "../VKBuffer.h"
 #include "gfx-vulkan/thsvs_simpler_vulkan_synchronization.h"
 
 namespace cc {

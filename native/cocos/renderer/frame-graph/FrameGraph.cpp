@@ -29,7 +29,6 @@
 #include <fstream>
 #include "PassNodeBuilder.h"
 #include "Resource.h"
-#include "base/StringHandle.h"
 #include "base/StringUtil.h"
 #include "base/std/container/set.h"
 #include "frame-graph/ResourceEntry.h"

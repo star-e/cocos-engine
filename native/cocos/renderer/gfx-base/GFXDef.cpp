@@ -23,14 +23,12 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#include <string.h>
 #include "base/Utils.h"
 #include "base/std/container/array.h"
 #include "base/std/hash/hash.h"
 
 #include "GFXDef.h"
 #include "GFXTexture.h"
-#include "gfx-base/GFXDef-common.h"
 
 namespace cc {
 namespace gfx {

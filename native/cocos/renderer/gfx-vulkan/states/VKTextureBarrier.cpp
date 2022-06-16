@@ -26,7 +26,6 @@
 #include "VKTextureBarrier.h"
 #include "../VKGPUObjects.h"
 #include "../VKQueue.h"
-#include "../VKTexture.h"
 
 namespace cc {
 namespace gfx {

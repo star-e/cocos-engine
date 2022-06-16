@@ -26,7 +26,6 @@
 #pragma once
 
 #include "PassNode.h"
-#include "frame-graph/Handle.h"
 
 namespace cc {
 namespace framegraph {

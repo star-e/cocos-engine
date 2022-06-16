@@ -24,7 +24,6 @@
 ****************************************************************************/
 
 #include "CommandBufferAgent.h"
-#include <stdint.h>
 #include <cstring>
 #include "BufferAgent.h"
 #include "DescriptorSetAgent.h"
