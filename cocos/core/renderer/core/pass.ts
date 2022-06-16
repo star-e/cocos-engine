@@ -39,7 +39,7 @@ import { MacroRecord, MaterialProperty, customizeType, getBindingFromHandle, get
     getOffsetFromHandle, getTypeFromHandle, type2reader, type2writer, getCountFromHandle,
 } from './pass-utils';
 import { RenderPassStage, RenderPriority } from '../../pipeline/define';
-import { errorID } from '../../platform/debug';
+import { assert, errorID } from '../../platform/debug';
 import { InstancedBuffer } from '../../pipeline/instanced-buffer';
 import { BatchedBuffer } from '../../pipeline/batched-buffer';
 
@@ -71,6 +71,9 @@ const _bufferInfo = new BufferInfo(
 const _bufferViewInfo = new BufferViewInfo(null!);
 
 const _dsInfo = new DescriptorSetInfo(null!);
+
+// _dynamic: boolean is static, because it is constant during runtime
+let _dynamic = false;
 
 export enum BatchingSchemes {
     NONE = 0,
@@ -159,9 +162,12 @@ export class Pass {
 
     // internal resources
     protected _rootBuffer: Buffer | null = null;
-    protected _buffers: Buffer[] = [];
     protected _descriptorSet: DescriptorSet = null!;
     protected _pipelineLayout: PipelineLayout = null!;
+    // persistent resources
+    protected readonly _buffers = new Map<string, Buffer>();
+    protected readonly _textures = new Map<string, Texture[]>();
+    protected readonly _samplers = new Map<string, Sampler[]>();
     // internal data
     protected _passIndex = 0;
     protected _propertyIndex = 0;
@@ -192,10 +198,12 @@ export class Pass {
     protected _device: Device;
 
     protected  _rootBufferDirty = false;
+    protected  _descriptorDirty = true;
 
     constructor (root: Root) {
         this._root = root;
         this._device = root.device;
+        _dynamic = root.usesCustomPipeline;
     }
 
     /**
@@ -307,6 +315,42 @@ export class Pass {
     }
 
     /**
+     * @en Set a GFX [[gfx.Texture]] by name
+     * @zh 设置 GFX [[gfx.Texture]] 到指定名字。
+     * @param name The binding name for target uniform of texture type
+     * @param value Target texture
+     */
+    public setTexture (name: string, value: Texture): void {
+        this._textures.set(name, [value]);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        this.bindTexture(binding, value);
+    }
+
+    /**
+     * @en Set a GFX [[gfx.Texture]] Array by name
+     * @zh 设置 GFX [[gfx.Texture]] 数组到指定名字。
+     * @param name The binding name for target uniform of texture type
+     * @param value Target texture array
+     */
+    public setTextureArray (name: string, textures: Array<Texture>): void {
+        this._textures.set(name, textures);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        for (let i = 0; i < textures.length; ++i) {
+            this.bindTexture(binding, textures[i], i);
+        }
+    }
+
+    /**
      * @en Bind a GFX [[gfx.Sampler]] the the given uniform binding
      * @zh 绑定实际 GFX [[gfx.Sampler]] 到指定 binding。
      * @param binding The binding for target uniform of sampler type
@@ -314,6 +358,91 @@ export class Pass {
      */
     public bindSampler (binding: number, value: Sampler, index?: number): void {
         this._descriptorSet.bindSampler(binding, value, index || 0);
+    }
+
+    /**
+     * @en Set a GFX [[gfx.Sampler]] by name
+     * @zh 设置 GFX [[gfx.Sampler]] 到指定名字。
+     * @param name The binding name for target uniform of sampler type
+     * @param value Target sampler
+     */
+    public setSampler (name: string, value: Sampler): void {
+        this._samplers.set(name, [value]);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        this.bindSampler(binding, value);
+    }
+
+    /**
+     * @en Set a GFX [[gfx.Sampler]] Array by name
+     * @zh 设置 GFX [[gfx.Sampler]] 数组到指定名字。
+     * @param name The binding name for target uniform of sampler type
+     * @param value Target sampler array
+     */
+    public setSamplerArray (name: string, samplers: Array<Sampler>): void {
+        this._samplers.set(name, samplers);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        for (let i = 0; i < samplers.length; ++i) {
+            this.bindSampler(binding, samplers[i], i);
+        }
+    }
+
+    /**
+     * @en Set GFX [[gfx.Texture]] and GFX [[gfx.Sampler]] by name
+     * @zh 设置 GFX [[gfx.Texture]] 和 GFX [[gfx.Sampler]] 到指定名字。
+     * @param name The binding name for target uniform of texture and sampler type
+     * @param texture Target texture
+     * @param sampler Target sampler
+     */
+    public setTextureAndSampler (name: string, texture: Texture, sampler: Sampler) {
+        this._textures.set(name, [texture]);
+        this._samplers.set(name, [sampler]);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        this.bindTexture(binding, texture);
+        this.bindSampler(binding, sampler);
+    }
+
+    /**
+     * @en Set GFX [[gfx.Texture]] and GFX [[gfx.Sampler]] array by name
+     * @zh 设置 GFX [[gfx.Texture]] 和 GFX [[gfx.Sampler]] 数组到指定名字。
+     * @param name The binding name for target uniform of texture and sampler type
+     * @param texture Target texture array
+     * @param sampler Target sampler array
+     */
+    public setTextureAndSamplerArray (name: string, textures: Array<Texture>, samplers: Array<Sampler>) {
+        this._textures.set(name, textures);
+        this._samplers.set(name, samplers);
+        this._descriptorDirty = true;
+        if (_dynamic) {
+            return;
+        }
+        const handle = this.getHandle(name);
+        const binding = Pass.getBindingFromHandle(handle);
+        assert(textures.length === samplers.length);
+        for (let i = 0; i < textures.length; ++i) {
+            const texture = textures[i];
+            if (texture) {
+                this.bindTexture(binding, texture, i);
+            }
+            const sampler = samplers[i];
+            if (sampler) {
+                this.bindSampler(binding, sampler, i);
+            }
+        }
     }
 
     /**
@@ -347,16 +476,21 @@ export class Pass {
      * @zh 更新当前 Uniform 数据。
      */
     public update (): void {
-        if (!this._descriptorSet) {
+        if (_dynamic) {
+            // TODO(zhouzhenglong): populate descriptorSet
             errorID(12006);
-            return;
-        }
+        } else {
+            if (!this._descriptorSet) {
+                errorID(12006);
+                return;
+            }
 
-        if (this._rootBuffer && this._rootBufferDirty) {
-            this._rootBuffer.update(this._rootBlock!);
-            this._rootBufferDirty = false;
+            if (this._rootBuffer && this._rootBufferDirty) {
+                this._rootBuffer.update(this._rootBlock!);
+                this._rootBufferDirty = false;
+            }
+            this._descriptorSet.update();
         }
-        this._descriptorSet.update();
     }
 
     public getInstancedBuffer (extraKey = 0) {
@@ -372,11 +506,10 @@ export class Pass {
      * @zh 销毁当前 pass。
      */
     public destroy (): void {
-        for (let i = 0; i < this._shaderInfo.blocks.length; i++) {
-            const u = this._shaderInfo.blocks[i];
-            this._buffers[u.binding].destroy();
+        for (const v of this._buffers) {
+            v[1].destroy();
         }
-        this._buffers = [];
+        this._buffers.clear();
 
         if (this._rootBuffer) {
             this._rootBuffer.destroy();
@@ -391,7 +524,9 @@ export class Pass {
             this._batchedBuffers[bb].destroy();
         }
 
-        this._descriptorSet.destroy();
+        if (this._descriptorSet) {
+            this._descriptorSet.destroy();
+        }
         this._rs.destroy();
         this._dss.destroy();
         this._bs.destroy();
@@ -426,7 +561,6 @@ export class Pass {
         const handle = this.getHandle(name);
         if (!handle) { return; }
         const type = Pass.getTypeFromHandle(handle);
-        const binding = Pass.getBindingFromHandle(handle);
         const info = this._properties[name];
         const value = info && info.value;
         const texName = value ? `${value as string}-texture` : getDefaultFromType(type) as string;
@@ -435,8 +569,52 @@ export class Pass {
         const samplerInfo = info && info.samplerHash !== undefined
             ? Sampler.unpackFromHash(info.samplerHash) : textureBase && textureBase.getSamplerInfo();
         const sampler = this._device.getSampler(samplerInfo);
+
+        assert(index === undefined || index === 0);
+        this._textures.set(name, [texture]);
+        this._samplers.set(name, [sampler]);
+
+        this._descriptorDirty = true;
+
+        if (_dynamic) {
+            return;
+        }
+        const binding = Pass.getBindingFromHandle(handle);
         this._descriptorSet.bindSampler(binding, sampler, index || 0);
         this._descriptorSet.bindTexture(binding, texture, index || 0);
+    }
+
+    public resetTextureArray (name: string, count: number): void {
+        const handle = this.getHandle(name);
+        if (!handle) { return; }
+        const type = Pass.getTypeFromHandle(handle);
+        const info = this._properties[name];
+        const value = info && info.value;
+        const texName = value ? `${value as string}-texture` : getDefaultFromType(type) as string;
+        const textureBase = builtinResMgr.get<TextureBase>(texName);
+        const texture = textureBase && textureBase.getGFXTexture()!;
+        const samplerInfo = info && info.samplerHash !== undefined
+            ? Sampler.unpackFromHash(info.samplerHash) : textureBase && textureBase.getSamplerInfo();
+        const sampler = this._device.getSampler(samplerInfo);
+
+        const textures = new Array<Texture>(count);
+        textures.fill(texture);
+        this._textures.set(name, textures);
+
+        const samplers = new Array<Sampler>(count);
+        samplers.fill(sampler);
+        this._samplers.set(name, samplers);
+
+        this._descriptorDirty = true;
+
+        if (_dynamic) {
+            return;
+        }
+        const binding = Pass.getBindingFromHandle(handle);
+        for (let i = 0; i !== count; ++i) {
+            this._descriptorSet.bindSampler(binding, sampler, i);
+            this._descriptorSet.bindTexture(binding, texture, i);
+        }
     }
 
     /**
@@ -468,9 +646,7 @@ export class Pass {
     public resetTextures (): void {
         for (let i = 0; i < this._shaderInfo.samplerTextures.length; i++) {
             const u = this._shaderInfo.samplerTextures[i];
-            for (let j = 0; j < u.count; j++) {
-                this.resetTexture(u.name, j);
-            }
+            this.resetTextureArray(u.name, u.count);
         }
     }
 
@@ -558,8 +734,10 @@ export class Pass {
         if (info.stateOverrides) { Pass.fillPipelineInfo(this, info.stateOverrides); }
 
         // init descriptor set
-        _dsInfo.layout = programLib.getDescriptorSetLayout(this._device, info.program);
-        this._descriptorSet = this._device.createDescriptorSet(_dsInfo);
+        if (!_dynamic) {
+            _dsInfo.layout = programLib.getDescriptorSetLayout(this._device, info.program);
+            this._descriptorSet = this._device.createDescriptorSet(_dsInfo);
+        }
 
         // calculate total size required
         const blocks = this._shaderInfo.blocks;
@@ -584,18 +762,21 @@ export class Pass {
         }
         // create buffer views
         for (let i = 0, count = 0; i < blocks.length; i++) {
-            const { binding } = blocks[i];
+            const { binding, name } = blocks[i];
             const size = blockSizes[i];
             _bufferViewInfo.buffer = this._rootBuffer!;
             _bufferViewInfo.offset = startOffsets[count++];
             _bufferViewInfo.range = Math.ceil(size / 16) * 16;
-            const bufferView = this._buffers[binding] = device.createBuffer(_bufferViewInfo);
+            const bufferView = device.createBuffer(_bufferViewInfo);
+            this._buffers.set(name, bufferView);
             // non-builtin UBO data pools, note that the effect compiler
             // guarantees these bindings to be consecutive, starting from 0 and non-array-typed
             this._blocks[binding] = new Float32Array(this._rootBlock!, _bufferViewInfo.offset,
                 size / Float32Array.BYTES_PER_ELEMENT);
             this._blocksInt[binding] = new Int32Array(this._blocks[binding].buffer, this._blocks[binding].byteOffset, this._blocks[binding].length);
-            this._descriptorSet.bindBuffer(binding, bufferView);
+            if (!_dynamic) {
+                this._descriptorSet.bindBuffer(binding, bufferView);
+            }
         }
         // store handles
         const directHandleMap = this._propertyHandleMap = handleMap;
