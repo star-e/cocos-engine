@@ -48,7 +48,6 @@
 #include "cocos/renderer/pipeline/custom/RenderCommonTypes.h"
 #include "cocos/renderer/pipeline/custom/RenderGraphGraphs.h"
 #include "cocos/renderer/pipeline/custom/RenderInterfaceFwd.h"
-#include "cocos/renderer/pipeline/custom/FGDispatcherGraphs.h"
 #include "cocos/scene/RenderScene.h"
 #include "cocos/scene/RenderWindow.h"
 #include "gfx-base/GFXBuffer.h"
@@ -57,7 +56,6 @@
 #include "gfx-base/GFXSwapchain.h"
 #include "gfx-base/states/GFXSampler.h"
 #include "math/Mat4.h"
-#include "pipeline/custom/FGDispatcherTypes.h"
 #include "pipeline/custom/LayoutGraphFwd.h"
 #include "pipeline/custom/LayoutGraphTypes.h"
 #include "pipeline/custom/NativePipelineFwd.h"
@@ -65,7 +63,6 @@
 #include "pipeline/custom/RenderGraphTypes.h"
 #include "pipeline/custom/RenderInterfaceTypes.h"
 #include "profiler/DebugRenderer.h"
-#include "test/test.h"
 
 namespace cc {
 
@@ -276,10 +273,10 @@ LayoutGraphBuilder *NativePipeline::getLayoutGraphBuilder() {
     return ccnew NativeLayoutGraphBuilder(device, &layoutGraph);
 }
 
-gfx::DescriptorSetLayout *NativePipeline::getDescriptorSetLayout(const ccstd::string& shaderName, UpdateFrequency freq) {
+gfx::DescriptorSetLayout *NativePipeline::getDescriptorSetLayout(const ccstd::string &shaderName, UpdateFrequency freq) {
     auto iter = layoutGraph.shaderLayoutIndex.find(boost::string_view(shaderName));
     if (iter != layoutGraph.shaderLayoutIndex.end()) {
-        const auto& layouts = get(LayoutGraphData::Layout, layoutGraph, iter->second).descriptorSets;
+        const auto &layouts = get(LayoutGraphData::Layout, layoutGraph, iter->second).descriptorSets;
         auto iter2 = layouts.find(freq);
         if (iter2 != layouts.end()) {
             return iter2->second.descriptorSetLayout.get();
@@ -348,13 +345,6 @@ bool NativePipeline::destroy() noexcept {
 
 // NOLINTNEXTLINE
 void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
-    FrameGraphDispatcher fgDispatcher(resourceGraph, renderGraph, layoutGraph, renderGraph.resource(), renderGraph.resource());
-    fgDispatcher.enablePassReorder(true);
-    fgDispatcher.setParalellWeight(0.5);
-    fgDispatcher.run();
-
-    const auto &barriers = fgDispatcher.getBarriers();
-
     const auto *sceneData = pipelineSceneData.get();
     auto *commandBuffer = device->getCommandBuffer();
     float shadingScale = sceneData->getShadingScale();
@@ -365,12 +355,7 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
 
     commandBuffer->begin();
 
-#if 0
     for (const auto *camera : cameras) {
-        uint32_t passID = 0; //from render graph
-        auto accessNode = get(ResourceAccessGraph::AccessNode, fgDispatcher.resourceAccessGraph, passID);
-        const auto &barrier = barriers.at(passID);
-
         auto colorHandle = framegraph::FrameGraph::stringToHandle("outputTexture");
 
         auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData2 &data) {
@@ -434,48 +419,6 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
             };
 
             builder.setViewport(getViewport(camera), getScissor(camera));
-
-            auto fullfillBarrier = [this, &barrier, &builder](bool front) {
-                const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
-                for (const auto &resBarrier : parts) {
-                    const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
-                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
-                    auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
-                    framegraph::Range layerRange;
-                    framegraph::Range mipRange;
-                    if(type == framegraph::ResourceType::BUFFER) {
-                        auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
-                        layerRange = {0, 0};
-                        mipRange = {bufferRange.offset, bufferRange.size};
-                    } else {
-                        auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
-                        layerRange = {textureRange.firstSlice, textureRange.numSlices};
-                        mipRange = {textureRange.mipLevel, textureRange.levelCount};
-                    }
-                    builder.addBarrier(cc::framegraph::ResourceBarrier{
-                                           type,
-                                           resBarrier.type,
-                                           builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
-                                           {
-                                                resBarrier.beginStatus.passType,
-                                                resBarrier.beginStatus.visibility,
-                                                resBarrier.beginStatus.access
-                                           },
-                                           {    resBarrier.endStatus.passType,
-                                                resBarrier.endStatus.visibility,
-                                                resBarrier.endStatus.access
-                                           },
-                                           layerRange,
-                                           mipRange,
-                                       },
-                                       front);
-                }
-            };
-
-            fullfillBarrier(true);
-            //...
-            fullfillBarrier(false);
-
         };
 
         auto forwardExec = [](const RenderData2 & /*data*/,
@@ -492,10 +435,6 @@ void NativePipeline::render(const ccstd::vector<scene::Camera *> &cameras) {
         frameGraph.presentFromBlackboard(colorHandle,
                                          camera->getWindow()->getFramebuffer()->getColorTextures()[0], true);
     }
-#else
-    testCase1(frameGraph, cameras);
-#endif
-
     frameGraph.compile();
     frameGraph.execute();
     frameGraph.reset();
@@ -555,15 +494,15 @@ void NativePipeline::setShadingScale(float scale) {
     pipelineSceneData->setShadingScale(scale);
 }
 
-void NativePipeline::setMacroString(const ccstd::string& name, const ccstd::string& value) {
+void NativePipeline::setMacroString(const ccstd::string &name, const ccstd::string &value) {
     macros[name] = value;
 }
 
-void NativePipeline::setMacroInt(const ccstd::string& name, int32_t value) {
+void NativePipeline::setMacroInt(const ccstd::string &name, int32_t value) {
     macros[name] = value;
 }
 
-void NativePipeline::setMacroBool(const ccstd::string& name, bool value) {
+void NativePipeline::setMacroBool(const ccstd::string &name, bool value) {
     macros[name] = value;
 }
 
