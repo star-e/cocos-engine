@@ -685,9 +685,9 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const Buf
 
     if (bufferBarrierCount > 0) {
         for (uint32_t i = 0U; i < bufferBarrierCount; ++i) {
-            auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
+            const auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
             const auto *gpuBarrier = ccBarrier->gpuBarrier();
-            auto *ccBuffer = static_cast<const CCVKBuffer *const>(buffers[i]);
+            const auto *ccBuffer = static_cast<const CCVKBuffer *const>(buffers[i]);
             auto *gpuBuffer = ccBuffer->gpuBuffer();
 
             if (ccBarrier->getInfo().type == BarrierType::SPLIT_BEGIN) {
@@ -712,7 +712,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const Buf
     }
 
     if (barrier) {
-        auto *ccBarrier = static_cast<const CCVKGeneralBarrier *>(barrier);
+        const auto *ccBarrier = static_cast<const CCVKGeneralBarrier *>(barrier);
         const auto *gpuBarrier = ccBarrier->gpuBarrier();
         fullSrcStageMask |= gpuBarrier->srcStageMask;
         fullDstStageMask |= gpuBarrier->dstStageMask;
@@ -732,7 +732,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const Buf
 
             for (size_t i = 0; i < textureBarrierCount; ++i) {
                 auto event = _barrierEvents.at(textures[i]);
-                auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
+                const auto *ccBarrier = static_cast<const CCVKTextureBarrier *const>(textureBarriers[i]);
                 const auto *gpuBarrier = ccBarrier->gpuBarrier();
                 vkCmdResetEvent(_gpuCommandBuffer->vkCommandBuffer, event, gpuBarrier->dstStageMask);
                 _barrierEvents.erase(textures[i]);
@@ -741,7 +741,7 @@ void CCVKCommandBuffer::pipelineBarrier(const GeneralBarrier *barrier, const Buf
 
             for (size_t i = 0; i < bufferBarrierCount; ++i) {
                 auto event = _barrierEvents.at(buffers[i]);
-                auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
+                const auto *ccBarrier = static_cast<const CCVKBufferBarrier *const>(bufferBarriers[i]);
                 const auto *gpuBarrier = ccBarrier->gpuBarrier();
                 vkCmdResetEvent(_gpuCommandBuffer->vkCommandBuffer, event, gpuBarrier->dstStageMask);
                 _barrierEvents.erase(buffers[i]);
