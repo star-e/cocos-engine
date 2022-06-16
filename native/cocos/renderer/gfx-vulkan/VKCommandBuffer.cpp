@@ -37,9 +37,9 @@
 #include "VKTexture.h"
 #include "base/std/hash/hash_fwd.hpp"
 #include "profiler/Profiler.h"
+#include "states/VKBufferBarrier.h"
 #include "states/VKGeneralBarrier.h"
 #include "states/VKTextureBarrier.h"
-#include "states/VkBufferBarrier.h"
 
 namespace cc {
 namespace gfx {

@@ -297,7 +297,7 @@ export abstract class Device {
 
     /**
      * @en Create texture barrier.
-     * @zh 创建贴图内存屏障。
+     * @zh 创建buffer内存屏障。
      * @param info GFX texture barrier description info.
      */
     public abstract getBufferBarrier (info: Readonly<BufferBarrierInfo>): BufferBarrier;
