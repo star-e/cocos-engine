@@ -28,7 +28,7 @@ import { GFXObject, ObjectType, BufferBarrierInfo } from '../define';
 
 /**
  * @en GFX texture barrier.
- * @zh GFX 贴图内存屏障。
+ * @zh GFX buffer内存屏障。
  */
 export class BufferBarrier extends GFXObject {
     get info (): Readonly<BufferBarrierInfo> { return this._info; }
