@@ -417,16 +417,17 @@ static bool js_scene_Node_inverseTransformPoint(se::State& s) // NOLINT(readabil
     const auto& args = s.args();
     size_t argc = args.size();
     CC_UNUSED bool ok = true;
-    if (argc == 2) {
+    if (argc == 1) {
         HolderType<cc::Vec3, true> arg0 = {};
-        HolderType<cc::Vec3, true> arg1 = {};
         ok &= sevalue_to_native(args[0], &arg0, s.thisObject());
-        ok &= sevalue_to_native(args[1], &arg1, s.thisObject());
         SE_PRECONDITION2(ok, false, "js_scene_Node_inverseTransformPoint : Error processing arguments");
-        cobj->inverseTransformPoint(arg0.value(), arg1.value());
+        cc::Vec3 result = cobj->inverseTransformPoint(arg0.value());
+        ok &= nativevalue_to_se(result, s.rval(), nullptr /*ctx*/);
+        SE_PRECONDITION2(ok, false, "js_scene_Node_inverseTransformPoint : Error processing arguments");
+        SE_HOLD_RETURN_VALUE(result, s.thisObject(), s.rval());
         return true;
     }
-    SE_REPORT_ERROR("wrong number of arguments: %d, was expecting %d", (int)argc, 2);
+    SE_REPORT_ERROR("wrong number of arguments: %d, was expecting %d", (int)argc, 1);
     return false;
 }
 SE_BIND_FUNC(js_scene_Node_inverseTransformPoint)
@@ -1236,25 +1237,6 @@ static bool js_scene_Node_setSiblingIndex(se::State& s) // NOLINT(readability-id
 }
 SE_BIND_FUNC(js_scene_Node_setSiblingIndex)
 
-static bool js_scene_Node_setUIPropsTransformDirtyPtr(se::State& s) // NOLINT(readability-identifier-naming)
-{
-    auto* cobj = SE_THIS_OBJECT<cc::Node>(s);
-    SE_PRECONDITION2(cobj, false, "js_scene_Node_setUIPropsTransformDirtyPtr : Invalid Native Object");
-    const auto& args = s.args();
-    size_t argc = args.size();
-    CC_UNUSED bool ok = true;
-    if (argc == 1) {
-        HolderType<unsigned int*, false> arg0 = {};
-        ok &= sevalue_to_native(args[0], &arg0, s.thisObject());
-        SE_PRECONDITION2(ok, false, "js_scene_Node_setUIPropsTransformDirtyPtr : Error processing arguments");
-        cobj->setUIPropsTransformDirtyPtr(arg0.value());
-        return true;
-    }
-    SE_REPORT_ERROR("wrong number of arguments: %d, was expecting %d", (int)argc, 1);
-    return false;
-}
-SE_BIND_FUNC(js_scene_Node_setUIPropsTransformDirtyPtr)
-
 static bool js_scene_Node_setWorldPosition(se::State& s) // NOLINT(readability-identifier-naming)
 {
     CC_UNUSED bool ok = true;
@@ -1889,7 +1871,6 @@ bool js_register_scene_Node(se::Object* obj) // NOLINT(readability-identifier-na
     cls->defineFunction("setScaleForJS", _SE(js_scene_Node_setScaleForJS));
     cls->defineFunction("setScaleInternal", _SE(js_scene_Node_setScaleInternal));
     cls->defineFunction("setSiblingIndex", _SE(js_scene_Node_setSiblingIndex));
-    cls->defineFunction("setUIPropsTransformDirtyPtr", _SE(js_scene_Node_setUIPropsTransformDirtyPtr));
     cls->defineFunction("setWorldPosition", _SE(js_scene_Node_setWorldPosition));
     cls->defineFunction("setWorldRotation", _SE(js_scene_Node_setWorldRotation));
     cls->defineFunction("setWorldRotationFromEuler", _SE(js_scene_Node_setWorldRotationFromEuler));
@@ -6497,6 +6478,25 @@ static bool js_scene_Model_getNode(se::State& s) // NOLINT(readability-identifie
 }
 SE_BIND_FUNC_AS_PROP_GET(js_scene_Model_getNode)
 
+static bool js_scene_Model_getPriority(se::State& s) // NOLINT(readability-identifier-naming)
+{
+    auto* cobj = SE_THIS_OBJECT<cc::scene::Model>(s);
+    SE_PRECONDITION2(cobj, false, "js_scene_Model_getPriority : Invalid Native Object");
+    const auto& args = s.args();
+    size_t argc = args.size();
+    CC_UNUSED bool ok = true;
+    if (argc == 0) {
+        unsigned int result = cobj->getPriority();
+        ok &= nativevalue_to_se(result, s.rval(), nullptr /*ctx*/);
+        SE_PRECONDITION2(ok, false, "js_scene_Model_getPriority : Error processing arguments");
+        SE_HOLD_RETURN_VALUE(result, s.thisObject(), s.rval());
+        return true;
+    }
+    SE_REPORT_ERROR("wrong number of arguments: %d, was expecting %d", (int)argc, 0);
+    return false;
+}
+SE_BIND_FUNC_AS_PROP_GET(js_scene_Model_getPriority)
+
 static bool js_scene_Model_getScene(se::State& s) // NOLINT(readability-identifier-naming)
 {
     auto* cobj = SE_THIS_OBJECT<cc::scene::Model>(s);
@@ -7236,6 +7236,25 @@ static bool js_scene_Model_setNode(se::State& s) // NOLINT(readability-identifie
 }
 SE_BIND_FUNC_AS_PROP_SET(js_scene_Model_setNode)
 
+static bool js_scene_Model_setPriority(se::State& s) // NOLINT(readability-identifier-naming)
+{
+    auto* cobj = SE_THIS_OBJECT<cc::scene::Model>(s);
+    SE_PRECONDITION2(cobj, false, "js_scene_Model_setPriority : Invalid Native Object");
+    const auto& args = s.args();
+    size_t argc = args.size();
+    CC_UNUSED bool ok = true;
+    if (argc == 1) {
+        HolderType<unsigned int, false> arg0 = {};
+        ok &= sevalue_to_native(args[0], &arg0, s.thisObject());
+        SE_PRECONDITION2(ok, false, "js_scene_Model_setPriority : Error processing arguments");
+        cobj->setPriority(arg0.value());
+        return true;
+    }
+    SE_REPORT_ERROR("wrong number of arguments: %d, was expecting %d", (int)argc, 1);
+    return false;
+}
+SE_BIND_FUNC_AS_PROP_SET(js_scene_Model_setPriority)
+
 static bool js_scene_Model_setReceiveShadow(se::State& s) // NOLINT(readability-identifier-naming)
 {
     auto* cobj = SE_THIS_OBJECT<cc::scene::Model>(s);
@@ -7698,6 +7717,7 @@ bool js_register_scene_Model(se::Object* obj) // NOLINT(readability-identifier-n
     cls->defineProperty("type", _SE(js_scene_Model_getType_asGetter), _SE(js_scene_Model_setType_asSetter));
     cls->defineProperty("instancedAttributes", _SE(js_scene_Model_getInstancedAttributeBlock_asGetter), _SE(js_scene_Model_setInstancedAttributeBlock_asSetter));
     cls->defineProperty("isDynamicBatching", _SE(js_scene_Model_isDynamicBatching_asGetter), _SE(js_scene_Model_setDynamicBatching_asSetter));
+    cls->defineProperty("priority", _SE(js_scene_Model_getPriority_asGetter), _SE(js_scene_Model_setPriority_asSetter));
     cls->defineFunction("attachToScene", _SE(js_scene_Model_attachToScene));
     cls->defineFunction("createBoundingShape", _SE(js_scene_Model_createBoundingShape));
     cls->defineFunction("destroy", _SE(js_scene_Model_destroy));

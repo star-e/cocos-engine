@@ -198,10 +198,10 @@ exports.template = /* html*/`
                     <span slot="label">Reflection Convolution</span>
                     <div slot="content">
                         <ui-loading style="position: relative;top: 4px;"></ui-loading>
-                        <ui-button num="1" style="display: none;">
+                        <ui-button num="2" style="display: none;">
                             <span>Bake</span>
                         </ui-button>
-                        <ui-button num="0" style="display: none;">
+                        <ui-button num="1" style="display: none;">
                             <span>Remove</span>
                         </ui-button>
                     </div>
@@ -677,7 +677,7 @@ const Elements = {
                         .then((meta) => {
                             envmapAssetMeta = meta;
                             $skyboxBakeLoading.style.display = 'none';
-                            if (meta.userData.mipBakeMode && meta.userData.mipBakeMode !== 0) {
+                            if (meta.userData.mipBakeMode && meta.userData.mipBakeMode !== 1) {
                                 $skyboxBakeButtonList[0].style.display = 'none';
                                 $skyboxBakeButtonList[1].style.display = '';
                             } else {
@@ -833,7 +833,12 @@ const Elements = {
 
                 sectionBody.__sections__ = [];
 
-                componentList.forEach((component, i) => {
+                componentList.forEach(async (component, i) => {
+                    const additional = JSON.stringify([{
+                        type: component.type,
+                        value: component.value.uuid.value,
+                    }]);
+
                     const $section = document.createElement('ui-section');
                     $section.setAttribute('expand', '');
                     $section.setAttribute('class', 'component');
@@ -841,7 +846,9 @@ const Elements = {
                     $section.innerHTML = `
                     <header class="component-header" slot="header">
                         <ui-checkbox class="active"></ui-checkbox>
-                        <span class="name">${component.type}${component.mountedRoot ? '+' : ''}</span>
+                        <ui-drag-item additional='${additional}'>
+                            <span class="name">${component.type}${component.mountedRoot ? '+' : ''}</span>
+                        </ui-drag-item>
                         <ui-icon class="menu" value="setting" tooltip="i18n:ENGINE.menu.component"></ui-icon>
                         <ui-link class="link" tooltip="i18n:ENGINE.menu.help_url">
                             <ui-icon value="help"></ui-icon>
@@ -938,6 +945,17 @@ const Elements = {
                         $panel.dump = component;
                         $panel.update(component);
                     });
+
+                    // 组件丢失的提示
+                    if (component.type === "cc.MissingScript") {
+                        const $missTip = document.createElement('div');
+                        $missTip.style.cssText = "border: 1px solid var(--color-normal-border); padding: 15px; border-radius: 4px;margin-top: 15px;";
+
+                        const assetData = await Editor.Message.request('asset-db', 'query-asset-data', component.value.__scriptAsset.value.uuid);
+
+                        $missTip.innerHTML = `${assetData ? assetData.url : ''} ${Editor.I18n.t('ENGINE.components.missScriptTip')}`;
+                        $section.appendChild($missTip);
+                    }
                 });
             }
 
