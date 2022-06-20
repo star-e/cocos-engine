@@ -26,6 +26,7 @@
 #pragma once
 
 #include "CallbackPass.h"
+#include "ImmutableState.h"
 #include "RenderTargetAttachment.h"
 #include "base/std/container/string.h"
 #include "gfx-base/GFXDef.h"
@@ -43,7 +44,7 @@ public:
     DevicePass &operator=(const DevicePass &) = delete;
     DevicePass &operator=(DevicePass &&) = delete;
 
-    void execute();
+    void execute(const FrameGraph& graph);
 
 private:
     struct LogicPass final {
@@ -70,10 +71,15 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, bool front);
+
+    bool _enableAutoBarrier{true};
+
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};
     uint16_t _usedRenderTargetSlotMask{0};
     DevicePassResourceTable _resourceTable;
+    ccstd::vector<std::reference_wrapper<const Barriers>> _barriers;
 
     gfx::Viewport _viewport;
     gfx::Rect _scissor;

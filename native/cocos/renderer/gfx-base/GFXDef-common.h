@@ -793,6 +793,16 @@ enum class BarrierType : uint32_t {
 };
 CC_ENUM_BITWISE_OPERATORS(BarrierType);
 
+enum class PassType : uint32_t {
+    RASTER,
+    COMPUTE,
+    COPY,
+    MOVE,
+    RAYTRACE,
+    PRESENT,
+};
+CC_ENUM_CONVERSION_OPERATOR(PassType);
+
 #define EXPOSE_COPY_FN(type)      \
     type &copy(const type &rhs) { \
         *this = rhs;              \

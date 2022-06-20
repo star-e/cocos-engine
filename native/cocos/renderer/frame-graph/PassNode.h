@@ -32,6 +32,7 @@
 #include "RenderTargetAttachment.h"
 #include "VirtualResource.h"
 #include "gfx-base/GFXDef.h"
+#include "ImmutableState.h"
 
 namespace cc {
 namespace framegraph {
@@ -50,9 +51,12 @@ public:
     Handle read(FrameGraph &graph, const Handle &input);
     Handle write(FrameGraph &graph, const Handle &output);
     void createRenderTargetAttachment(RenderTargetAttachment &&attachment);
+    void addBarrier(const ResourceBarrier &barrier, bool front);
+
     inline void sideEffect();
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
+    inline const Barriers &getBarriers() const;
 
 private:
     bool canMerge(const FrameGraph &graph, const PassNode &passNode) const;
@@ -88,12 +92,18 @@ private:
     gfx::Viewport _viewport;
     gfx::Rect _scissor;
 
+    Barriers _barriers;
+
     friend class FrameGraph;
     friend class DevicePass;
     friend class DevicePassResourceTable;
 };
 
 //////////////////////////////////////////////////////////////////////////
+
+const Barriers &PassNode::getBarriers() const {
+    return _barriers;
+}
 
 void PassNode::sideEffect() {
     _sideEffect = true;

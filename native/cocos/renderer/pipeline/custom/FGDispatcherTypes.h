@@ -34,6 +34,7 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/properties.hpp>
 #include <boost/range/irange.hpp>
+#include <variant>
 #include "cocos/base/std/container/string.h"
 #include "cocos/base/std/container/vector.h"
 #include "cocos/renderer/pipeline/custom/GraphTypes.h"
@@ -46,30 +47,37 @@ namespace cc {
 
 namespace render {
 
-enum class PassType {
-    RASTER,
-    COMPUTE,
-    COPY,
-    MOVE,
-    RAYTRACE,
-    PRESENT,
-};
-
 struct NullTag {};
 
-struct Range {
-    uint32_t mipLevels{0xFFFFFFFF};
-    uint32_t numSlices{0xFFFFFFFF};
-    uint32_t mostDetailedMip{0xFFFFFFFF};
-    uint32_t firstSlice{0xFFFFFFFF};
-    uint32_t planeSlice{0xFFFFFFFF};
+struct BufferRange {
+    uint32_t offset{0};
+    uint32_t size{0};
 };
+
+inline bool operator<(const BufferRange& lhs, const BufferRange& rhs) noexcept {
+    return std::forward_as_tuple(lhs.offset, lhs.size) <
+           std::forward_as_tuple(rhs.offset, rhs.size);
+}
+
+struct TextureRange {
+    uint32_t firstSlice{0};
+    uint32_t numSlices{1};
+    uint32_t mipLevel{0};
+    uint32_t levelCount{1};
+};
+
+inline bool operator<(const TextureRange& lhs, const TextureRange& rhs) noexcept {
+    return std::forward_as_tuple(lhs.firstSlice, lhs.numSlices, lhs.mipLevel, lhs.levelCount) <
+           std::forward_as_tuple(rhs.firstSlice, rhs.numSlices, rhs.mipLevel, rhs.levelCount);
+}
+
+using Range = boost::variant2::variant<BufferRange, TextureRange>;
 
 struct AccessStatus {
     uint32_t                vertID{0xFFFFFFFF};
     gfx::ShaderStageFlagBit visibility{gfx::ShaderStageFlagBit::NONE};
     gfx::MemoryAccessBit    access{gfx::MemoryAccessBit::NONE};
-    PassType                passType{PassType::RASTER};
+    gfx::PassType           passType{gfx::PassType::RASTER};
     Range                   range;
 };
 
@@ -298,6 +306,7 @@ struct EmptyGraph {
 
 struct Barrier {
     RenderGraph::vertex_descriptor resourceID{0xFFFFFFFF};
+    gfx::BarrierType               type{gfx::BarrierType::FULL};
     AccessStatus                   beginStatus;
     AccessStatus                   endStatus;
 };
@@ -310,7 +319,7 @@ struct BarrierNode {
 struct FrameGraphDispatcher {
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
     allocator_type get_allocator() const noexcept { // NOLINT
-        return {resourceGraph.get_allocator().resource()};
+        return {resourceAccessGraph.get_allocator().resource()};
     }
 
     FrameGraphDispatcher(ResourceGraph& resourceGraphIn, RenderGraph& graphIn, LayoutGraphData& layoutGraphIn, boost::container::pmr::memory_resource* scratchIn, const allocator_type& alloc) noexcept;
@@ -318,6 +327,8 @@ struct FrameGraphDispatcher {
     FrameGraphDispatcher(FrameGraphDispatcher const& rhs) = delete;
     FrameGraphDispatcher& operator=(FrameGraphDispatcher&& rhs) = delete;
     FrameGraphDispatcher& operator=(FrameGraphDispatcher const& rhs) = delete;
+
+    using BarrierMap = FlatMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
 
     void enablePassReorder(bool enable);
 
@@ -330,6 +341,11 @@ struct FrameGraphDispatcher {
 
     void run();
 
+    inline const BarrierMap& getBarriers() const { return barrierMap; }
+
+    BarrierMap barrierMap;
+
+    ResourceAccessGraph                                resourceAccessGraph;
     ResourceGraph&                                     resourceGraph;
     RenderGraph&                                       graph;
     LayoutGraphData&                                   layoutGraph;

@@ -44,6 +44,7 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
 
     for (const PassNode *passNode : subpassNodes) {
         append(graph, passNode, &attachments);
+        _barriers.emplace_back(std::cref(passNode->getBarriers()));
     }
 
     // Important Notice:
@@ -111,8 +112,56 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
     }
 }
 
-void DevicePass::execute() {
-    auto *cmdBuff = gfx::Device::getInstance()->getCommandBuffer();
+void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, bool front) {
+    if(_enableAutoBarrier) {
+        auto gatherBarrier = [this, &graph](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
+            // no barrier is allowed inside renderpass, especially subpass.
+            CC_ASSERT(_barriers.size() <= 2);
+            const auto &info = front ? _barriers.front().get().frontBarriers : _barriers.back().get().rearBarriers;
+            for (const auto& barrier : info) {
+                auto res = getBarrier(barrier, &graph);
+                switch (barrier.resourceType) {
+                    case ResourceType::BUFFER: {
+                        auto* bufferBarrier = static_cast<gfx::BufferBarrier*>(res.first);
+                        buffers.push_back(static_cast<gfx::Buffer*>(res.second));
+                        bufBarriers.push_back(bufferBarrier);
+                        break;
+                    }
+                    case ResourceType::TEXTURE: {
+                        auto* textureBarrier = static_cast<gfx::TextureBarrier*>(res.first);
+                        textures.push_back(static_cast<gfx::Texture*>(res.second));
+                        texBarriers.push_back(textureBarrier);
+                        break;
+                    }
+                    case ResourceType::UNKNOWN: {
+                        //only 1 excution barrier is allowed
+                        *generalBarrier = static_cast<gfx::GeneralBarrier*>(res.first);
+                        break;
+                    }
+                    default:
+                        CC_ASSERT(false);
+                }
+            }
+        };
+
+        gfx::TextureBarrierList textureBarriers;
+        gfx::BufferBarrierList bufferBarriers;
+        gfx::GeneralBarrier *generalBarrier{nullptr};
+
+        gfx::BufferList buffers;
+        gfx::TextureList textures;
+
+        gatherBarrier(textures, buffers, textureBarriers, bufferBarriers, &generalBarrier, front);
+
+        cmdBuff->pipelineBarrier(generalBarrier, bufferBarriers, buffers, textureBarriers, textures);
+    }
+}
+
+void DevicePass::execute(const FrameGraph& graph) {
+    auto *device = gfx::Device::getInstance();
+    auto *cmdBuff = device->getCommandBuffer();
+
+    applyBarriers(cmdBuff, graph, true);
 
     begin(cmdBuff);
 
@@ -140,6 +189,8 @@ void DevicePass::execute() {
     }
 
     end(cmdBuff);
+
+    applyBarriers(cmdBuff, graph, false);
 }
 
 void DevicePass::append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments) {
