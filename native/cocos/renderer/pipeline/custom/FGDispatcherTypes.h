@@ -71,7 +71,7 @@ inline bool operator<(const TextureRange& lhs, const TextureRange& rhs) noexcept
            std::forward_as_tuple(rhs.firstSlice, rhs.numSlices, rhs.mipLevel, rhs.levelCount);
 }
 
-using Range = boost::variant2::variant<BufferRange, TextureRange>;
+using Range = ccstd::variant<BufferRange, TextureRange>;
 
 struct AccessStatus {
     uint32_t                vertID{0xFFFFFFFF};

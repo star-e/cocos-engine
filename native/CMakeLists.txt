@@ -1575,6 +1575,8 @@ cocos_source_files(
                  cocos/renderer/frame-graph/ResourceNode.h
                  cocos/renderer/frame-graph/VirtualResource.cpp
                  cocos/renderer/frame-graph/VirtualResource.h
+                 cocos/renderer/frame-graph/ImmutableState.h
+                 cocos/renderer/frame-graph/ImmutableState.cpp
 )
 
 ##### physics

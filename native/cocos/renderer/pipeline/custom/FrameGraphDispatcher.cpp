@@ -100,7 +100,7 @@ using EmptyVert = EmptyGraph::vertex_descriptor;
 using EmptyVerts = std::vector<EmptyVert>;
 using EmptyEdge = EmptyGraph::edge_descriptor;
 using EmptyEdges = std::vector<EmptyEdge>;
-using ScoreMap = std::map<EmptyVert, std::pair<int64_t, int64_t>>;
+using ScoreMap = std::map<EmptyVert, std::pair<int64_t/*backward*/, int64_t/*forward*/>>;
 
 auto defaultAccess = gfx::MemoryAccessBit::NONE;
 auto defaultVisibility = gfx::ShaderStageFlagBit::NONE;
@@ -722,19 +722,18 @@ void evaluateAndTryMerge(const RAG &rag, const ResourceGraph &rescGraph, EmptyGr
         auto firstLhsNode = lhsVerts[1];
         auto lastLhsNode = lhsVerts[lhsVerts.size() - 2];
 
-        const auto &backLhsStatus = evaluate(firstLhsNode, true);
-        bool lhsAdjacentToStart = std::get<0>(backLhsStatus);
-        const auto &frontLhsStatus = evaluate(lastLhsNode, false);
-        bool lhsAdjacentToEnd = std::get<0>(frontLhsStatus);
+        const auto &lhsBackwardStatus = evaluate(firstLhsNode, false);
+        bool lhsAdjacentToStart = std::get<0>(lhsBackwardStatus);
+        const auto &lhsForwardStatus = evaluate(lastLhsNode, true);
+        bool lhsAdjacentToEnd = std::get<0>(lhsForwardStatus);
 
         auto firstRhsNode = rhsVerts[1];
         auto lastRhsNode = rhsVerts[rhsVerts.size() - 2];
 
-        const auto &backRhsStatus = evaluate(firstRhsNode, true);
-        bool rhsAdjacentToStart = std::get<0>(backRhsStatus);
-        int64_t rhsBackScore = std::get<1>(backRhsStatus);
-        const auto &frontRhsStatus = evaluate(lastRhsNode, false);
-        bool rhsAdjacentToEnd = std::get<0>(frontRhsStatus);
+        const auto &rhsBackwardStatus = evaluate(firstRhsNode, true);
+        bool rhsAdjacentToStart = std::get<0>(rhsBackwardStatus);
+        const auto &rhsForwardStatus = evaluate(lastRhsNode, false);
+        bool rhsAdjacentToEnd = std::get<0>(rhsForwardStatus);
 
         if (lhsAdjacentToStart || rhsAdjacentToEnd || lhsAdjacentToEnd || rhsAdjacentToStart) {
             const EmptyVerts *formerPath = &lhsVerts;
@@ -750,7 +749,7 @@ void evaluateAndTryMerge(const RAG &rag, const ResourceGraph &rescGraph, EmptyGr
         }
 
         assert(lhsVerts.size() >= 3 && rhsVerts.size() >= 3);
-        int64_t score = std::numeric_limits<int64_t>::lowest();
+        constexpr int64_t score = std::numeric_limits<int64_t>::lowest();
         ccstd::vector<std::queue<EmptyEdge>> candidateSections;
         std::queue<EmptyEdge> lhsSection;
         for (size_t i = 1; i < lhsVerts.size(); ++i) {
@@ -766,7 +765,7 @@ void evaluateAndTryMerge(const RAG &rag, const ResourceGraph &rescGraph, EmptyGr
             // verts comes in order, so either real edge exist or logic edge is added.
             CC_ASSERT(e.second);
 
-            lhsSection.emplace(e);
+            lhsSection.emplace(e.first);
         }
         if (candidateSections.empty()) {
             // if this one is a tight edge(no logic edge, dependent from one to its next),
@@ -789,7 +788,7 @@ void evaluateAndTryMerge(const RAG &rag, const ResourceGraph &rescGraph, EmptyGr
             auto e = edge(rhsVerts[i], rhsVerts[i - 1], relationGraph);
             // verts comes in order, so either real edge exist or logic edge is added.
             CC_ASSERT(e.second);
-            rhsSection.emplace(e);
+            rhsSection.emplace(e.first);
         }
 
         // lhs verts already put in.
@@ -840,7 +839,8 @@ void evaluateAndTryMerge(const RAG &rag, const ResourceGraph &rescGraph, EmptyGr
             auto e = candidateSections[index].front();
             candidateSections[index].pop();
             if(candidateSections[index].empty()) {
-                auto iter = std::advance(candidateSections.begin(), index);
+                auto iter = candidateSections.begin();
+                std::advance(iter, index);
                 candidateSections.erase(iter);
             }
             auto srcVert = source(e, relationGraph);
@@ -1011,34 +1011,34 @@ void passReorder(FrameGraphDispatcher &fgDispatcher) {
         std::vector<EmptyVert> candidateBuffer;
         uint32_t coloredVerts = 0;
         while (coloredVerts < relationGraph.vertices.size()) {
-            // decreasing order
+            // decreasing order, pop back from vector, push into queue, then it's ascending order.
             std::sort(candidates.begin(), candidates.end(), [&](EmptyVert lhsVert, EmptyVert rhsVert) {
-                int64_t lhsFrontScore{0};
-                int64_t rhsFrontScore{0};
-                int64_t lhsBackScore{0};
-                int64_t rhsBackScore{0};
+                int64_t lhsForwardScore{0};
+                int64_t rhsForwardScore{0};
+                int64_t lhsBackwardScore{0};
+                int64_t rhsBackwardScore{0};
                 if (scoreMap.find(lhsVert) == scoreMap.end()) {
-                    const auto &frontLhsStats = evaluateHeaviness(rag, resourceGraph, lhsVert, false);
-                    lhsFrontScore = get<1>(frontLhsStats);
-                    const auto &backLhsStats = evaluateHeaviness(rag, resourceGraph, lhsVert, true);
-                    lhsBackScore = get<1>(backLhsStats);
-                    scoreMap.emplace(lhsVert, std::pair<int64_t, int64_t>{lhsBackScore, lhsFrontScore});
+                    const auto &lhsForwardStatus = evaluateHeaviness(rag, resourceGraph, lhsVert, true);
+                    lhsForwardScore = get<1>(lhsForwardStatus);
+                    const auto &lhsBackwardStatus = evaluateHeaviness(rag, resourceGraph, lhsVert, false);
+                    lhsBackwardScore = get<1>(lhsBackwardStatus);
+                    scoreMap.emplace(lhsVert, std::pair<int64_t, int64_t>{lhsBackwardScore, lhsForwardScore});
                 } else {
-                    lhsBackScore = scoreMap[lhsVert].first;
-                    lhsFrontScore = scoreMap[lhsVert].second;
+                    lhsBackwardScore = scoreMap[lhsVert].first;
+                    lhsForwardScore = scoreMap[lhsVert].second;
                 }
 
                 if (scoreMap.find(rhsVert) == scoreMap.end()) {
-                    const auto &frontRhsStats = evaluateHeaviness(rag, resourceGraph, rhsVert, false);
-                    rhsFrontScore = get<1>(frontRhsStats);
-                    const auto &backRhsStats = evaluateHeaviness(rag, resourceGraph, rhsVert, true);
-                    rhsBackScore = get<1>(backRhsStats);
-                    scoreMap.emplace(rhsVert, std::pair<int64_t, int64_t>{rhsBackScore, rhsFrontScore});
+                    const auto &rhsForwardStatus = evaluateHeaviness(rag, resourceGraph, rhsVert, true);
+                    rhsForwardScore = get<1>(rhsForwardStatus);
+                    const auto &rhsBackwardStatus = evaluateHeaviness(rag, resourceGraph, rhsVert, false);
+                    rhsBackwardScore = get<1>(rhsBackwardStatus);
+                    scoreMap.emplace(rhsVert, std::pair<int64_t, int64_t>{rhsBackwardScore, rhsForwardScore});
                 } else {
-                    rhsBackScore = scoreMap[rhsVert].first;
-                    rhsFrontScore = scoreMap[rhsVert].second;
+                    rhsBackwardScore = scoreMap[rhsVert].first;
+                    rhsForwardScore = scoreMap[rhsVert].second;
                 }
-                return lhsBackScore - lhsFrontScore > rhsBackScore - rhsFrontScore;
+                return lhsBackwardScore - lhsForwardScore > rhsBackwardScore - rhsForwardScore;
             });
 
             const auto vert = candidates.back();
