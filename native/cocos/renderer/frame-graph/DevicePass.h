@@ -44,7 +44,7 @@ public:
     DevicePass &operator=(const DevicePass &) = delete;
     DevicePass &operator=(DevicePass &&) = delete;
 
-    void execute(const FrameGraph& graph);
+    void execute();
 
 private:
     struct LogicPass final {
@@ -71,7 +71,7 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
-    void applyBarriers(gfx::CommandBuffer *cmdBuff, const FrameGraph& graph, bool front);
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
 
     bool _enableAutoBarrier{true};
 

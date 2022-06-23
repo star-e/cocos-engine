@@ -131,7 +131,7 @@ void FrameGraph::compile() {
 void FrameGraph::execute() noexcept {
     if (_passNodes.empty()) return;
     for (auto &pass : _devicePasses) {
-        pass->execute(*this);
+        pass->execute();
     }
 }
 

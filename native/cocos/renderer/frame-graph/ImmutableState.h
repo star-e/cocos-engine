@@ -32,7 +32,7 @@
 namespace cc {
 namespace framegraph {
 
-class FrameGraph;
+class DevicePassResourceTable;
 
 struct Range {
     size_t base{0};
@@ -45,7 +45,7 @@ struct AccessStatus {
     gfx::MemoryAccessBit access{gfx::MemoryAccessBit::NONE};
 };
 
-enum class ResourceType : uint32_t{
+enum class ResourceType : uint32_t {
     UNKNOWN,
     BUFFER,
     TEXTURE,
@@ -54,11 +54,13 @@ enum class ResourceType : uint32_t{
 struct ResourceBarrier {
     ResourceType resourceType{ResourceType::UNKNOWN};
     gfx::BarrierType barrierType{gfx::BarrierType::FULL};
-    Handle handle{0};
+
+    Handle handle;
 
     AccessStatus beginStatus;
     AccessStatus endStatus;
     Range layerRange;
+
     union {
         Range mipRange;
         Range bufferRange;
@@ -70,7 +72,7 @@ struct Barriers {
     ccstd::vector<ResourceBarrier> rearBarriers;
 };
 
-std::pair<gfx::GFXObject* /*barrier*/, gfx::GFXObject* /*resource*/> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph* graph) noexcept;
+std::pair<gfx::GFXObject* /*barrier*/, gfx::GFXObject* /*resource*/> getBarrier(const ResourceBarrier& barrierInfo, const DevicePassResourceTable* dict) noexcept;
 
 } // namespace framegraph
 } // namespace cc

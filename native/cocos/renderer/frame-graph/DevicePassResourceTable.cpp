@@ -66,19 +66,19 @@ void DevicePassResourceTable::extract(const FrameGraph &graph,
             return;
         }
 
-        if (ignoreRenderTarget) {
-            bool const isRenderTarget =
-                std::find_if(
-                    renderTargets.cbegin(),
-                    renderTargets.cend(),
-                    [&deviceResource](const gfx::Texture *const x) {
-                        return deviceResource == x;
-                    }) != renderTargets.cend();
+        //if (ignoreRenderTarget) {
+        //    bool const isRenderTarget =
+        //        std::find_if(
+        //            renderTargets.cbegin(),
+        //            renderTargets.cend(),
+        //            [&deviceResource](const gfx::Texture *const x) {
+        //                return deviceResource == x;
+        //            }) != renderTargets.cend();
 
-            if (isRenderTarget) {
-                return;
-            }
-        }
+        //    if (isRenderTarget) {
+        //        return;
+        //    }
+        //}
 
         to[handle] = deviceResource;
     });

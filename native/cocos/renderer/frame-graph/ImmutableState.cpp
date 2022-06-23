@@ -28,7 +28,7 @@
 #include <tuple>
 #include "gfx-base/GFXDef-common.h"
 #include "pipeline/custom/GslUtils.h"
-#include "FrameGraph.h"
+#include "DevicePassResourceTable.h"
 
 namespace cc {
 namespace framegraph {
@@ -42,12 +42,17 @@ using gfx::ShaderStageFlags;
 using gfx::PassType;
 using gfx::AccessFlags;
 
-std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const FrameGraph* graph) noexcept {
+std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const DevicePassResourceTable* dictPtr) noexcept {
     std::pair<gfx::GFXObject*, gfx::GFXObject*> res;
 
+    const auto& dict = *dictPtr;
     if(barrierInfo.resourceType == ResourceType::BUFFER) {
-        auto resNode = (*graph).getResourceNode(static_cast<BufferHandle>(barrierInfo.handle));
-        auto* gfxBuffer = static_cast<ResourceEntry<Buffer> *>(resNode.virtualResource)->getDeviceResource();
+        gfx::Buffer* gfxBuffer{nullptr};
+        if (hasFlag(barrierInfo.endStatus.access, MemoryAccess::WRITE_ONLY)) {
+            gfxBuffer = dict.getWrite(static_cast<BufferHandle>(barrierInfo.handle));
+        } else {
+            gfxBuffer = dict.getRead(static_cast<BufferHandle>(barrierInfo.handle));
+        }
         gfx::BufferBarrierInfo info;
 
         auto getGFXAccess = [&gfxBuffer](const AccessStatus& status) {
@@ -132,8 +137,12 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
         res.first = gfx::Device::getInstance()->getBufferBarrier(info);
         res.second = gfxBuffer;
     } else if(barrierInfo.resourceType == ResourceType::TEXTURE) {
-        auto resNode = (*graph).getResourceNode(static_cast<TextureHandle>(barrierInfo.handle));
-        auto* gfxTexture = static_cast<ResourceEntry<Texture> *>(resNode.virtualResource)->getDeviceResource();
+        gfx::Texture* gfxTexture{nullptr};
+        if (hasFlag(barrierInfo.beginStatus.access, MemoryAccess::WRITE_ONLY)) {
+            gfxTexture = dict.getWrite(static_cast<TextureHandle>(barrierInfo.handle));
+        } else {
+            gfxTexture = dict.getRead(static_cast<TextureHandle>(barrierInfo.handle));
+        }
         gfx::TextureBarrierInfo info;
 
         auto getGFXAccess = [&gfxTexture](const AccessStatus& status) {

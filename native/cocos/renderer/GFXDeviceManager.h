@@ -26,7 +26,7 @@
 #pragma once
 
 #include "bindings/event/CustomEventTypes.h"
-#include "bindings/event/EventDispatcher.h"
+//#include "bindings/event/EventDispatcher.h"
 
 #include "gfx-agent/DeviceAgent.h"
 #include "gfx-validator/DeviceValidator.h"
@@ -129,14 +129,14 @@ public:
 
 private:
     static void addSurfaceEventListener() {
-        Device *device = Device::instance;
-        EventDispatcher::addCustomEventListener(EVENT_DESTROY_WINDOW, [device](const CustomEvent &e) -> void {
-            device->destroySurface(e.args->ptrVal);
-        });
-        
-        EventDispatcher::addCustomEventListener(EVENT_RECREATE_WINDOW, [device](const CustomEvent &e) -> void {
-            device->createSurface(e.args->ptrVal);
-        });
+        //Device *device = Device::instance;
+        //EventDispatcher::addCustomEventListener(EVENT_DESTROY_WINDOW, [device](const CustomEvent &e) -> void {
+        //    device->destroySurface(e.args->ptrVal);
+        //});
+        //
+        //EventDispatcher::addCustomEventListener(EVENT_RECREATE_WINDOW, [device](const CustomEvent &e) -> void {
+        //    device->createSurface(e.args->ptrVal);
+        //});
     }
 
     template <typename DeviceCtor, typename Enable = std::enable_if_t<std::is_base_of<Device, DeviceCtor>::value>>
