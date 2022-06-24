@@ -87,8 +87,8 @@ struct ResourceTransition {
 };
 
 struct ResourceAccessNode {
-    std::vector<AccessStatus> attachemntStatus;
-    uint32_t                  circuitFlag;
+    std::vector<AccessStatus>  attachemntStatus;
+    struct ResourceAccessNode* nextSubpass{nullptr};
 };
 
 struct ResourceAccessGraph {
@@ -311,9 +311,13 @@ struct Barrier {
     AccessStatus                   endStatus;
 };
 
-struct BarrierNode {
+struct BarrierPair {
     std::vector<Barrier> frontBarriers;
     std::vector<Barrier> rearBarriers;
+};
+
+struct BarrierNode {
+    std::vector<BarrierPair> barriers;
 };
 
 struct FrameGraphDispatcher {

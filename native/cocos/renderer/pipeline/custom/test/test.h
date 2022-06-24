@@ -91,14 +91,17 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
         const auto vertexID = add_vertex(renderGraph, RasterTag{}, name.c_str());
         auto &raster = get(RasterTag{}, vertexID, renderGraph);
         auto& subpassGraph = raster.subpassGraph;
-        
+ 
+        bool hasSubpass = count > 1;
+
         for (size_t j = 0; j < count; ++j) {    
             assert(subpasses[j].size() == 2); // inputs and outputs
             const auto &attachments = subpasses[j];
             bool isOutput = false;
-          
-            const auto subpassVertexID = add_vertex(subpassGraph, )
 
+          const ccstd::string subpassName = "subpass" + std::to_string(passID++);
+            const auto subpassVertexID = add_vertex(subpassGraph, subpassName.c_str());
+            auto& subpass = get(SubpassGraph::Subpass, subpassGraph, subpassVertexID);
 
             for (size_t k = 0; k < attachments.size(); ++k) {
                 for (size_t l = 0; l < attachments[k].size(); ++l) {
@@ -108,8 +111,9 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
                     if(firstMeet) {
                         nameSet.emplace(viewName);
                     }
-                    
-                    raster.rasterViews.emplace(viewName.c_str(), RasterView{
+
+                    auto& rasterViews = hasSubpass ? subpass.rasterViews : raster.rasterViews;
+                    rasterViews.emplace(viewName.c_str(), RasterView{
                                                                      viewName.c_str(),
                                                                      isOutput ? AccessType::WRITE : AccessType::READ,
                                                                      AttachmentType::RENDER_TARGET,
@@ -192,41 +196,60 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
             [&, passID](const RasterPass &pass) {
                 RenderData tmpData;
                 auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData &data) {
-                    for (const auto &rasterView : pass.rasterViews) {
-                        const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
-                        auto typedHandle = builder.readFromBlackboard(handle);
-                        data.outputTexes.push_back({});
-                        auto &lastTex = data.outputTexes.back();
-                        framegraph::Texture::Descriptor colorTexInfo;
-                        colorTexInfo.format = gfx::Format::RGBA8;
+                    const auto& subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
+                            
+                    /* if(subpasses.container->empty()) {
+                      
+                    }
+                    const auto& rasterViews = get(Subpass) */
 
-                        // if (rasterView.second.accessType == AccessType::READ) {
-                        colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
-                        //}
-                        lastTex.first = rasterView.second.accessType;
-                        lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+                    auto traverseRasterView = [&](const auto& rasterViews) {
+                        for (const auto &rasterView : pass.rasterViews) {
+                            const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
+                            auto typedHandle = builder.readFromBlackboard(handle);
+                            data.outputTexes.push_back({});
+                            auto &lastTex = data.outputTexes.back();
+                            framegraph::Texture::Descriptor colorTexInfo;
+                            colorTexInfo.format = gfx::Format::RGBA8;
 
-                        if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
-                            colorTexInfo.width = 960;
-                            colorTexInfo.height = 640;
+                            // if (rasterView.second.accessType == AccessType::READ) {
+                            colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
+                            //}
+                            lastTex.first = rasterView.second.accessType;
+                            lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
 
-                            lastTex.second = builder.create(handle, colorTexInfo);
+                            if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                                colorTexInfo.width = 960;
+                                colorTexInfo.height = 640;
+
+                                lastTex.second = builder.create(handle, colorTexInfo);
+                            }
+
+                            framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+                            colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
+                            colorAttachmentInfo.clearColor = rasterView.second.clearColor;
+                            colorAttachmentInfo.loadOp = rasterView.second.loadOp;
+                            if (rasterView.second.accessType == AccessType::WRITE) {
+                                lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
+                                builder.writeToBlackboard(handle, lastTex.second);
+                                colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                            } else {
+                                colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
+                                auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                                builder.writeToBlackboard(handle, res);
+                            }
                         }
 
-                        framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-                        colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
-                        colorAttachmentInfo.clearColor = rasterView.second.clearColor;
-                        colorAttachmentInfo.loadOp = rasterView.second.loadOp;
-                        if (rasterView.second.accessType == AccessType::WRITE) {
-                            lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
-                            builder.writeToBlackboard(handle, lastTex.second);
-                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
-                        } else {
-                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
-                            auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
-                            builder.writeToBlackboard(handle, res);
+                    };
+ 
+                    if(subpasses.container->empty()) {
+                        traverseRasterView(pass.rasterViews);
+                    } else {
+                        for(size_t i = 0; i < subpasses.container->size(); ++i) {
+                            traverseRasterView((*subpasses.container)[i].rasterViews);
                         }
                     }
+
                     builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
 
                     if (barriers.find(passID + 1) == barriers.end()) {

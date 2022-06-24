@@ -55,8 +55,9 @@ private:
     };
 
     struct Subpass final {
-        ccstd::vector<LogicPass> logicPasses{};
         gfx::SubpassInfo desc;
+        ccstd::vector<LogicPass> logicPasses{};
+        ccstd::vector<std::reference_wrapper<const Barriers>> barriers;
     };
 
     struct Attachment final {
@@ -71,7 +72,7 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
-    void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, uint32_t index, bool front);
 
     bool _enableAutoBarrier{true};
 
@@ -79,7 +80,6 @@ private:
     ccstd::vector<Attachment> _attachments{};
     uint16_t _usedRenderTargetSlotMask{0};
     DevicePassResourceTable _resourceTable;
-    ccstd::vector<std::reference_wrapper<const Barriers>> _barriers;
 
     gfx::Viewport _viewport;
     gfx::Rect _scissor;
