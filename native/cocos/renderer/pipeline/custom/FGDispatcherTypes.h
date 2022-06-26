@@ -88,7 +88,7 @@ struct ResourceTransition {
 
 struct ResourceAccessNode {
     std::vector<AccessStatus>  attachemntStatus;
-    struct ResourceAccessNode* nextSubpass{nullptr};
+    std::unique_ptr<ResourceAccessNode> nextSubpass{nullptr};
 };
 
 struct ResourceAccessGraph {
@@ -317,7 +317,8 @@ struct BarrierPair {
 };
 
 struct BarrierNode {
-    std::vector<BarrierPair> barriers;
+    BarrierPair blockBarrier;
+    std::vector<BarrierPair> subpassBarriers;
 };
 
 struct FrameGraphDispatcher {
