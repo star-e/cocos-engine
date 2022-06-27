@@ -46,6 +46,7 @@
 #include "boost/lexical_cast.hpp"
 #include "gfx-base/GFXDef-common.h"
 #include "gfx-base/GFXDef.h"
+#include "gfx-base/GFXDevice.h"
 #include "math/Vec2.h"
 #include "pipeline/custom/GslUtils.h"
 #include "pipeline/custom/RenderCommonFwd.h"
@@ -101,21 +102,21 @@ using EmptyVerts = std::vector<EmptyVert>;
 using EmptyEdge = EmptyGraph::edge_descriptor;
 using EmptyEdges = std::vector<EmptyEdge>;
 using ScoreMap = std::map<EmptyVert, std::pair<int64_t /*backward*/, int64_t /*forward*/>>;
-using RasterViewsMap =  PmrTransparentMap<ccstd::pmr::string, RasterView>;
-using ComputeViewsMap =  PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>;
+using RasterViewsMap = PmrTransparentMap<ccstd::pmr::string, RasterView>;
+using ComputeViewsMap = PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>;
 
 struct Graphs {
-    const ResourceGraph& resourceGraph;
-    const LayoutGraphData& layoutGraphData;
-    ResourceAccessGraph& resourceAccessGraph;
-    EmptyGraph& relationGraph;
+    const ResourceGraph &resourceGraph;
+    const LayoutGraphData &layoutGraphData;
+    ResourceAccessGraph &resourceAccessGraph;
+    EmptyGraph &relationGraph;
 };
 
 struct ViewStatus {
-   const PmrString& name;
-   const PassType passType;
-   const gfx::ShaderStageFlagBit visibility;
-   const gfx::MemoryAccessBit access;
+    const PmrString &name;
+    const PassType passType;
+    const gfx::ShaderStageFlagBit visibility;
+    const gfx::MemoryAccessBit access;
 };
 
 auto defaultAccess = gfx::MemoryAccessBit::NONE;
@@ -152,19 +153,19 @@ gfx::MemoryAccessBit toGfxAccess(AccessType type) {
 };
 
 // AccessStatus.vertID : in resourceNode it's resource ID; in barrierNode it's pass ID.
-AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex curVertID, const ViewStatus& status);
+AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex curVertID, const ViewStatus &status);
 gfx::ShaderStageFlagBit getVisibilityByDescName(const LGD &lgd, uint32_t passID, const PmrString &slotName);
 
-void addAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus& status);
-void addCopyAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus& status);
-void processRasterPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const RasterPass &pass);
-void processComputePass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const ComputePass &pass);
-void processCopyPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const CopyPass &pass);
-void processRaytracePass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const RaytracePass &pass);
-void processPresentPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass);
+void addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status);
+void addCopyAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status);
+void processRasterPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const RasterPass &pass);
+void processComputePass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const ComputePass &pass);
+void processCopyPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const CopyPass &pass);
+void processRaytracePass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const RaytracePass &pass);
+void processPresentPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass);
 
 // execution order BUT NOT LOGICALLY
-bool isPassExecAdjecent(const ResourceAccessNode& passL, uint32_t passLID, const ResourceAccessNode& passR, uint32_t passRID) {
+bool isPassExecAdjecent(const ResourceAccessNode &passL, uint32_t passLID, const ResourceAccessNode &passR, uint32_t passRID) {
     return (passLID - passRID == 1 && !passL.nextSubpass) ||
            (passRID - passLID == 1 && !passR.nextSubpass);
 }
@@ -178,7 +179,7 @@ inline EmptyGraph::vertex_descriptor add_vertex(EmptyGraph &g) { // NOLINT
 }
 
 // status of resource access
-void buildAccessGraph(const RenderGraph &renderGraph, const Graphs& graphs) {
+void buildAccessGraph(const RenderGraph &renderGraph, const Graphs &graphs) {
     // what we need:
     //  - pass dependency
     //  - pass attachment access
@@ -191,7 +192,7 @@ void buildAccessGraph(const RenderGraph &renderGraph, const Graphs& graphs) {
     numPasses += renderGraph.movePasses.size();
     numPasses += renderGraph.raytracePasses.size();
 
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
 
     resourceAccessGraph.reserve(static_cast<ResourceAccessGraph::vertices_size_type>(numPasses));
     resourceAccessGraph.resourceNames.reserve(128);
@@ -246,12 +247,12 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
     struct AccessNodeInfo {
         const std::vector<AccessStatus> &status;
         std::vector<Barrier> &edgeBarriers; // need to barrier front or back
-        const Vertex& vertID;
+        const Vertex &vertID;
     };
 
-    void fillBarrier(const AccessNodeInfo& from, const AccessNodeInfo& to, bool isAdjacent) {
-        auto& [srcStatus, srcRearBarriers, srcVert] = from;
-        auto& [dstStatus, dstFrontBarriers, dstVert] = to;
+    void fillBarrier(const AccessNodeInfo &from, const AccessNodeInfo &to, bool isAdjacent) {
+        auto &[srcStatus, srcRearBarriers, srcVert] = from;
+        auto &[dstStatus, dstFrontBarriers, dstVert] = to;
         std::vector<AccessStatus> commonResources;
         std::set_intersection(srcStatus.begin(), srcStatus.end(),
                               dstStatus.begin(), dstStatus.end(),
@@ -321,7 +322,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                     (*srcBarrierIter).endStatus.passType = (*toIter).passType;
                     (*srcBarrierIter).endStatus.range = (*toIter).range;
                 } else {
-                    if (srcVert > (*srcBarrierIter).beginStatus.vertID) {
+                    if (srcVert >= (*srcBarrierIter).beginStatus.vertID) {
                         uint32_t siblingPass = (*srcBarrierIter).beginStatus.vertID;
                         (*srcBarrierIter).beginStatus.vertID = srcVert;
                         (*srcBarrierIter).beginStatus.visibility = (*fromIter).visibility;
@@ -329,7 +330,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         (*srcBarrierIter).beginStatus.passType = (*fromIter).passType;
                         (*srcBarrierIter).beginStatus.range = (*fromIter).range;
 
-                        auto& siblingPassBarrier = barrierMap[siblingPass].blockBarrier.rearBarriers;
+                        auto &siblingPassBarrier = barrierMap[siblingPass].blockBarrier.rearBarriers;
                         auto siblingIter = std::find_if(siblingPassBarrier.begin(), siblingPassBarrier.end(),
                                                         [resourceID](const Barrier &barrier) {
                                                             return resourceID == barrier.resourceID;
@@ -395,7 +396,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         // 2 and 5 read from ResA, 6 writes to ResA
                         // 5 and 6 logically adjacent but not adjacent in execution order.
                         // barrier for ResA between 2 - 6 can be totally replace by 5 - 6
-                        if (dstVert < (*dstBarrierIter).endStatus.vertID) {
+                        if (dstVert <= (*dstBarrierIter).endStatus.vertID) {
                             uint32_t siblingPass = (*dstBarrierIter).endStatus.vertID;
                             (*dstBarrierIter).endStatus.vertID = dstVert;
                             (*dstBarrierIter).endStatus.visibility = (*toIter).visibility;
@@ -404,7 +405,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                             (*dstBarrierIter).endStatus.range = (*toIter).range;
 
                             // remove the further redundant barrier
-                            auto& siblingPassBarrier = barrierMap[siblingPass].blockBarrier.frontBarriers;
+                            auto &siblingPassBarrier = barrierMap[siblingPass].blockBarrier.frontBarriers;
                             auto siblingIter = std::find_if(siblingPassBarrier.begin(), siblingPassBarrier.end(),
                                                             [resourceID](const Barrier &barrier) {
                                                                 return resourceID == barrier.resourceID;
@@ -417,7 +418,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
             }
         }
 
-                //----------------------------------------------check external----------------------------------------------
+        //----------------------------------------------check external----------------------------------------------
         auto barrierExternalRes = [&](const AccessStatus &rescAccess, bool isFrom) {
             uint32_t rescID = rescAccess.vertID;
             bool externalRes = get(get(ResourceGraph::Traits, resourceGraph), rescID).hasSideEffects();
@@ -492,28 +493,29 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
     }
 
     void discover_vertex(Vertex u, const Graph &g) {
-        const ResourceAccessNode& access = get(ResourceAccessGraph::AccessNode, g, u);
-        
+        const ResourceAccessNode &access = get(ResourceAccessGraph::AccessNode, g, u);
+
         if (barrierMap.find(u) == barrierMap.end()) {
             barrierMap.emplace(u, BarrierNode{{}, {}});
         }
 
-        auto* srcAccess = &access;
-        auto* dstAccess = access.nextSubpass.get();
-        auto& barriers = barrierMap[u].subpassBarriers;
+        auto *srcAccess = &access;
+        auto *dstAccess = access.nextSubpass.get();
+        auto& blockBarrier = barrierMap[u].blockBarrier;
+        auto &barriers = barrierMap[u].subpassBarriers;
         uint32_t subpassIndex = 1;
         bool isAdjacent = true; // subpass always adjacent to each other
-        while(dstAccess) {
+        while (dstAccess) {
             barriers.emplace_back();
             CC_ASSERT(barriers.size() == subpassIndex + 1);
             // 2 barriers at least when subpass exist
             std::vector<Barrier> &srcRearBarriers = barriers[subpassIndex - 1].rearBarriers;
             std::vector<Barrier> &dstFrontBarriers = barriers[subpassIndex].frontBarriers;
-            
+
             AccessNodeInfo from = {srcAccess->attachemntStatus, srcRearBarriers, u};
             AccessNodeInfo to = {dstAccess->attachemntStatus, dstFrontBarriers, u};
             fillBarrier(from, to, isAdjacent);
-            
+
             srcAccess = dstAccess;
             dstAccess = dstAccess->nextSubpass.get();
         }
@@ -523,7 +525,6 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
         Vertex from = source(e, g);
         Vertex to = target(e, g);
 
-
         // hasSubpass ? fromAccess is a single node with all attachment status stored in 'attachmentStatus'
         //            : fromAccess is head of chain of subpasses, which stores all attachment status in 'attachmentStatus'
         const ResourceAccessNode &fromAccess = get(ResourceAccessGraph::AccessNode, g, from);
@@ -531,14 +532,65 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
         bool isAdjacent = isPassExecAdjecent(fromAccess, from, toAccess, to);
         std::vector<AccessStatus> commonResources;
-        const std::vector<AccessStatus> &fromStatus = fromAccess.attachemntStatus;
-        const std::vector<AccessStatus> &toStatus = toAccess.attachemntStatus;
-        std::vector<Barrier> &srcRearBarriers = barrierMap[from].blockBarrier.frontBarriers;
-        std::vector<Barrier> &dstFrontBarriers = barrierMap[to].blockBarrier.rearBarriers;
-        AccessNodeInfo fromInfo = {fromStatus, srcRearBarriers, from};
-        AccessNodeInfo toInfo = {toStatus, dstFrontBarriers, to};
- 
-        fillBarrier(fromInfo, toInfo, isAdjacent);
+
+        auto* srcHead = &fromAccess;
+        auto* dstHead = &toAccess;
+        
+        uint32_t srcSubpassIndex = 0;
+        bool srcHasSubpass = srcHead->nextSubpass.get();
+        bool dstHasSubpass = dstHead->nextSubpass.get();
+        srcHead = srcHasSubpass ? srcHead->nextSubpass.get() : srcHead;
+
+        while (srcHead) {
+            const std::vector<AccessStatus> &fromStatus = srcHead->attachemntStatus;
+            std::vector<Barrier> &srcRearBarriers = srcHasSubpass ? barrierMap[from].subpassBarriers[srcSubpassIndex].rearBarriers : barrierMap[from].blockBarrier.rearBarriers;
+            uint32_t dstSubpassIndex = 0;
+            auto* dstHead = &toAccess;
+            bool dstHasSubpass = dstHead->nextSubpass.get();
+            dstHead = dstHasSubpass ? fromAccess.nextSubpass.get() : &fromAccess;
+            while (dstHead) {
+                const std::vector<AccessStatus> &toStatus = dstHead->attachemntStatus;
+                std::vector<Barrier> &dstFrontBarriers = dstHasSubpass ? barrierMap[to].subpassBarriers[dstSubpassIndex].frontBarriers : barrierMap[to].blockBarrier.frontBarriers;
+                AccessNodeInfo fromInfo = {fromStatus, srcRearBarriers, from};
+                AccessNodeInfo toInfo = {toStatus, dstFrontBarriers, to};
+                fillBarrier(fromInfo, toInfo, isAdjacent);
+                dstHead = dstHead->nextSubpass.get();
+                ++dstSubpassIndex;
+            }
+            srcHead = srcHead->nextSubpass.get();
+            ++srcSubpassIndex;
+        }
+
+        for(const auto& barriers : barrierMap[from].subpassBarriers) {
+            if(srcHasSubpass) {
+                for(const auto& barrier : barriers.frontBarriers) {
+                    auto resID = barrier.resourceID;
+                    auto findBarrierByResID = [resID](const Barrier& barrier) {
+                        return barrier.resourceID == resID;
+                    };
+                    auto& frontBarriers = barrierMap[from].blockBarrier.frontBarriers;
+                    auto iter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
+                    if(iter == frontBarriers.end()) {
+                        frontBarriers.emplace_back(barrier);
+                    }
+                }
+            }
+            if(dstHasSubpass) {
+                for(const auto& barrier : barriers.rearBarriers) {
+                    auto resID = barrier.resourceID;
+                    auto findBarrierByResID = [resID](const Barrier& barrier) {
+                        return barrier.resourceID == resID;
+                    };
+                    auto& rearBarriers = barrierMap[from].blockBarrier.rearBarriers;
+                    auto iter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
+                    if(iter == rearBarriers.end()) {
+                        rearBarriers.emplace_back(barrier);
+                    } else {
+                        (*iter) = barrier;
+                    }
+                }
+            }
+        }
     }
 
     BarrierMap &barrierMap;
@@ -559,8 +611,8 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
 
         // record resource current in-access and out-access for every single node
         if (!fgDispatcher._accessGraphBuilt) {
-            const Graphs graph{resourceGraph, layoutGraph, rag, relationGraph};
-            buildAccessGraph(graph, layoutGraph, resourceGraph, rag, relationGraph);
+            const Graphs graphs{resourceGraph, layoutGraph, rag, relationGraph};
+            buildAccessGraph(graph, graphs);
             fgDispatcher._accessGraphBuilt = true;
         }
 
@@ -584,17 +636,44 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
 
         // external res barrier for next frame
         for (const auto &externalPair : externalResMap) {
+
+
             const auto &transition = externalPair.second;
             auto resID = resourceGraph.valueIndex.at(externalPair.first);
             auto passID = transition.currStatus.vertID;
             if (batchedBarriers.find(passID) == batchedBarriers.end()) {
                 batchedBarriers.emplace(passID, BarrierNode{});
             }
-            batchedBarriers[passID].rearBarriers.emplace_back(Barrier{
+
+            Barrier nextFrameResBarrier{
                 resID,
                 gfx::BarrierType::SPLIT_BEGIN,
                 externalResMap[externalPair.first].currStatus,
-                {}});
+                {}};
+
+            bool hasSubpass = !batchedBarriers[passID].subpassBarriers.empty();
+
+            if(hasSubpass) {
+                auto& subpassBarriers = batchedBarriers[passID].subpassBarriers;
+                for(int i = subpassBarriers.size() - 1; i >=0; --i) {
+                    auto findBarrierByResID = [resID](const Barrier& barrier) {
+                        barrier.resourceID == resID;
+                    };
+                    
+                    const auto& frontBarriers = subpassBarriers[i].frontBarriers;
+                    auto& rearBarriers = subpassBarriers[i].rearBarriers;
+                    auto found = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID) != frontBarriers.end() ||
+                        std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID) != rearBarriers.end();
+                    if(found) {
+                        // put into rear barriers in order not to stuck
+                        rearBarriers.push_back({});
+                        break;
+                    }
+                }
+            } else {
+                auto& rearBarriers = batchedBarriers[passID].blockBarrier.rearBarriers;
+                rearBarriers.emplace_back(nextFrameResBarrier);
+            }
         }
     }
 }
@@ -1162,19 +1241,15 @@ bool isStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs) {
     return res;
 }
 
-void addCopyAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus& status, const Range &range) {
-    // std::tie(passType, rescName, visibility, access) ;
-    PassType passType = std::get<0>(status);
-    const PmrString &rescName = std::get<1>(status);
-    gfx::ShaderStageFlagBit visibility = std::get<2>(status);
-    gfx::MemoryAccessBit access = std::get<3>(status);
+void addCopyAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status, const Range &range) {
+    const auto &[name, passType, visibility, access] = status;
 
-    uint32_t rescID = rg.valueIndex.at(rescName);
+    uint32_t rescID = rg.valueIndex.at(name);
 
-    CC_EXPECTS(rg.valueIndex.find(rescName) != rg.valueIndex.end());
-    if (std::find(rag.resourceNames.begin(), rag.resourceNames.end(), rescName) == rag.resourceNames.end()) {
-        rag.resourceIndex.emplace(rescName, rescID);
-        rag.resourceNames.emplace_back(rescName);
+    CC_EXPECTS(rg.valueIndex.find(name) != rg.valueIndex.end());
+    if (std::find(rag.resourceNames.begin(), rag.resourceNames.end(), name) == rag.resourceNames.end()) {
+        rag.resourceIndex.emplace(name, rescID);
+        rag.resourceNames.emplace_back(name);
     }
 
     node.attachemntStatus.emplace_back(AccessStatus{
@@ -1186,9 +1261,8 @@ void addCopyAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &no
     });
 }
 
-void addAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus& status) {
-    // std::tie(passType, rescName, visibility, access) ;
-    const auto& [name, passType, visibility, access] = status;
+void addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status) {
+    const auto &[name, passType, visibility, access] = status;
     uint32_t rescID = rg.valueIndex.at(name);
     auto resourceDesc = get(ResourceGraph::Desc, rg, rescID);
     Range range;
@@ -1213,8 +1287,8 @@ void addAccessNode(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, 
     });
 }
 
-AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex curVertID, const ViewStatus& viewStatus) {
-    const auto& [name, passType, visibility, access] = viewStatus;
+AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex curVertID, const ViewStatus &viewStatus) {
+    const auto &[name, passType, visibility, access] = viewStatus;
 
     AccessVertex lastVertID = INVALID_ID;
     CC_EXPECTS(rag.resourceIndex.find(name) != rag.resourceIndex.end());
@@ -1271,10 +1345,9 @@ gfx::ShaderStageFlagBit getVisibilityByDescName(const LGD &lgd, uint32_t passID,
     return visIter->second;
 };
 
-bool checkRasterViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t vertID, const RasterViewsMap& rasterViews) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+bool checkRasterViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, ResourceAccessNode &node, const RasterViewsMap &rasterViews) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
-    auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
 
     const auto passType = node.attachemntStatus.empty() ? gfx::PassType::RASTER : node.attachemntStatus.front().passType;
     for (const auto &pair : rasterViews) {
@@ -1282,7 +1355,7 @@ bool checkRasterViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t 
         gfx::ShaderStageFlagBit visibility = getVisibilityByDescName(layoutGraphData, vertID, pair.first);
         auto access = toGfxAccess(rasterView.accessType);
         ViewStatus viewStatus{rasterView.slotName, passType, visibility, access};
-        addAccessNode(resourceAccessGraph, resourceGraph, node, viewStatus);
+        addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
         auto lastVertId = dependencyCheck(resourceAccessGraph, accessRecord, vertID, viewStatus);
         if (lastVertId != INVALID_ID) {
             tryAddEdge(lastVertId, vertID, resourceAccessGraph);
@@ -1291,16 +1364,15 @@ bool checkRasterViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t 
         }
     }
 
-    //sort for vector intersection
+    // sort for vector intersection
     std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 
     return dependent;
 }
 
-bool checkComputeViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t vertID, const ComputeViewsMap &computeViews) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+bool checkComputeViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, ResourceAccessNode &node, const ComputeViewsMap &computeViews) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
-    auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
 
     const auto passType = node.attachemntStatus.empty() ? gfx::PassType::RASTER : node.attachemntStatus.front().passType;
     for (const auto &pair : computeViews) {
@@ -1309,7 +1381,7 @@ bool checkComputeViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t
         for (const auto &computeView : values) {
             auto access = toGfxAccess(computeView.accessType);
             ViewStatus viewStatus{computeView.name, passType, visibility, access};
-            addAccessNode(resourceAccessGraph, resourceGraph, node, viewStatus);
+            addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
             auto lastVertId = dependencyCheck(resourceAccessGraph, accessRecord, vertID, viewStatus);
             if (lastVertId != INVALID_ID) {
                 tryAddEdge(lastVertId, vertID, resourceAccessGraph);
@@ -1319,30 +1391,52 @@ bool checkComputeViews(const Graphs& graphs, AccessTable &accessRecord, uint32_t
         }
     }
 
-    //sort for vector intersection
+    // sort for vector intersection
     std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 
     return dependent;
 }
 
-void processRasterPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const RasterPass &pass) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
-        
+void processRasterPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const RasterPass &pass) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
 
-    const auto& subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
+    auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
+    const auto &subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
     bool hasSubpass = subpasses.container->empty();
     bool dependent = false;
     if (hasSubpass) {
-        for (const auto& subpass : *subpasses.container) {
-            dependent |= checkRasterViews(graphs, accessRecord, vertID, subpass.rasterViews);
-            dependent |= checkComputeViews(graphs, accessRecord, vertID, subpass.computeViews);
+        auto* lastNode = &node;
+        for (size_t i = 0; i < subpasses.container->size(); ++i) {
+            lastNode->nextSubpass = std::make_unique<ResourceAccessNode>(ResourceAccessNode{});
+            auto* head = lastNode->nextSubpass.get();
+
+            const auto &subpass = (*subpasses.container)[i];
+            dependent |= checkRasterViews(graphs, accessRecord, vertID, *head, subpass.rasterViews);
+            dependent |= checkComputeViews(graphs, accessRecord, vertID, *head, subpass.computeViews);
+
+            for(const auto& attachment : head->attachemntStatus) {
+                auto resID = attachment.vertID;
+                auto findByResID = [vertID](const AccessStatus& status) {
+                    return status.vertID == vertID;
+                };
+
+                auto iter = std::find_if(node.attachemntStatus.begin(), node.attachemntStatus.end(), findByResID);
+                if(iter == node.attachemntStatus.end()) {
+                    node.attachemntStatus.emplace_back(attachment)
+                        ;
+                } else {
+                    (*iter) = attachment;
+                }
+            }
+            lastNode = head;
         }
     } else {
-        dependent |= checkRasterViews(graphs, accessRecord, vertID, pass.rasterViews);
-        dependent |= checkComputeViews(graphs, accessRecord, vertID, pass.computeViews);
+        dependent |= checkRasterViews(graphs, accessRecord, vertID, node, pass.rasterViews);
+        dependent |= checkComputeViews(graphs, accessRecord, vertID, node, pass.computeViews);
     }
 
     if (!dependent) {
@@ -1351,24 +1445,25 @@ void processRasterPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t
     }
 }
 
-void processComputePass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const ComputePass &pass) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
-        
+void processComputePass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const ComputePass &pass) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
 
-    bool dependent = checkComputeViews(graphs, accessRecord, vertID, pass.computeViews);
- 
+    auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
+    bool dependent = checkComputeViews(graphs, accessRecord, vertID, node, pass.computeViews);
+
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
         tryAddEdge(EXPECT_START_ID, rlgVertID, relationGraph);
     }
 }
 
-void processCopyPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const CopyPass &pass) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
-        
+void processCopyPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const CopyPass &pass) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
@@ -1392,10 +1487,10 @@ void processCopyPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t p
             }};
 
         ViewStatus srcViewStatus{pair.source, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::READ_ONLY};
-        addCopyAccessNode(resourceAccessGraph, resourceGraph, node, srcViewStatus, sourceRange);
+        addCopyAccessStatus(resourceAccessGraph, resourceGraph, node, srcViewStatus, sourceRange);
         ViewStatus dstViewStatus{pair.source, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY};
-        addCopyAccessNode(resourceAccessGraph, resourceGraph, node, dstViewStatus, targetRange);
-        
+        addCopyAccessStatus(resourceAccessGraph, resourceGraph, node, dstViewStatus, targetRange);
+
         uint32_t lastVertSrc = dependencyCheck(resourceAccessGraph, accessRecord, vertID, srcViewStatus);
         if (lastVertSrc != INVALID_ID) {
             tryAddEdge(lastVertSrc, vertID, resourceAccessGraph);
@@ -1416,24 +1511,25 @@ void processCopyPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t p
     std::sort(node.attachemntStatus.begin(), node.attachemntStatus.end(), [](const AccessStatus &lhs, const AccessStatus &rhs) { return lhs.vertID < rhs.vertID; });
 }
 
-void processRaytracePass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const RaytracePass &pass) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
-        
+void processRaytracePass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const RaytracePass &pass) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
-    
-    bool dependent = checkComputeViews(graphs, accessRecord, vertID, pass.computeViews);
- 
+
+    auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
+    bool dependent = checkComputeViews(graphs, accessRecord, vertID, node, pass.computeViews);
+
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
         tryAddEdge(EXPECT_START_ID, rlgVertID, relationGraph);
     }
 }
 
-void processPresentPass(const Graphs& graphs, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass) {
-    auto& [resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
-        
+void processPresentPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t passID, const PresentPass &pass) {
+    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
@@ -1445,7 +1541,7 @@ void processPresentPass(const Graphs& graphs, AccessTable &accessRecord, uint32_
         ViewStatus viewStatus{pair.first, PassType::PRESENT, visibility, gfx::MemoryAccessBit::READ_ONLY};
 
         auto lastVertId = dependencyCheck(resourceAccessGraph, accessRecord, vertID, viewStatus);
-        addAccessNode(resourceAccessGraph, resourceGraph, node, viewStatus);
+        addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
         if (lastVertId != INVALID_ID) {
             tryAddEdge(lastVertId, vertID, resourceAccessGraph);
             tryAddEdge(lastVertId, rlgVertID, relationGraph);
