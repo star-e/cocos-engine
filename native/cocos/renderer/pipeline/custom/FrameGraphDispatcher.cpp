@@ -1088,7 +1088,8 @@ void passReorder(FrameGraphDispatcher &fgDispatcher) {
     auto &rag = fgDispatcher.resourceAccessGraph;
 
     if (!fgDispatcher._accessGraphBuilt) {
-        buildAccessGraph(graph, layoutGraph, resourceGraph, rag, relationGraph);
+        const Graphs graphs{resourceGraph, layoutGraph, rag, relationGraph};
+        buildAccessGraph(graph, graphs);
         fgDispatcher._accessGraphBuilt = true;
     }
 

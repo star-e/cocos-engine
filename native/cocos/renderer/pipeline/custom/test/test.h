@@ -53,6 +53,16 @@ using ViewInfo = vector<pair<PassType, vector<vector<vector<string>>>>>;
 using ResourceInfo = vector<std::tuple<string, ResourceDesc, ResourceTraits, ResourceStates>>;
 using LayoutUnit = std::tuple<string, uint32_t, gfx::ShaderStageFlagBit>;
 using LayoutInfo = vector<vector<LayoutUnit>>;
+    // PmrTransparentMap<ccstd::pmr::string, RasterView>                      rasterViews;
+    // PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>> computeViews;
+using RasterViews = PmrTransparentMap<ccstd::pmr::string, RasterView>;
+namespace{
+struct Graphs {
+    ResourceGraph& resourceGraph;
+    ResourceAccessGraph& resourceAccessGraph;
+
+};
+} // namespace
 
 static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const LayoutInfo &layoutInfo, RenderGraph &renderGraph, ResourceGraph &rescGraph, LayoutGraphData &layoutGraphData) {
     for (const auto &resc : rescInfo) {
@@ -199,100 +209,115 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
                     const auto& subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
                             
                     /* if(subpasses.container->empty()) {
-                      
+
+                      
                     }
-                    const auto& rasterViews = get(Subpass) */
+                    const auto& rasterViews = get(Subpass)
+ */
 
-                    auto traverseRasterView = [&](const auto& rasterViews) {
-                        for (const auto &rasterView : pass.rasterViews) {
-                            const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
-                            auto typedHandle = builder.readFromBlackboard(handle);
-                            data.outputTexes.push_back({});
-                            auto &lastTex = data.outputTexes.back();
-                            framegraph::Texture::Descriptor colorTexInfo;
-                            colorTexInfo.format = gfx::Format::RGBA8;
+                            auto traverseRasterView = [&builder, &data](const std::vector<std::reference_wrapper<RasterViews>>& subpasses, bool isSubpass) {
+                                uint32_t count = 0;
+                                for(const auto& subpass : subpasses) {
+                                    if(isSubpass) {
+                                        builder.subpass(isSubpass && count < subpasses.size() - 1);
+                                        ++count;
+                                    }
+                                    
+                                    for (const auto &rasterView : subpass.get()) {
+                                        const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
+                                        auto typedHandle = builder.readFromBlackboard(handle);
+                                        data.outputTexes.emplace_back();
+                                        auto &lastTex = data.outputTexes.back();
+                                        framegraph::Texture::Descriptor colorTexInfo;
+                                        colorTexInfo.format = gfx::Format::RGBA8;
 
-                            // if (rasterView.second.accessType == AccessType::READ) {
-                            colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
-                            //}
-                            lastTex.first = rasterView.second.accessType;
-                            lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+                                        // if (rasterView.second.accessType == AccessType::READ) {
+                                        colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
+                                        //}
+                                        lastTex.first = rasterView.second.accessType;
+                                        lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
 
-                            if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
-                                colorTexInfo.width = 960;
-                                colorTexInfo.height = 640;
+                                        if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                                            colorTexInfo.width = 960;
+                                            colorTexInfo.height = 640;
 
-                                lastTex.second = builder.create(handle, colorTexInfo);
-                            }
+                                            lastTex.second = builder.create(handle, colorTexInfo);
+                                        }
 
-                            framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-                            colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
-                            colorAttachmentInfo.clearColor = rasterView.second.clearColor;
-                            colorAttachmentInfo.loadOp = rasterView.second.loadOp;
-                            if (rasterView.second.accessType == AccessType::WRITE) {
-                                lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
-                                builder.writeToBlackboard(handle, lastTex.second);
-                                colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                                        framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+                                        colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
+                                        colorAttachmentInfo.clearColor = rasterView.second.clearColor;
+                                        colorAttachmentInfo.loadOp = rasterView.second.loadOp;
+                                        if (rasterView.second.accessType == AccessType::WRITE) {
+                                            lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
+                                            builder.writeToBlackboard(handle, lastTex.second);
+                                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                                        } else {
+                                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
+                                            auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                                            builder.writeToBlackboard(handle, res);
+                                        }
+                                    }                           
+                                }
+                                
+                            };
+                            
+                            std::vector<std::reference_wrapper<RasterViews>> passes;
+                            if(subpasses.container->empty()) {
+                                passes.emplace_back(std::cref(pass.rasterViews));
                             } else {
-                                colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
-                                auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
-                                builder.writeToBlackboard(handle, res);
+                                for(const auto& subpass : (*subpasses.container)) {
+                                    passes.emplace_back(std::cref(subpass.rasterViews));
+                                }
                             }
-                        }
-
-                    };
- 
-                    if(subpasses.container->empty()) {
-                        traverseRasterView(pass.rasterViews);
-                    } else {
-                        for(size_t i = 0; i < subpasses.container->size(); ++i) {
-                            traverseRasterView((*subpasses.container)[i].rasterViews);
-                        }
-                    }
-
-                    builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
-
-                    if (barriers.find(passID + 1) == barriers.end()) {
-                        return;
-                    }
-                    const auto &barrier = barriers.at(passID + 1);
-                    auto fullfillBarrier = [&](bool front) {
-                        const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
-                        for (const auto &resBarrier : parts) {
-                            const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
-                            const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
-                            auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
-                            framegraph::Range layerRange;
-                            framegraph::Range mipRange;
-                            if (type == framegraph::ResourceType::BUFFER) {
-                                auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
-                                layerRange = {0, 0};
-                                mipRange = {bufferRange.offset, bufferRange.size};
-                            } else {
-                                auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
-                                layerRange = {textureRange.firstSlice, textureRange.numSlices};
-                                mipRange = {textureRange.mipLevel, textureRange.levelCount};
+                            traverseRasterView(passes, true);
+                            
+                            builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
+                            
+                            if (barriers.find(passID + 1) == barriers.end()) {
+                                return;
                             }
-                            builder.addBarrier(cc::framegraph::ResourceBarrier{
-                                                   type,
-                                                   resBarrier.type,
-                                                   builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
-                                                   {resBarrier.beginStatus.passType,
-                                                    resBarrier.beginStatus.visibility,
-                                                    resBarrier.beginStatus.access},
-                                                   {resBarrier.endStatus.passType,
-                                                    resBarrier.endStatus.visibility,
-                                                    resBarrier.endStatus.access},
-                                                   layerRange,
-                                                   mipRange,
-                                               },
-                                               front);
-                        }
-                    };
-                    fullfillBarrier(true);
-                    //...
-                    fullfillBarrier(false);
-                };
+                            const auto &barrier = barriers.at(passID + 1);
+                            if (barrier.subpassBarriers.empty()) {
+                                                          
+                            }
+                            auto fullfillBarrier = [&](bool front) {
+                                const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
+                                for (const auto &resBarrier : parts) {
+                                    const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
+                                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
+                                    auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
+                                    framegraph::Range layerRange;
+                                    framegraph::Range mipRange;
+                                    if (type == framegraph::ResourceType::BUFFER) {
+                                        auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
+                                        layerRange = {0, 0};
+                                        mipRange = {bufferRange.offset, bufferRange.size};
+                                    } else {
+                                        auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
+                                        layerRange = {textureRange.firstSlice, textureRange.numSlices};
+                                        mipRange = {textureRange.mipLevel, textureRange.levelCount};
+                                    }
+                                    builder.addBarrier(cc::framegraph::ResourceBarrier{
+                                                           type,
+                                                           resBarrier.type,
+                                                           builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
+                                                           {resBarrier.beginStatus.passType,
+                                                               resBarrier.beginStatus.visibility,
+                                                               resBarrier.beginStatus.access},
+                                                           {resBarrier.endStatus.passType,
+                                                               resBarrier.endStatus.visibility,
+                                                               resBarrier.endStatus.access},
+                                                           layerRange,
+                                                           mipRange,
+                                                       },
+                                                       front);
+                                }
+                            };
+                            fullfillBarrier(true);
+                            //...
+                            fullfillBarrier(false);
+                        };
 
                 auto forwardExec = [](const RenderData &data,
                                       const framegraph::DevicePassResourceTable &table) {
