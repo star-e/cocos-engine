@@ -28,11 +28,11 @@
 #include <memory>
 #include "CallbackPass.h"
 #include "Handle.h"
+#include "ImmutableState.h"
 #include "PassInsertPointManager.h"
 #include "RenderTargetAttachment.h"
 #include "VirtualResource.h"
 #include "gfx-base/GFXDef.h"
-#include "ImmutableState.h"
 
 namespace cc {
 namespace framegraph {
@@ -51,12 +51,12 @@ public:
     Handle read(FrameGraph &graph, const Handle &input);
     Handle write(FrameGraph &graph, const Handle &output);
     void createRenderTargetAttachment(RenderTargetAttachment &&attachment);
-    void addBarrier(const ResourceBarrier &barrier, bool front);
+    void setBarrier(const PassBarrierPair &barrier);
 
     inline void sideEffect();
     inline void subpass(bool end, bool clearActionIgnorable);
     inline void setViewport(const gfx::Viewport &viewport, const gfx::Rect &scissor);
-    inline const Barriers &getBarriers() const;
+    inline const PassBarrierPair &getBarriers() const;
 
 private:
     bool canMerge(const FrameGraph &graph, const PassNode &passNode) const;
@@ -92,7 +92,7 @@ private:
     gfx::Viewport _viewport;
     gfx::Rect _scissor;
 
-    Barriers _barriers;
+    PassBarrierPair _barriers;
 
     friend class FrameGraph;
     friend class DevicePass;
@@ -101,7 +101,7 @@ private:
 
 //////////////////////////////////////////////////////////////////////////
 
-const Barriers &PassNode::getBarriers() const {
+const PassBarrierPair &PassNode::getBarriers() const {
     return _barriers;
 }
 

@@ -42,8 +42,11 @@ namespace framegraph {
 DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const &subpassNodes) {
     ccstd::vector<RenderTargetAttachment> attachments;
 
+    uint32_t index = 0;
     for (const PassNode *passNode : subpassNodes) {
         append(graph, passNode, &attachments);
+        _barriers.push_back(std::cref(passNode->getBarriers()));
+        _subpasses.back().barrierID = index++;
     }
 
     // Important Notice:
@@ -111,13 +114,16 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
     }
 }
 
-void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, uint32_t index, bool front) {
+void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, bool front) {
     if (_enableAutoBarrier) {
-        auto gatherBarrier = [this, index](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
+        auto gatherBarrier = [this](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
             // no barrier is allowed inside renderpass
-            const auto& barriers = _subpasses[index].barriers;
-            CC_ASSERT(_subpasses[index].barriers.size() <= 2);
-            const auto &info = front ? barriers.front().get().frontBarriers : barriers.back().get().rearBarriers;
+            auto index = front ? _subpasses.front().barrierID : _subpasses.back().barrierID;
+            if (index == 0xFFFFFFFF) {
+                return;
+            }
+            const auto &barriers = _barriers[index];
+            const auto &info = front ? barriers.get().frontBarriers : barriers.get().rearBarriers;
             for (const auto &barrier : info) {
                 auto res = getBarrier(barrier, &_resourceTable);
                 switch (barrier.resourceType) {
@@ -161,7 +167,7 @@ void DevicePass::execute() {
     auto *device = gfx::Device::getInstance();
     auto *cmdBuff = device->getCommandBuffer();
 
-    //applyBarriers(cmdBuff, true);
+    applyBarriers(cmdBuff, true);
 
     begin(cmdBuff);
 
@@ -190,14 +196,13 @@ void DevicePass::execute() {
 
     end(cmdBuff);
 
-    //applyBarriers(cmdBuff, false);
+    applyBarriers(cmdBuff, false);
 }
 
 void DevicePass::append(const FrameGraph &graph, const PassNode *passNode, ccstd::vector<RenderTargetAttachment> *attachments) {
     _subpasses.emplace_back();
     Subpass &subpass = _subpasses.back();
-    subpass.barriers.emplace_back(std::cref(passNode->getBarriers()));
-    
+
     do {
         subpass.logicPasses.emplace_back();
         LogicPass &logicPass = subpass.logicPasses.back();
@@ -363,8 +368,8 @@ void DevicePass::begin(gfx::CommandBuffer *cmdBuff) {
     for (auto &subpass : _subpasses) {
         rpInfo.subpasses.emplace_back(subpass.desc);
         rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
-                                            
-                                         });
+
+        });
     }
 
     _renderPass = RenderPass(rpInfo);

@@ -57,7 +57,7 @@ private:
     struct Subpass final {
         gfx::SubpassInfo desc;
         ccstd::vector<LogicPass> logicPasses{};
-        ccstd::vector<std::reference_wrapper<const Barriers>> barriers;
+        uint32_t barrierID{0xFFFFFFFF};
     };
 
     struct Attachment final {
@@ -72,7 +72,7 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
-    void applyBarriers(gfx::CommandBuffer *cmdBuff, uint32_t index, bool front);
+    void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
 
     bool _enableAutoBarrier{true};
 
@@ -87,6 +87,8 @@ private:
     gfx::Rect _curScissor;
     RenderPass _renderPass;
     Framebuffer _fbo;
+
+    std::vector<std::reference_wrapper<const PassBarrierPair>> _barriers;
 };
 
 } // namespace framegraph

@@ -67,9 +67,16 @@ struct ResourceBarrier {
     };
 };
 
-struct Barriers {
+struct PassBarrierPair {
     ccstd::vector<ResourceBarrier> frontBarriers;
     ccstd::vector<ResourceBarrier> rearBarriers;
+};
+
+using BarriersList = std::vector<PassBarrierPair>;
+
+struct PassBarriers {
+    PassBarrierPair blockBarrier;
+    BarriersList subpassBarriers;
 };
 
 std::pair<gfx::GFXObject* /*barrier*/, gfx::GFXObject* /*resource*/> getBarrier(const ResourceBarrier& barrierInfo, const DevicePassResourceTable* dict) noexcept;

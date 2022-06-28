@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <iterator>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <variant>
@@ -39,7 +40,6 @@
 #include "frame-graph/FrameGraph.h"
 #include "gfx-base/GFXDef-common.h"
 #include "gfx-base/GFXDevice.h"
-#include <set>
 
 namespace cc {
 
@@ -53,16 +53,11 @@ using ViewInfo = vector<pair<PassType, vector<vector<vector<string>>>>>;
 using ResourceInfo = vector<std::tuple<string, ResourceDesc, ResourceTraits, ResourceStates>>;
 using LayoutUnit = std::tuple<string, uint32_t, gfx::ShaderStageFlagBit>;
 using LayoutInfo = vector<vector<LayoutUnit>>;
-    // PmrTransparentMap<ccstd::pmr::string, RasterView>                      rasterViews;
-    // PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>> computeViews;
+using framegraph::PassBarrierPair;
+using framegraph::ResourceBarrier;
 using RasterViews = PmrTransparentMap<ccstd::pmr::string, RasterView>;
-namespace{
-struct Graphs {
-    ResourceGraph& resourceGraph;
-    ResourceAccessGraph& resourceAccessGraph;
-
-};
-} // namespace
+using ComputeViews = PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>;
+using BarrierMap = FrameGraphDispatcher::BarrierMap;
 
 static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescInfo, const LayoutInfo &layoutInfo, RenderGraph &renderGraph, ResourceGraph &rescGraph, LayoutGraphData &layoutGraphData) {
     for (const auto &resc : rescInfo) {
@@ -100,43 +95,47 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
         const ccstd::string name = "pass" + std::to_string(passID++);
         const auto vertexID = add_vertex(renderGraph, RasterTag{}, name.c_str());
         auto &raster = get(RasterTag{}, vertexID, renderGraph);
-        auto& subpassGraph = raster.subpassGraph;
- 
+        auto &subpassGraph = raster.subpassGraph;
+
         bool hasSubpass = count > 1;
 
-        for (size_t j = 0; j < count; ++j) {    
+        for (size_t j = 0; j < count; ++j) {
             assert(subpasses[j].size() == 2); // inputs and outputs
             const auto &attachments = subpasses[j];
             bool isOutput = false;
 
-          const ccstd::string subpassName = "subpass" + std::to_string(passID++);
-            const auto subpassVertexID = add_vertex(subpassGraph, subpassName.c_str());
-            auto& subpass = get(SubpassGraph::Subpass, subpassGraph, subpassVertexID);
+            RasterSubpass *subpass = nullptr;
+            if (hasSubpass) {
+                const ccstd::string subpassName = "subpass" + std::to_string(passID++);
+                auto subpassVertexID = add_vertex(subpassGraph, subpassName.c_str());
+                subpass = &get(SubpassGraph::Subpass, subpassGraph, subpassVertexID);
+            }
 
             for (size_t k = 0; k < attachments.size(); ++k) {
                 for (size_t l = 0; l < attachments[k].size(); ++l) {
                     const auto &inputsOrOutputs = attachments[k];
                     const auto &viewName = inputsOrOutputs[l];
                     bool firstMeet = nameSet.find(viewName.c_str()) == nameSet.end();
-                    if(firstMeet) {
+                    if (firstMeet) {
                         nameSet.emplace(viewName);
                     }
 
-                    auto& rasterViews = hasSubpass ? subpass.rasterViews : raster.rasterViews;
+                    auto &rasterViews = hasSubpass ? (*subpass).rasterViews : raster.rasterViews;
                     rasterViews.emplace(viewName.c_str(), RasterView{
-                                                                     viewName.c_str(),
-                                                                     isOutput ? AccessType::WRITE : AccessType::READ,
-                                                                     AttachmentType::RENDER_TARGET,
-                                                                     firstMeet ? gfx::LoadOp::CLEAR : gfx::LoadOp::LOAD,
-                                                                     gfx::StoreOp::STORE,
-                                                                     gfx::ClearFlagBit::ALL,
-                                                                     gfx::Color({1.0, 0.0, 0.0, 1.0}),
-                                                                 });
+                                                              viewName.c_str(),
+                                                              isOutput ? AccessType::WRITE : AccessType::READ,
+                                                              AttachmentType::RENDER_TARGET,
+                                                              firstMeet ? gfx::LoadOp::CLEAR : gfx::LoadOp::LOAD,
+                                                              gfx::StoreOp::STORE,
+                                                              gfx::ClearFlagBit::ALL,
+                                                              gfx::Color({1.0, 0.0, 0.0, 1.0}),
+                                                          });
                 }
                 isOutput = true;
             }
         }
     };
+
     uint32_t passCount = 0;
     for (size_t i = 0; i < rasterData.size(); ++i) {
         const auto &pass = rasterData[i];
@@ -187,13 +186,199 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
     fgDispatcher.run(); */
 }
 
+static void fillBarriers(const ResourceGraph &resourceGraph, const BarrierPair &barrierInfo, framegraph::PassNodeBuilder &builder, PassBarrierPair &barriers) {
+    auto doFill = [&builder, &resourceGraph](const std::vector<Barrier> &edgeInfo, std::vector<ResourceBarrier> &edgeBarriers) {
+        for (const auto &resBarrier : edgeInfo) {
+            const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
+            const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
+            auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
+            framegraph::Range layerRange;
+            framegraph::Range mipRange;
+            if (type == framegraph::ResourceType::BUFFER) {
+                auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
+                layerRange = {0, 0};
+                mipRange = {bufferRange.offset, bufferRange.size};
+            } else {
+                auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
+                layerRange = {textureRange.firstSlice, textureRange.numSlices};
+                mipRange = {textureRange.mipLevel, textureRange.levelCount};
+            }
+
+            edgeBarriers.emplace_back(cc::framegraph::ResourceBarrier{
+                type,
+                resBarrier.type,
+                builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
+                {resBarrier.beginStatus.passType,
+                 resBarrier.beginStatus.visibility,
+                 resBarrier.beginStatus.access},
+                {resBarrier.endStatus.passType,
+                 resBarrier.endStatus.visibility,
+                 resBarrier.endStatus.access},
+                layerRange,
+                mipRange,
+            });
+        }
+    };
+
+    doFill(barrierInfo.frontBarriers, barriers.frontBarriers);
+    doFill(barrierInfo.rearBarriers, barriers.rearBarriers);
+}
+
+struct TestRenderData {
+    ccstd::vector<std::pair<AccessType, framegraph::TextureHandle>> outputTexes;
+};
+
+struct FrameGraphPassInfo {
+    framegraph::FrameGraph &frameGraph;
+    const RenderGraph &renderGraph;
+    const ResourceGraph &resourceGraph;
+    const RasterViews &rasterViews;
+    const ComputeViews &computeViews;
+    const BarrierMap &barrierMap;
+    uint32_t passID{0};
+    bool isSubpass{false};
+    bool subpassEnd{false};
+};
+
+static void addPassToFrameGraph(const FrameGraphPassInfo &info) {
+    const auto &rasterViews = info.rasterViews;
+    const auto &passID = info.passID;
+    auto &barrierMap = info.barrierMap;
+    const auto &renderGraph = info.renderGraph;
+    const auto &resourceGraph = info.resourceGraph;
+    auto &frameGraph = info.frameGraph;
+    bool isSupass = info.isSubpass;
+    bool subpassEnd = info.subpassEnd;
+
+    auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
+        if (isSupass) {
+            builder.subpass(subpassEnd);
+        }
+
+        auto goThroughRasterViews = [&](const RasterViews& views) {
+            for (const auto &view : views) {
+                const auto handle = framegraph::FrameGraph::stringToHandle(view.second.slotName.c_str());
+                auto typedHandle = builder.readFromBlackboard(handle);
+                data.outputTexes.emplace_back();
+                auto &lastTex = data.outputTexes.back();
+                framegraph::Texture::Descriptor colorTexInfo;
+                colorTexInfo.format = gfx::Format::RGBA8;
+
+                // if (rasterView.second.accessType == AccessType::READ) {
+                colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
+                //}
+                lastTex.first = view.second.accessType;
+                lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+
+                if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                    colorTexInfo.width = 960;
+                    colorTexInfo.height = 640;
+
+                    lastTex.second = builder.create(handle, colorTexInfo);
+                }
+
+                framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+                colorAttachmentInfo.usage = view.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
+                colorAttachmentInfo.clearColor = view.second.clearColor;
+                colorAttachmentInfo.loadOp = view.second.loadOp;
+                if (view.second.accessType == AccessType::WRITE) {
+                    lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
+                    builder.writeToBlackboard(handle, lastTex.second);
+                    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                } else {
+                    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
+                    auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                    builder.writeToBlackboard(handle, res);
+                }
+            }
+        };
+
+        auto goThroughComputeViews = [&](const ComputeViews &views) {
+            for (const auto &pair : views) {
+                for (const auto &view : pair.second) {
+                    const auto handle = framegraph::FrameGraph::stringToHandle(view.name.c_str());
+                    auto typedHandle = builder.readFromBlackboard(handle);
+                    data.outputTexes.emplace_back();
+                    auto &lastTex = data.outputTexes.back();
+                    framegraph::Texture::Descriptor colorTexInfo;
+                    colorTexInfo.format = gfx::Format::RGBA8;
+
+                    // if (rasterView.second.accessType == AccessType::READ) {
+                    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
+                    //}
+                    lastTex.first = view.accessType;
+                    lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+
+                    if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                        colorTexInfo.width = 960;
+                        colorTexInfo.height = 640;
+
+                        lastTex.second = builder.create(handle, colorTexInfo);
+                    }
+
+                    framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+
+                    if (view.accessType == AccessType::WRITE) {
+                        lastTex.second = builder.write(lastTex.second);
+                        builder.writeToBlackboard(handle, lastTex.second);
+                    } else {
+                        auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                        builder.writeToBlackboard(handle, res);
+                    }
+                }
+                
+            }
+        };
+
+        goThroughRasterViews(info.rasterViews);
+        goThroughComputeViews(info.computeViews);
+
+        builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
+
+        if (barrierMap.find(passID + 1) == barrierMap.end()) {
+            return;
+        }
+        const auto &barrier = barrierMap.at(passID + 1);
+        PassBarrierPair barrierPairs;
+        fillBarriers(resourceGraph, barrier.blockBarrier, builder, barrierPairs);
+        builder.setBarrier(barrierPairs);
+    };
+
+    auto forwardExec = [](const TestRenderData &data,
+                          const framegraph::DevicePassResourceTable &table) {
+        /*for(const auto& pair: data.outputTexes) {
+            if(pair.first == AccessType::WRITE) {
+                table.getWrite(pair.second);
+            }
+            if(pair.first == AccessType::READ) {
+                table.getRead(pair.second);
+            }
+            if(pair.first == AccessType::READ_WRITE) {
+                table.getRead(pair.second);
+                table.getWrite(pair.second);
+            }
+        }*/
+    };
+
+    auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
+
+    string presentHandle;
+
+    for (const auto &view : rasterViews) {
+        // write or read_write
+        if (view.second.accessType != AccessType::READ) {
+            presentHandle = view.first;
+            break;
+        }
+    }
+
+    frameGraph.addPass<TestRenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
+}
+
 static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &resourceGraph, const LayoutGraphData &layoutGraphData, const FrameGraphDispatcher &fgDispatcher) {
     const auto &barriers = fgDispatcher.getBarriers();
 
     framegraph::FrameGraph framegraph;
-    struct RenderData {
-        ccstd::vector<std::pair<AccessType, framegraph::TextureHandle>> outputTexes;
-    };
 
     auto *device = gfx::Device::getInstance();
     if (!device) {
@@ -204,223 +389,93 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
         visitObject(
             passID, renderGraph,
             [&, passID](const RasterPass &pass) {
-                RenderData tmpData;
-                auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData &data) {
-                    const auto& subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
-                            
-                    /* if(subpasses.container->empty()) {
-
-                      
-                    }
-                    const auto& rasterViews = get(Subpass)
- */
-
-                            auto traverseRasterView = [&builder, &data](const std::vector<std::reference_wrapper<RasterViews>>& subpasses, bool isSubpass) {
-                                uint32_t count = 0;
-                                for(const auto& subpass : subpasses) {
-                                    if(isSubpass) {
-                                        builder.subpass(isSubpass && count < subpasses.size() - 1);
-                                        ++count;
-                                    }
-                                    
-                                    for (const auto &rasterView : subpass.get()) {
-                                        const auto handle = framegraph::FrameGraph::stringToHandle(rasterView.first.c_str());
-                                        auto typedHandle = builder.readFromBlackboard(handle);
-                                        data.outputTexes.emplace_back();
-                                        auto &lastTex = data.outputTexes.back();
-                                        framegraph::Texture::Descriptor colorTexInfo;
-                                        colorTexInfo.format = gfx::Format::RGBA8;
-
-                                        // if (rasterView.second.accessType == AccessType::READ) {
-                                        colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
-                                        //}
-                                        lastTex.first = rasterView.second.accessType;
-                                        lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
-
-                                        if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
-                                            colorTexInfo.width = 960;
-                                            colorTexInfo.height = 640;
-
-                                            lastTex.second = builder.create(handle, colorTexInfo);
-                                        }
-
-                                        framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-                                        colorAttachmentInfo.usage = rasterView.second.attachmentType == AttachmentType::RENDER_TARGET ? framegraph::RenderTargetAttachment::Usage::COLOR : framegraph::RenderTargetAttachment::Usage::DEPTH_STENCIL;
-                                        colorAttachmentInfo.clearColor = rasterView.second.clearColor;
-                                        colorAttachmentInfo.loadOp = rasterView.second.loadOp;
-                                        if (rasterView.second.accessType == AccessType::WRITE) {
-                                            lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
-                                            builder.writeToBlackboard(handle, lastTex.second);
-                                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
-                                        } else {
-                                            colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_READ;
-                                            auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
-                                            builder.writeToBlackboard(handle, res);
-                                        }
-                                    }                           
-                                }
-                                
-                            };
-                            
-                            std::vector<std::reference_wrapper<RasterViews>> passes;
-                            if(subpasses.container->empty()) {
-                                passes.emplace_back(std::cref(pass.rasterViews));
-                            } else {
-                                for(const auto& subpass : (*subpasses.container)) {
-                                    passes.emplace_back(std::cref(subpass.rasterViews));
-                                }
-                            }
-                            traverseRasterView(passes, true);
-                            
-                            builder.setViewport({0U, 640U, 0U, 960U, 0.0F, 1.0F}, {0U, 0U, 960U, 640U});
-                            
-                            if (barriers.find(passID + 1) == barriers.end()) {
-                                return;
-                            }
-                            const auto &barrier = barriers.at(passID + 1);
-                            if (barrier.subpassBarriers.empty()) {
-                                                          
-                            }
-                            auto fullfillBarrier = [&](bool front) {
-                                const auto parts = front ? barrier.frontBarriers : barrier.rearBarriers;
-                                for (const auto &resBarrier : parts) {
-                                    const auto &name = get(ResourceGraph::Name, resourceGraph, resBarrier.resourceID);
-                                    const auto &desc = get(ResourceGraph::Desc, resourceGraph, resBarrier.resourceID);
-                                    auto type = desc.dimension == ResourceDimension::BUFFER ? cc::framegraph::ResourceType::BUFFER : cc::framegraph::ResourceType::TEXTURE;
-                                    framegraph::Range layerRange;
-                                    framegraph::Range mipRange;
-                                    if (type == framegraph::ResourceType::BUFFER) {
-                                        auto bufferRange = ccstd::get<BufferRange>(resBarrier.beginStatus.range);
-                                        layerRange = {0, 0};
-                                        mipRange = {bufferRange.offset, bufferRange.size};
-                                    } else {
-                                        auto textureRange = ccstd::get<TextureRange>(resBarrier.beginStatus.range);
-                                        layerRange = {textureRange.firstSlice, textureRange.numSlices};
-                                        mipRange = {textureRange.mipLevel, textureRange.levelCount};
-                                    }
-                                    builder.addBarrier(cc::framegraph::ResourceBarrier{
-                                                           type,
-                                                           resBarrier.type,
-                                                           builder.readFromBlackboard(framegraph::FrameGraph::stringToHandle(name.c_str())),
-                                                           {resBarrier.beginStatus.passType,
-                                                               resBarrier.beginStatus.visibility,
-                                                               resBarrier.beginStatus.access},
-                                                           {resBarrier.endStatus.passType,
-                                                               resBarrier.endStatus.visibility,
-                                                               resBarrier.endStatus.access},
-                                                           layerRange,
-                                                           mipRange,
-                                                       },
-                                                       front);
-                                }
-                            };
-                            fullfillBarrier(true);
-                            //...
-                            fullfillBarrier(false);
-                        };
-
-                auto forwardExec = [](const RenderData &data,
-                                      const framegraph::DevicePassResourceTable &table) {
-                    /*for(const auto& pair: data.outputTexes) {
-                        if(pair.first == AccessType::WRITE) {
-                            table.getWrite(pair.second);
-                        }
-                        if(pair.first == AccessType::READ) {
-                            table.getRead(pair.second);
-                        }
-                        if(pair.first == AccessType::READ_WRITE) {
-                            table.getRead(pair.second);
-                            table.getWrite(pair.second);
-                        }
-                    }*/
+                // TestRenderData tmpData;
+                const auto &subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
+                uint32_t count = 0;
+                for (const auto &subpass : *subpasses.container) {
+                    FrameGraphPassInfo info = {
+                        framegraph,
+                        renderGraph,
+                        resourceGraph,
+                        subpass.rasterViews,
+                        subpass.computeViews,
+                        fgDispatcher.getBarriers(),
+                        passID,
+                        true,
+                        count < subpasses.container->size() - 1};
+                    addPassToFrameGraph(info);
+                    ++count;
                 };
-
-                auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
-
-                string presentHandle;
-
-                for (const auto &view : pass.rasterViews) {
-                    // write or read_write
-                    if (view.second.accessType != AccessType::READ) {
-                        presentHandle = view.first;
-                        break;
-                    }
-                }
-
-                framegraph.addPass<RenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
             },
             [&](const ComputePass &pass) {},
             [&](const CopyPass &pass) {
-                auto forwardSetup = [](framegraph::PassNodeBuilder &builder, RenderData &data) {
+                auto forwardSetup = [](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
                 };
 
-                auto forwardExec = [](const RenderData &data,
+                auto forwardExec = [](const TestRenderData &data,
                                       const framegraph::DevicePassResourceTable &table) {
                 };
 
                 CC_LOG_INFO("%d", passID);
 
                 auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
-                framegraph.addPass<RenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
+                framegraph.addPass<TestRenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
             },
             [&](const RaytracePass &pass) {},
             [&](const PresentPass &pass) {
-                auto iter = pass.presents.end();
-                std::advance(iter, -1);
-                auto presentHandle = (*iter).first;
+                // auto iter = pass.presents.end();
+                // std::advance(iter, -1);
+                // auto presentHandle = (*iter).first;
 
-                auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, RenderData &data) {
-                    const auto handle = framegraph::FrameGraph::stringToHandle(presentHandle.c_str());
-                    auto typedHandle = builder.readFromBlackboard(handle);
-                    data.outputTexes.push_back({});
-                    auto &lastTex = data.outputTexes.back();
-                    framegraph::Texture::Descriptor colorTexInfo;
-                    colorTexInfo.format = gfx::Format::RGBA8;
+                // auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
+                //     const auto handle = framegraph::FrameGraph::stringToHandle(presentHandle.c_str());
+                //     auto typedHandle = builder.readFromBlackboard(handle);
+                //     data.outputTexes.push_back({});
+                //     auto &lastTex = data.outputTexes.back();
+                //     framegraph::Texture::Descriptor colorTexInfo;
+                //     colorTexInfo.format = gfx::Format::RGBA8;
 
-                    // if (rasterView.second.accessType == AccessType::READ) {
-                    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
-                    //}
-                    lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+                //    // if (rasterView.second.accessType == AccessType::READ) {
+                //    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
+                //    //}
+                //    lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
 
-                    framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-                    colorAttachmentInfo.usage = framegraph::RenderTargetAttachment::Usage::COLOR;
-                    colorAttachmentInfo.clearColor = {0.2, 0.2, 0.2, 1.0};
-                    if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
-                        colorTexInfo.width = 960;
-                        colorTexInfo.height = 640;
+                //    framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
+                //    colorAttachmentInfo.usage = framegraph::RenderTargetAttachment::Usage::COLOR;
+                //    colorAttachmentInfo.clearColor = {0.2, 0.2, 0.2, 1.0};
+                //    if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                //        colorTexInfo.width = 960;
+                //        colorTexInfo.height = 640;
 
-                        lastTex.second = builder.create(handle, colorTexInfo);
-                        colorAttachmentInfo.loadOp = gfx::LoadOp::CLEAR;
-                    }
-                    else {
-                        colorAttachmentInfo.loadOp = gfx::LoadOp::LOAD;
-                    }
+                //        lastTex.second = builder.create(handle, colorTexInfo);
+                //        colorAttachmentInfo.loadOp = gfx::LoadOp::CLEAR;
+                //    } else {
+                //        colorAttachmentInfo.loadOp = gfx::LoadOp::LOAD;
+                //    }
 
-                    lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
-                    builder.writeToBlackboard(handle, lastTex.second);
-                    builder.read(lastTex.second);
-                    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                //    lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
+                //    builder.writeToBlackboard(handle, lastTex.second);
+                //    builder.read(lastTex.second);
+                //    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+                //};
 
-                };
+                // auto forwardExec = [](const RenderData &data,
+                //                       const framegraph::DevicePassResourceTable &table) {
+                // };
 
-                auto forwardExec = [](const RenderData &data,
-                                      const framegraph::DevicePassResourceTable &table) {
-                };
+                // CC_LOG_INFO("%d", passID);
 
-                CC_LOG_INFO("%d", passID);
+                // auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
+                // framegraph.addPass<RenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
 
-                auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
-                framegraph.addPass<RenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
-
-                auto *externalRes = gfx::Device::getInstance()->createTexture(gfx::TextureInfo{
-                    gfx::TextureType::TEX2D,
-                    gfx::TextureUsageBit::COLOR_ATTACHMENT,
-                    gfx::Format::RGBA8,
-                    960,
-                    640,
-                });
-                framegraph.presentFromBlackboard(framegraph::FrameGraph::stringToHandle(presentHandle.c_str()), externalRes, false);
-
+                // auto *externalRes = gfx::Device::getInstance()->createTexture(gfx::TextureInfo{
+                //     gfx::TextureType::TEX2D,
+                //     gfx::TextureUsageBit::COLOR_ATTACHMENT,
+                //     gfx::Format::RGBA8,
+                //     960,
+                //     640,
+                // });
+                // framegraph.presentFromBlackboard(framegraph::FrameGraph::stringToHandle(presentHandle.c_str()), externalRes, false);
             },
             [&](const auto & /*pass*/) {});
     }
@@ -510,12 +565,12 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
             PassType::RASTER,                                                                                                                                                \
             {                                                                                                                                                                \
                 {{}, {"0", "1", "2"}},                                                                                                                                       \
-                {{"0", "1", "2"}, {"3"}},                                                                                                                               \
+                {{"0", "1", "2"}, {"3"}},                                                                                                                                    \
             },                                                                                                                                                               \
         },                                                                                                                                                                   \
         {                                                                                                                                                                    \
             PassType::RASTER,                                                                                                                                                \
-            {                                                                                                                                                                 \
+            {                                                                                                                                                                \
                 {{"3"}, {"5"}},                                                                                                                                              \
             },                                                                                                                                                               \
         },                                                                                                                                                                   \
@@ -528,18 +583,17 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
     };                                                                                                                                                                       \
                                                                                                                                                                              \
     LayoutInfo layoutInfo = {                                                                                                                                                \
+        {},                                                                                                                                                                  \
         {                                                                                                                                                                    \
+            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
+            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
+            {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
         },                                                                                                                                                                   \
         {                                                                                                                                                                    \
             {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
             {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-        },                                                                                                                                                                   \
-        {                                                                                                                                                                    \
-            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
-            {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                  \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
         },                                                                                                                                                                   \
         {                                                                                                                                                                    \
             {"3", 3, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \

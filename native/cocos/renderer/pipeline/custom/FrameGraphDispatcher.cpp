@@ -657,7 +657,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
                 auto& subpassBarriers = batchedBarriers[passID].subpassBarriers;
                 for(int i = subpassBarriers.size() - 1; i >=0; --i) {
                     auto findBarrierByResID = [resID](const Barrier& barrier) {
-                        barrier.resourceID == resID;
+                        return barrier.resourceID == resID;
                     };
                     
                     const auto& frontBarriers = subpassBarriers[i].frontBarriers;
