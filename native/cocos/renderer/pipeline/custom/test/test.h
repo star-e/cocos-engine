@@ -91,14 +91,16 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
     }
 
     std::set<ccstd::string> nameSet;
-    auto addRasterNode = [&](const auto &subpasses, uint32_t count, uint32_t &passID) {
-        const ccstd::string name = "pass" + std::to_string(passID++);
+    auto addRasterNode = [&](const vector<vector<vector<string>>> &subpasses, uint32_t count, uint32_t passID) {
+        const ccstd::string name = "pass" + std::to_string(passID);
         const auto vertexID = add_vertex(renderGraph, RasterTag{}, name.c_str());
         auto &raster = get(RasterTag{}, vertexID, renderGraph);
         auto &subpassGraph = raster.subpassGraph;
 
         bool hasSubpass = count > 1;
 
+        RasterSubpass *subpass = nullptr;
+        
         for (size_t j = 0; j < count; ++j) {
             assert(subpasses[j].size() == 2); // inputs and outputs
             const auto &attachments = subpasses[j];
@@ -106,7 +108,7 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
 
             RasterSubpass *subpass = nullptr;
             if (hasSubpass) {
-                const ccstd::string subpassName = "subpass" + std::to_string(passID++);
+                const ccstd::string subpassName = "subpass" + std::to_string(passID);
                 auto subpassVertexID = add_vertex(subpassGraph, subpassName.c_str());
                 subpass = &get(SubpassGraph::Subpass, subpassGraph, subpassVertexID);
             }
@@ -143,13 +145,13 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
             case PassType::RASTER: {
                 // const string name = pass.first;
                 const auto &subpasses = pass.second;
-                addRasterNode(subpasses, subpasses.size(), passCount);
+                addRasterNode(subpasses, subpasses.size(), passCount++);
                 break;
             }
             case PassType::PRESENT: {
                 // const string name = pass.first;
                 const auto &subpasses = pass.second;
-                addRasterNode(subpasses, subpasses.size() - 1, passCount);
+                //addRasterNode(subpasses, subpasses.size() - 1, passCount++);
 
                 const ccstd::string name = "pass" + std::to_string(passCount++);
                 const auto vertexID = add_vertex(renderGraph, PresentTag{}, name.c_str());
@@ -166,7 +168,7 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
             case PassType::COPY: {
                 // const string name = pass.first;
                 const auto &subpasses = pass.second;
-                addRasterNode(subpasses, subpasses.size(), passCount);
+                addRasterNode(subpasses, subpasses.size(), passCount++);
 
                 const ccstd::string name = "pass" + std::to_string(passCount++);
                 const auto vertexID = add_vertex(renderGraph, CopyTag{}, name.c_str());
@@ -255,7 +257,7 @@ static void addPassToFrameGraph(const FrameGraphPassInfo &info) {
             builder.subpass(subpassEnd);
         }
 
-        auto goThroughRasterViews = [&](const RasterViews& views) {
+        auto goThroughRasterViews = [&](const RasterViews &views) {
             for (const auto &view : views) {
                 const auto handle = framegraph::FrameGraph::stringToHandle(view.second.slotName.c_str());
                 auto typedHandle = builder.readFromBlackboard(handle);
@@ -326,7 +328,6 @@ static void addPassToFrameGraph(const FrameGraphPassInfo &info) {
                         builder.writeToBlackboard(handle, res);
                     }
                 }
-                
             }
         };
 
@@ -583,12 +584,6 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
     };                                                                                                                                                                       \
                                                                                                                                                                              \
     LayoutInfo layoutInfo = {                                                                                                                                                \
-        {},                                                                                                                                                                  \
-        {                                                                                                                                                                    \
-            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
-            {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-        },                                                                                                                                                                   \
         {                                                                                                                                                                    \
             {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
