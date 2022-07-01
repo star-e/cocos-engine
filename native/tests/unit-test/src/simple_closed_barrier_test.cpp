@@ -135,7 +135,34 @@ TEST(simpleClosedBarrierTest, test11) {
     ExpectEq(node6.blockBarrier.rearBarriers[0].endStatus.vertID == 6, true);
 
     const auto& node7 = barrierMap.at(7);
+    ExpectEq(node7.subpassBarriers.empty(), true);
+    ExpectEq(node7.blockBarrier.frontBarriers.empty(), true);
+    ExpectEq(node7.blockBarrier.rearBarriers.size() == 1, true);
 
+    ExpectEq(node7.blockBarrier.rearBarriers[0].resourceID == 9, true);
+    ExpectEq(node7.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::FULL, true);
+    ExpectEq(node7.blockBarrier.rearBarriers[0].beginStatus.vertID == 7, true);
+    ExpectEq(node7.blockBarrier.rearBarriers[0].endStatus.vertID == 7, true);
+
+    const auto& node8 = barrierMap.at(8);
+    ExpectEq(node8.subpassBarriers.empty(), true);
+    ExpectEq(node8.blockBarrier.frontBarriers.empty(), false); // size == 1
+    ExpectEq(node8.blockBarrier.rearBarriers.size() == 1, true);
+
+    ExpectEq(node8.blockBarrier.frontBarriers[0].resourceID == 7, true);
+    ExpectEq(node8.blockBarrier.frontBarriers[0].type == cc::gfx::BarrierType::SPLIT_END, true);
+    ExpectEq(node8.blockBarrier.frontBarriers[0].beginStatus.vertID == 5, true);
+    ExpectEq(node8.blockBarrier.frontBarriers[0].endStatus.vertID == 8, true);
+
+    ExpectEq(node8.blockBarrier.rearBarriers[0].resourceID == 10, true);
+    ExpectEq(node8.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::FULL, true);
+    ExpectEq(node8.blockBarrier.rearBarriers[0].beginStatus.vertID == 8, true);
+    ExpectEq(node8.blockBarrier.rearBarriers[0].endStatus.vertID == 8, true);
+
+    const auto& node9 = barrierMap.at(9);
+    ExpectEq(node9.subpassBarriers.empty(), true);
+    ExpectEq(node9.blockBarrier.frontBarriers.empty(), true);
+    ExpectEq(node9.blockBarrier.rearBarriers.empty(), true);
     // const auto& node2RearBarrier0 = node2.blockBarrier.rearBarriers.back();
     // ExpectEq(node2RearBarrier0.beginStatus.access == MemoryAccessBit::WRITE_ONLY, true);
     // ExpectEq(node2RearBarrier0.beginStatus.visibility == ShaderStageFlagBit::VERTEX, true);
