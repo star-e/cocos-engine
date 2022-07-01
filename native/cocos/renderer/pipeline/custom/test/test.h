@@ -100,7 +100,7 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
         bool hasSubpass = count > 1;
 
         RasterSubpass *subpass = nullptr;
-        
+
         for (size_t j = 0; j < count; ++j) {
             assert(subpasses[j].size() == 2); // inputs and outputs
             const auto &attachments = subpasses[j];
@@ -151,7 +151,7 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
             case PassType::PRESENT: {
                 // const string name = pass.first;
                 const auto &subpasses = pass.second;
-                //addRasterNode(subpasses, subpasses.size() - 1, passCount++);
+                // addRasterNode(subpasses, subpasses.size() - 1, passCount++);
 
                 const ccstd::string name = "pass" + std::to_string(passCount++);
                 const auto vertexID = add_vertex(renderGraph, PresentTag{}, name.c_str());
@@ -485,7 +485,7 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
     framegraph.reset();
 }
 
-#define TEST_CASE_1                                                                                                                                                          \
+#define TEST_CASE_DEFINE                                                                                                                                                     \
     using namespace cc::render;                                                                                                                                              \
     using cc::gfx::AccessFlagBit;                                                                                                                                            \
     using cc::gfx::BarrierType;                                                                                                                                              \
@@ -559,44 +559,151 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
          {ResourceDimension::TEXTURE2D, 4, 960, 640, 1, 0, Format::RGBA8, SampleCount::ONE, TextureFlagBit::NONE, ResourceFlags::SAMPLED | ResourceFlags::COLOR_ATTACHMENT}, \
          {ResourceResidency::MANAGED},                                                                                                                                       \
          {AccessFlagBit::FRAGMENT_SHADER_READ_TEXTURE | AccessFlagBit::COLOR_ATTACHMENT_WRITE}},                                                                             \
-    };                                                                                                                                                                       \
-                                                                                                                                                                             \
-    ViewInfo rasterData = {                                                                                                                                                  \
-        {                                                                                                                                                                    \
-            PassType::RASTER,                                                                                                                                                \
-            {                                                                                                                                                                \
-                {{}, {"0", "1", "2"}},                                                                                                                                       \
-                {{"0", "1", "2"}, {"3"}},                                                                                                                                    \
-            },                                                                                                                                                               \
-        },                                                                                                                                                                   \
-        {                                                                                                                                                                    \
-            PassType::RASTER,                                                                                                                                                \
-            {                                                                                                                                                                \
-                {{"3"}, {"5"}},                                                                                                                                              \
-            },                                                                                                                                                               \
-        },                                                                                                                                                                   \
-        {                                                                                                                                                                    \
-            PassType::PRESENT,                                                                                                                                               \
-            {                                                                                                                                                                \
-                {{"5"}, {}},                                                                                                                                                 \
-            },                                                                                                                                                               \
-        },                                                                                                                                                                   \
-    };                                                                                                                                                                       \
-                                                                                                                                                                             \
-    LayoutInfo layoutInfo = {                                                                                                                                                \
-        {                                                                                                                                                                    \
-            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
-            {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},                                                                                                                 \
-        },                                                                                                                                                                   \
-        {                                                                                                                                                                    \
-            {"3", 3, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-            {"5", 5, cc::gfx::ShaderStageFlagBit::VERTEX},                                                                                                                   \
-        },                                                                                                                                                                   \
-        {                                                                                                                                                                    \
-            {"5", 5, cc::gfx::ShaderStageFlagBit::COMPUTE /*whatever*/},                                                                                                     \
+    };
+
+#define TEST_CASE_1                                                      \
+    TEST_CASE_DEFINE                                                     \
+                                                                         \
+    ViewInfo rasterData = {                                              \
+        {                                                                \
+            PassType::RASTER,                                            \
+            {                                                            \
+                {{}, {"0", "1", "2"}},                                   \
+                {{"0", "1", "2"}, {"3"}},                                \
+            },                                                           \
+        },                                                               \
+        {                                                                \
+            PassType::RASTER,                                            \
+            {                                                            \
+                {{"3"}, {"5"}},                                          \
+            },                                                           \
+        },                                                               \
+        {                                                                \
+            PassType::PRESENT,                                           \
+            {                                                            \
+                {{"5"}, {}},                                             \
+            },                                                           \
+        },                                                               \
+    };                                                                   \
+                                                                         \
+    LayoutInfo layoutInfo = {                                            \
+        {                                                                \
+            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},               \
+            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},             \
+            {"2", 2, cc::gfx::ShaderStageFlagBit::VERTEX},               \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},             \
+        },                                                               \
+        {                                                                \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::VERTEX},               \
+            {"5", 5, cc::gfx::ShaderStageFlagBit::VERTEX},               \
+        },                                                               \
+        {                                                                \
+            {"5", 5, cc::gfx::ShaderStageFlagBit::COMPUTE /*whatever*/}, \
         }};
+
+#define TEST_CASE_2                                        \
+    TEST_CASE_DEFINE                                       \
+                                                           \
+    ViewInfo rasterData = {                                \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{}, {"0", "1"}},                          \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"0"}, {"2", "3"}},                       \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"1"}, {"4", "5"}},                       \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"3", "5"}, {"6"}},                       \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"2", "4", "6"}, {"7"}},                  \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{}, {"8"}},                               \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"0", "8"}, {"9"}},                       \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::RASTER,                              \
+            {                                              \
+                {{"7", "9"}, {"10"}},                      \
+            },                                             \
+        },                                                 \
+        {                                                  \
+            PassType::PRESENT,                             \
+            {                                              \
+                {{"10"}, {}},                              \
+            },                                             \
+        },                                                 \
+    };                                                     \
+                                                           \
+    LayoutInfo layoutInfo = {                              \
+        {                                                  \
+            {"0", 0, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"0", 0, cc::gfx::ShaderStageFlagBit::VERTEX},     \
+            {"2", 2, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"4", 4, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"5", 5, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"5", 5, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"6", 6, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"2", 2, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"4", 4, cc::gfx::ShaderStageFlagBit::VERTEX},     \
+            {"6", 6, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"7", 7, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"8", 8, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"0", 0, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"8", 8, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"9", 9, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                 \
+        {                                                  \
+            {"7", 7, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"9", 9, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+            {"10", 10, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
+        },                                                 \
+        {                                                  \
+            {"10", 10, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
+        },                                                 \
+    };
 
 /*
 void testCase1() {
