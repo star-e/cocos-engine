@@ -166,8 +166,7 @@ void processPresentPass(const Graphs &graphs, AccessTable &accessRecord, uint32_
 
 // execution order BUT NOT LOGICALLY
 bool isPassExecAdjecent(const ResourceAccessNode &passL, uint32_t passLID, const ResourceAccessNode &passR, uint32_t passRID) {
-    return (passLID - passRID == 1 && !passL.nextSubpass) ||
-           (passRID - passLID == 1 && !passR.nextSubpass);
+    return std::abs(static_cast<int>(passLID) - static_cast<int>(passRID)) <= 1;
 }
 
 bool isStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs);
@@ -1368,11 +1367,10 @@ gfx::ShaderStageFlagBit getVisibilityByDescName(const LGD &lgd, uint32_t passID,
     return visIter->second;
 };
 
-bool checkRasterViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, uint32_t passID, ResourceAccessNode &node, const RasterViewsMap &rasterViews) {
+bool checkRasterViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, uint32_t passID, PassType passType, ResourceAccessNode &node, const RasterViewsMap &rasterViews) {
     auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
 
-    const auto passType = node.attachemntStatus.empty() ? gfx::PassType::RASTER : node.attachemntStatus.front().passType;
     for (const auto &pair : rasterViews) {
         const auto &rasterView = pair.second;
         gfx::ShaderStageFlagBit visibility = getVisibilityByDescName(layoutGraphData, passID, pair.first);
@@ -1393,15 +1391,14 @@ bool checkRasterViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t 
     return dependent;
 }
 
-bool checkComputeViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, uint32_t passID, ResourceAccessNode &node, const ComputeViewsMap &computeViews) {
+bool checkComputeViews(const Graphs &graphs, AccessTable &accessRecord, uint32_t vertID, uint32_t passID, PassType passType, ResourceAccessNode &node, const ComputeViewsMap &computeViews) {
     auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
 
-    const auto passType = node.attachemntStatus.empty() ? gfx::PassType::RASTER : node.attachemntStatus.front().passType;
     for (const auto &pair : computeViews) {
         const auto &values = pair.second;
-        gfx::ShaderStageFlagBit visibility = getVisibilityByDescName(layoutGraphData, passID, pair.first);
         for (const auto &computeView : values) {
+            gfx::ShaderStageFlagBit visibility = getVisibilityByDescName(layoutGraphData, passID, computeView.name);
             auto access = toGfxAccess(computeView.accessType);
             ViewStatus viewStatus{computeView.name, passType, visibility, access};
             addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
@@ -1438,8 +1435,8 @@ void processRasterPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t
             auto* head = lastNode->nextSubpass.get();
 
             const auto &subpass = (*subpasses.container)[i];
-            dependent |= checkRasterViews(graphs, accessRecord, vertID, passID, *head, subpass.rasterViews);
-            dependent |= checkComputeViews(graphs, accessRecord, vertID, passID, *head, subpass.computeViews);
+            dependent |= checkRasterViews(graphs, accessRecord, vertID, passID, PassType::RASTER, *head, subpass.rasterViews);
+            dependent |= checkComputeViews(graphs, accessRecord, vertID, passID, PassType::RASTER, *head, subpass.computeViews);
 
             for(const auto& attachment : head->attachemntStatus) {
                 auto resID = attachment.vertID;
@@ -1457,8 +1454,8 @@ void processRasterPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t
             lastNode = head;
         }
     } else {
-        dependent |= checkRasterViews(graphs, accessRecord, vertID, passID, node, pass.rasterViews);
-        dependent |= checkComputeViews(graphs, accessRecord, vertID, passID, node, pass.computeViews);
+        dependent |= checkRasterViews(graphs, accessRecord, vertID, passID, PassType::RASTER, node, pass.rasterViews);
+        dependent |= checkComputeViews(graphs, accessRecord, vertID, passID, PassType::RASTER, node, pass.computeViews);
     }
 
     if (!dependent) {
@@ -1475,7 +1472,7 @@ void processComputePass(const Graphs &graphs, AccessTable &accessRecord, uint32_
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
 
     auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
-    bool dependent = checkComputeViews(graphs, accessRecord, vertID, passID, node, pass.computeViews);
+    bool dependent = checkComputeViews(graphs, accessRecord, vertID, passID, PassType::COMPUTE, node, pass.computeViews);
 
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
@@ -1510,7 +1507,7 @@ void processCopyPass(const Graphs &graphs, AccessTable &accessRecord, uint32_t p
 
         ViewStatus srcViewStatus{pair.source, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::READ_ONLY};
         addCopyAccessStatus(resourceAccessGraph, resourceGraph, node, srcViewStatus, sourceRange);
-        ViewStatus dstViewStatus{pair.source, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY};
+        ViewStatus dstViewStatus{pair.target, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY};
         addCopyAccessStatus(resourceAccessGraph, resourceGraph, node, dstViewStatus, targetRange);
 
         uint32_t lastVertSrc = dependencyCheck(resourceAccessGraph, accessRecord, vertID, srcViewStatus);
@@ -1541,7 +1538,7 @@ void processRaytracePass(const Graphs &graphs, AccessTable &accessRecord, uint32
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
 
     auto &node = get(RAG::AccessNode, resourceAccessGraph, vertID);
-    bool dependent = checkComputeViews(graphs, accessRecord, vertID, passID, node, pass.computeViews);
+    bool dependent = checkComputeViews(graphs, accessRecord, vertID, passID, PassType::RAYTRACE, node, pass.computeViews);
 
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
