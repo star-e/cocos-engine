@@ -338,7 +338,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         (*fromIter).range,
                     },
                     {
-                        dstVert,
+                        isAdjacent ? srcVert : dstVert,
                         (*toIter).visibility,
                         (*toIter).access,
                         (*toIter).passType,
@@ -370,13 +370,16 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         (*srcBarrierIter).beginStatus.passType = (*fromIter).passType;
                         (*srcBarrierIter).beginStatus.range = (*fromIter).range;
 
-                        auto &siblingPassBarrier = barrierMap[siblingPass].blockBarrier.rearBarriers;
-                        auto siblingIter = std::find_if(siblingPassBarrier.begin(), siblingPassBarrier.end(),
-                                                        [resourceID](const Barrier &barrier) {
-                                                            return resourceID == barrier.resourceID;
-                                                        });
-                        CC_ASSERT(siblingIter != siblingPassBarrier.end());
-                        siblingPassBarrier.erase(siblingIter);
+                        //
+                        if (srcVert > (*srcBarrierIter).beginStatus.vertID) {
+                            auto &siblingPassBarrier = barrierMap[siblingPass].blockBarrier.rearBarriers;
+                            auto siblingIter = std::find_if(siblingPassBarrier.begin(), siblingPassBarrier.end(),
+                                                            [resourceID](const Barrier &barrier) {
+                                                                return resourceID == barrier.resourceID;
+                                                            });
+                            CC_ASSERT(siblingIter != siblingPassBarrier.end());
+                            siblingPassBarrier.erase(siblingIter);
+                        }
                     }
                 }
             }

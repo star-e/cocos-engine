@@ -59,7 +59,7 @@ TEST(simpleClosedBarrierTest, test11) {
     ExpectEq(node1.subpassBarriers.empty(), true);
 
     ExpectEq(node1.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::FULL, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[0].endStatus.vertID == 2, true);
+    ExpectEq(node1.blockBarrier.rearBarriers[0].endStatus.vertID == 1, true);
     ExpectEq(node1.blockBarrier.rearBarriers[1].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
     ExpectEq(node1.blockBarrier.rearBarriers[1].endStatus.vertID == 3, true);
     
@@ -68,12 +68,14 @@ TEST(simpleClosedBarrierTest, test11) {
     ExpectEq(node2.blockBarrier.rearBarriers.size() == 2, true);
     ExpectEq(node2.subpassBarriers.empty(), true);
 
-    ExpectEq(node2.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
-    ExpectEq(node2.blockBarrier.rearBarriers[0].beginStatus.vertID == 2, true);
-    ExpectEq(node2.blockBarrier.rearBarriers[0].endStatus.vertID == 5, true);
+    // res3
     ExpectEq(node2.blockBarrier.rearBarriers[1].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
     ExpectEq(node2.blockBarrier.rearBarriers[1].beginStatus.vertID == 2, true);
-    ExpectEq(node2.blockBarrier.rearBarriers[1].endStatus.vertID == 4, true);
+    ExpectEq(node2.blockBarrier.rearBarriers[1].endStatus.vertID == 5, true);
+    // res2
+    ExpectEq(node2.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
+    ExpectEq(node2.blockBarrier.rearBarriers[0].beginStatus.vertID == 2, true);
+    ExpectEq(node2.blockBarrier.rearBarriers[0].endStatus.vertID == 4, true);
 
     const auto& node3 = barrierMap.at(3);
     ExpectEq(node3.blockBarrier.frontBarriers.size() == 1, true);
@@ -83,12 +85,14 @@ TEST(simpleClosedBarrierTest, test11) {
     ExpectEq(node3.blockBarrier.frontBarriers[0].type == cc::gfx::BarrierType::SPLIT_END, true);
     ExpectEq(node3.blockBarrier.frontBarriers[0].beginStatus.vertID == 1, true);
     ExpectEq(node3.blockBarrier.frontBarriers[0].endStatus.vertID == 3, true);
-    ExpectEq(node3.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
+    // res 5
+    ExpectEq(node3.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::FULL, true);
     ExpectEq(node3.blockBarrier.rearBarriers[0].beginStatus.vertID == 3, true);
-    ExpectEq(node3.blockBarrier.rearBarriers[0].endStatus.vertID == 5, true);
-    ExpectEq(node3.blockBarrier.rearBarriers[1].type == cc::gfx::BarrierType::FULL, true);
+    ExpectEq(node3.blockBarrier.rearBarriers[0].endStatus.vertID == 3, true);
+    // res 4
+    ExpectEq(node3.blockBarrier.rearBarriers[1].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
     ExpectEq(node3.blockBarrier.rearBarriers[1].beginStatus.vertID == 3, true);
-    ExpectEq(node3.blockBarrier.rearBarriers[1].endStatus.vertID == 3, true);
+    ExpectEq(node3.blockBarrier.rearBarriers[1].endStatus.vertID == 5, true);
 
     const auto& node4 = barrierMap.at(4);
     ExpectEq(node4.blockBarrier.frontBarriers.size() == 1, true);
@@ -114,15 +118,15 @@ TEST(simpleClosedBarrierTest, test11) {
     ExpectEq(node5.blockBarrier.frontBarriers[0].type == cc::gfx::BarrierType::SPLIT_END, true);
     ExpectEq(node5.blockBarrier.frontBarriers[0].beginStatus.vertID == 2, true);
     ExpectEq(node5.blockBarrier.frontBarriers[0].endStatus.vertID == 5, true);
-    ExpectEq(node5.blockBarrier.frontBarriers[0].resourceID == 4, true);
-    ExpectEq(node5.blockBarrier.frontBarriers[0].type == cc::gfx::BarrierType::SPLIT_END, true);
-    ExpectEq(node5.blockBarrier.frontBarriers[0].beginStatus.vertID == 3, true);
-    ExpectEq(node5.blockBarrier.frontBarriers[0].endStatus.vertID == 5, true);
+    ExpectEq(node5.blockBarrier.frontBarriers[1].resourceID == 4, true);
+    ExpectEq(node5.blockBarrier.frontBarriers[1].type == cc::gfx::BarrierType::SPLIT_END, true);
+    ExpectEq(node5.blockBarrier.frontBarriers[1].beginStatus.vertID == 3, true);
+    ExpectEq(node5.blockBarrier.frontBarriers[1].endStatus.vertID == 5, true);
 
     ExpectEq(node5.blockBarrier.rearBarriers[0].resourceID == 7, true);
     ExpectEq(node5.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::SPLIT_BEGIN, true);
     ExpectEq(node5.blockBarrier.rearBarriers[0].beginStatus.vertID == 5, true);
-    ExpectEq(node5.blockBarrier.rearBarriers[0].endStatus.vertID == 9, true);
+    ExpectEq(node5.blockBarrier.rearBarriers[0].endStatus.vertID == 8, true);
 
     const auto& node6 = barrierMap.at(6);
     ExpectEq(node6.blockBarrier.frontBarriers.empty(), true);
