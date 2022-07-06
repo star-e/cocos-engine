@@ -557,56 +557,68 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
         bool dstHasSubpass = dstHead->nextSubpass.get();
         srcHead = srcHasSubpass ? srcHead->nextSubpass.get() : srcHead;
 
-        while (srcHead) {
-            const std::vector<AccessStatus> &fromStatus = srcHead->attachemntStatus;
-            std::vector<Barrier> &srcRearBarriers = srcHasSubpass ? barrierMap[from].subpassBarriers[srcSubpassIndex].rearBarriers : barrierMap[from].blockBarrier.rearBarriers;
-            uint32_t dstSubpassIndex = 0;
-            auto* dstHead = &toAccess;
-            bool dstHasSubpass = dstHead->nextSubpass.get();
-            dstHead = dstHasSubpass ? toAccess.nextSubpass.get() : &toAccess;
-            while (dstHead) {
-                const std::vector<AccessStatus> &toStatus = dstHead->attachemntStatus;
-                std::vector<Barrier> &dstFrontBarriers = dstHasSubpass ? barrierMap[to].subpassBarriers[dstSubpassIndex].frontBarriers : barrierMap[to].blockBarrier.frontBarriers;
-                AccessNodeInfo fromInfo = {fromStatus, srcRearBarriers, from};
-                AccessNodeInfo toInfo = {toStatus, dstFrontBarriers, to};
-                fillBarrier(fromInfo, toInfo, isAdjacent);
-                dstHead = dstHead->nextSubpass.get();
-                ++dstSubpassIndex;
-            }
+        while(srcHead->nextSubpass) {
             srcHead = srcHead->nextSubpass.get();
-            ++srcSubpassIndex;
         }
+        const std::vector<AccessStatus> &toStatus = dstHead->attachemntStatus;
+        const std::vector<AccessStatus> &fromStatus = srcHead->attachemntStatus;
+        std::vector<Barrier> &srcRearBarriers = barrierMap[from].blockBarrier.rearBarriers;
+        std::vector<Barrier> &dstFrontBarriers = barrierMap[to].blockBarrier.frontBarriers;
+        AccessNodeInfo fromInfo = {fromStatus, srcRearBarriers, from};
+        AccessNodeInfo toInfo = {toStatus, dstFrontBarriers, to};
+        fillBarrier(fromInfo, toInfo, isAdjacent);
 
-        for(const auto& barriers : barrierMap[from].subpassBarriers) {
-            if(srcHasSubpass) {
-                for(const auto& barrier : barriers.frontBarriers) {
-                    auto resID = barrier.resourceID;
-                    auto findBarrierByResID = [resID](const Barrier& barrier) {
-                        return barrier.resourceID == resID;
-                    };
-                    auto& frontBarriers = barrierMap[from].blockBarrier.frontBarriers;
-                    auto iter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
-                    if(iter == frontBarriers.end()) {
-                        frontBarriers.emplace_back(barrier);
-                    }
-                }
-            }
-            //if(dstHasSubpass) {
-                for(const auto& barrier : barriers.rearBarriers) {
-                    auto resID = barrier.resourceID;
-                    auto findBarrierByResID = [resID](const Barrier& barrier) {
-                        return barrier.resourceID == resID;
-                    };
-                    auto& rearBarriers = barrierMap[from].blockBarrier.rearBarriers;
-                    auto iter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
-                    if(iter == rearBarriers.end()) {
-                        rearBarriers.emplace_back(barrier);
-                    } else {
-                        (*iter) = barrier;
-                    }
-                }
-            //}
-        }
+        // subpass fallback
+        // while (srcHead) {
+        //     const std::vector<AccessStatus> &fromStatus = srcHead->attachemntStatus;
+        //     std::vector<Barrier> &srcRearBarriers = srcHasSubpass ? barrierMap[from].subpassBarriers[srcSubpassIndex].rearBarriers : barrierMap[from].blockBarrier.rearBarriers;
+        //     uint32_t dstSubpassIndex = 0;
+        //     auto* dstHead = &toAccess;
+        //     bool dstHasSubpass = dstHead->nextSubpass.get();
+        //     dstHead = dstHasSubpass ? toAccess.nextSubpass.get() : &toAccess;
+        //     while (dstHead) {
+        //         const std::vector<AccessStatus> &toStatus = dstHead->attachemntStatus;
+        //         std::vector<Barrier> &dstFrontBarriers = dstHasSubpass ? barrierMap[to].subpassBarriers[dstSubpassIndex].frontBarriers : barrierMap[to].blockBarrier.frontBarriers;
+        //         AccessNodeInfo fromInfo = {fromStatus, srcRearBarriers, from};
+        //         AccessNodeInfo toInfo = {toStatus, dstFrontBarriers, to};
+        //         fillBarrier(fromInfo, toInfo, isAdjacent);
+        //         dstHead = dstHead->nextSubpass.get();
+        //         ++dstSubpassIndex;
+        //     }
+        //     srcHead = srcHead->nextSubpass.get();
+        //     ++srcSubpassIndex;
+        // }
+
+        // for(const auto& barriers : barrierMap[from].subpassBarriers) {
+        //     if(srcHasSubpass) {
+        //         for(const auto& barrier : barriers.frontBarriers) {
+        //             auto resID = barrier.resourceID;
+        //             auto findBarrierByResID = [resID](const Barrier& barrier) {
+        //                 return barrier.resourceID == resID;
+        //             };
+        //             auto& frontBarriers = barrierMap[from].blockBarrier.frontBarriers;
+        //             auto iter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
+        //             if(iter == frontBarriers.end()) {
+        //                 frontBarriers.emplace_back(barrier);
+        //             }
+        //         }
+        //     }
+        //     //if(dstHasSubpass) {
+        //         for(const auto& barrier : barriers.rearBarriers) {
+        //             auto resID = barrier.resourceID;
+        //             auto findBarrierByResID = [resID](const Barrier& barrier) {
+        //                 return barrier.resourceID == resID;
+        //             };
+        //             auto& rearBarriers = barrierMap[from].blockBarrier.rearBarriers;
+        //             auto iter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
+        //             if(iter == rearBarriers.end()) {
+        //                 rearBarriers.emplace_back(barrier);
+        //             } else {
+        //                 (*iter) = barrier;
+        //             }
+        //         }
+        //     //}
+        // }
     }
 
     BarrierMap &barrierMap;
@@ -630,10 +642,6 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
             const Graphs graphs{resourceGraph, layoutGraph, rag, relationGraph};
             buildAccessGraph(graph, graphs);
             fgDispatcher._accessGraphBuilt = true;
-        }
-
-        for (auto u : makeRange(vertices(graph))) {
-
         }
 
         // found pass id in this map ? barriers you should commit when run into this pass
@@ -1323,7 +1331,8 @@ AccessVertex dependencyCheck(RAG &rag, AccessTable &accessRecord, AccessVertex c
                 {curVertID, visibility, access, passType, Range{}}});
     } else {
         ResourceTransition &trans = iter->second;
-        if (access == gfx::MemoryAccessBit::READ_ONLY && trans.currStatus.access == gfx::MemoryAccessBit::READ_ONLY) {
+        if (access == gfx::MemoryAccessBit::READ_ONLY && trans.currStatus.access == gfx::MemoryAccessBit::READ_ONLY &&
+            trans.currStatus.passType == passType && trans.currStatus.visibility == visibility) {
             // current READ, no WRITE before in this frame, it's expected to be external.
             bool dirtyExternalRes = trans.lastStatus.vertID == INVALID_ID;
             if (!dirtyExternalRes) {

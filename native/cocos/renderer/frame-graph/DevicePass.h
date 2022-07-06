@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <limits>
 #include "CallbackPass.h"
 #include "ImmutableState.h"
 #include "RenderTargetAttachment.h"
@@ -73,6 +74,9 @@ private:
     void end(gfx::CommandBuffer *cmdBuff);
 
     void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
+
+    void subpassBarrierFallback(gfx::RenderPassInfo& rpInfo);
+
 
     bool _enableAutoBarrier{true};
 

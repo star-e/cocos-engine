@@ -106,7 +106,7 @@ TEST(complicatedBarrierTest, test12) {
     //node2
     const auto& node2 = barrierMap.at(2);
     ExpectEq(node2.blockBarrier.frontBarriers.empty(), true);
-    ExpectEq(node2.blockBarrier.rearBarriers.size() == 2, true);
+    ExpectEq(node2.blockBarrier.rearBarriers.size() == 3, true);
     ExpectEq(node2.subpassBarriers.size() == 2, true);
 
     const auto& node2blockRear = node2.blockBarrier.rearBarriers;
@@ -136,7 +136,7 @@ TEST(complicatedBarrierTest, test12) {
     //node3
     const auto& node3 = barrierMap.at(3);
     ExpectEq(node3.blockBarrier.frontBarriers.empty(), true);
-    ExpectEq(node3.blockBarrier.rearBarriers.size() == 1, true);
+    ExpectEq(node3.blockBarrier.rearBarriers.size() == 2, true);
     ExpectEq(node3.subpassBarriers.empty(), true);
     
     const auto& node3block = node3.blockBarrier;
@@ -189,7 +189,7 @@ TEST(complicatedBarrierTest, test12) {
     ExpectEq(node4subpass1.rearBarriers[0].endStatus.access == MemoryAccessBit::READ_ONLY, true);
 
     const auto& node5 = barrierMap.at(5);
-    ExpectEq(node5.blockBarrier.frontBarriers.empty(), true);
+    ExpectEq(node5.blockBarrier.frontBarriers.empty(), false);
     ExpectEq(node5.blockBarrier.rearBarriers.size() == 1, true);
     ExpectEq(node5.subpassBarriers.empty(), true);
 
@@ -222,7 +222,7 @@ TEST(complicatedBarrierTest, test12) {
 
     // node7
     const auto& node7 = barrierMap.at(7);
-    ExpectEq(node7.blockBarrier.frontBarriers.empty(), true);
+    ExpectEq(node7.blockBarrier.frontBarriers.empty(), false);
     ExpectEq(node7.blockBarrier.rearBarriers.empty(), false);
     ExpectEq(node7.subpassBarriers.empty(), true);
 

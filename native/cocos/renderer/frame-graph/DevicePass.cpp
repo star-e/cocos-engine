@@ -29,7 +29,6 @@
 #include "FrameGraph.h"
 #include "PassNode.h"
 #include "ResourceNode.h"
-
 #include "base/Utils.h"
 #include "gfx-base/GFXCommandBuffer.h"
 #include "gfx-base/GFXDef-common.h"
@@ -111,6 +110,84 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
 
     for (PassNode *const passNode : subpassNodes) {
         _resourceTable.extract(graph, passNode, renderTargets);
+    }
+}
+
+void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo& rpInfo) {
+    if(_enableAutoBarrier) {
+        uint32_t index = 0;
+
+        static gfx::BufferBarrierList bufferBarriers;
+        static gfx::TextureBarrierList textureBarriers;
+        static gfx::BufferList buffers;
+        static gfx::TextureList textures;
+
+        bufferBarriers.clear();
+        textureBarriers.clear();
+        buffers.clear();
+        textures.clear();
+
+        uint32_t lastBufferIndex{0};
+        uint32_t lastTextureIndex{0};
+
+        for(const auto& subpass : _subpasses) {
+            for(const auto& frontBarrier : _barriers[subpass.barrierID].get().frontBarriers) {
+                const auto& res = getBarrier(frontBarrier, &_resourceTable);
+                if(frontBarrier.resourceType == ResourceType::BUFFER) {
+                    bufferBarriers.emplace_back(res.first);
+                    buffers.emplace_back(res.second);
+                } else if(frontBarrier.resourceType == ResourceType::TEXTURE) {
+                    textureBarriers.emplace_back(res.first);
+                    textures.emplace_back(res.second);
+                } else {
+                    CC_ASSERT(false);
+                }
+            }
+
+            lastBufferIndex = buffers.size();
+            lastTextureIndex = textures.size();
+
+            rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
+                                                 index > 1 ? index - 1 : gfx::SUBPASS_EXTERNAL,
+                                                 index,
+                                                 nullptr,
+                                                 bufferBarriers.data() + lastBufferIndex,
+                                                 buffers.data() + lastBufferIndex,
+                                                 buffers.size() - lastBufferIndex + 1,
+                                                 textureBarriers.data() + lastTextureIndex,
+                                                 textures.data() + lastTextureIndex,
+                                                 textures.size() - lastTextureIndex + 1
+                                             });
+
+            for(const auto& rearBarrier : _barriers[subpass.barrierID].get().rearBarriers) {
+                const auto& res = getBarrier(rearBarrier, &_resourceTable);
+                if(rearBarrier.resourceType == ResourceType::BUFFER) {
+                    bufferBarriers.emplace_back(res.first);
+                    buffers.emplace_back(res.second);
+                } else if(rearBarrier.resourceType == ResourceType::TEXTURE) {
+                    textureBarriers.emplace_back(res.first);
+                    textures.emplace_back(res.second);
+                } else {
+                    CC_ASSERT(false);
+                }
+            }
+            
+            ++index;
+        }
+
+        if(textureBarriers.size() > lastTextureIndex || bufferBarriers.size() > lastBufferIndex) {
+            rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
+                                                 _subpasses.size() - 1,
+                                                 gfx::SUBPASS_EXTERNAL,
+                                                 nullptr,
+                                                 bufferBarriers.data() + lastBufferIndex,
+                                                 buffers.data() + lastBufferIndex,
+                                                 buffers.size() - lastBufferIndex + 1,
+                                                 textureBarriers.data() + lastTextureIndex,
+                                                 textures.data() + lastTextureIndex,
+                                                 textures.size() - lastTextureIndex + 1
+                                             });
+        }
     }
 }
 
@@ -367,9 +444,10 @@ void DevicePass::begin(gfx::CommandBuffer *cmdBuff) {
 
     for (auto &subpass : _subpasses) {
         rpInfo.subpasses.emplace_back(subpass.desc);
-        rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
+    }
 
-        });
+    if(_subpasses.size() > 1) {
+        subpassBarrierFallback(rpInfo);    
     }
 
     _renderPass = RenderPass(rpInfo);
