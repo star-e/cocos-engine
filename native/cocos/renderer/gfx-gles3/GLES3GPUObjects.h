@@ -325,6 +325,7 @@ struct GLES3GPURenderPass {
     ColorAttachmentList colorAttachments;
     DepthStencilAttachment depthStencilAttachment;
     SubpassInfoList subpasses;
+    SubpassDependencyList dependencies;
 
     ccstd::vector<AttachmentStatistics> statistics; // per attachment
 

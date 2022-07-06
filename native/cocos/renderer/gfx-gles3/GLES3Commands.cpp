@@ -1378,7 +1378,32 @@ void cmdFuncGLES3CreateRenderPass(GLES3Device * /*device*/, GLES3GPURenderPass *
     }
 
     // should deduce this from subpass & attachment access infos
-    gpuRenderPass->barriers.resize(gpuRenderPass->subpasses.size() + 1);
+    gpuRenderPass->barriers.resize(gpuRenderPass->dependencies.size());
+    for (size_t i = 0; i < gpuRenderPass->barriers.size(); ++i) {
+        auto &barrier = gpuRenderPass->barriers[i];
+        const auto &dependency = gpuRenderPass->dependencies[i];
+        if (dependency.generalBarrier) {
+            barrier.prevAccesses = dependency.generalBarrier->getInfo().prevAccesses;
+            barrier.nextAccesses = dependency.generalBarrier->getInfo().nextAccesses;
+            completeBarrier(&barrier);
+        }
+
+        if (dependency.bufferBarrierCount) {
+            for (size_t index = 0; index < dependency.bufferBarrierCount; ++index) {
+                barrier.prevAccesses = dependency.bufferBarriers[index]->getInfo().prevAccesses;
+                barrier.nextAccesses = dependency.bufferBarriers[index]->getInfo().nextAccesses;
+                completeBarrier(&barrier);
+            }
+        }
+
+        if (dependency.textureBarrierCount) {
+            for (size_t index = 0; index < dependency.textureBarrierCount; ++index) {
+                barrier.prevAccesses = dependency.textureBarriers[index]->getInfo().prevAccesses;
+                barrier.nextAccesses = dependency.textureBarriers[index]->getInfo().nextAccesses;
+                completeBarrier(&barrier);
+            }
+        }
+    }
 }
 
 void cmdFuncGLES3DestroyRenderPass(GLES3Device * /*device*/, GLES3GPURenderPass *gpuRenderPass) {
@@ -1979,7 +2004,7 @@ void cmdFuncGLES3BeginRenderPass(GLES3Device *device, uint32_t subpassIdx, GLES3
         uint32_t glAttachmentIndex = 0U;
         if (gpuFramebuffer->usesFBF) {
             if (subpassIdx == 0) {
-                cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers[0].glBarriers, gpuRenderPass->barriers[0].glBarriersByRegion);
+                // cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers[0].glBarriers, gpuRenderPass->barriers[0].glBarriersByRegion);
 
                 for (const auto attachmentIndex : gpuFramebuffer->uberColorAttachmentIndices) {
                     performLoadOp(attachmentIndex, glAttachmentIndex++);
@@ -2140,7 +2165,7 @@ void cmdFuncGLES3EndRenderPass(GLES3Device *device) {
                 cmdFuncGLES3BlitTexture(device, blitSrc, blitDst, &region, 1, Filter::POINT);
             }
 
-            cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers.back().glBarriers, gpuRenderPass->barriers.back().glBarriersByRegion);
+            // cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers.back().glBarriers, gpuRenderPass->barriers.back().glBarriersByRegion);
         } else if (gpuFramebuffer->usesFBF) {
             if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_EXT) {
                 GL_CHECK(glFramebufferFetchBarrierEXT());

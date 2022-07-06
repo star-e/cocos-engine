@@ -134,11 +134,11 @@ void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo& rpInfo) {
             for(const auto& frontBarrier : _barriers[subpass.barrierID].get().frontBarriers) {
                 const auto& res = getBarrier(frontBarrier, &_resourceTable);
                 if(frontBarrier.resourceType == ResourceType::BUFFER) {
-                    bufferBarriers.emplace_back(res.first);
-                    buffers.emplace_back(res.second);
+                    bufferBarriers.emplace_back(static_cast<gfx::BufferBarrier*>(res.first));
+                    buffers.emplace_back(static_cast<gfx::Buffer*>(res.second));
                 } else if(frontBarrier.resourceType == ResourceType::TEXTURE) {
-                    textureBarriers.emplace_back(res.first);
-                    textures.emplace_back(res.second);
+                    textureBarriers.emplace_back(static_cast<gfx::TextureBarrier*>(res.first));
+                    textures.emplace_back(static_cast<gfx::Texture*>(res.second));
                 } else {
                     CC_ASSERT(false);
                 }
@@ -153,20 +153,20 @@ void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo& rpInfo) {
                                                  nullptr,
                                                  bufferBarriers.data() + lastBufferIndex,
                                                  buffers.data() + lastBufferIndex,
-                                                 buffers.size() - lastBufferIndex + 1,
+                                                 static_cast<uint32_t>(buffers.size() - lastBufferIndex + 1),
                                                  textureBarriers.data() + lastTextureIndex,
                                                  textures.data() + lastTextureIndex,
-                                                 textures.size() - lastTextureIndex + 1
+                static_cast<uint32_t>(textures.size() - lastTextureIndex + 1)
                                              });
 
             for(const auto& rearBarrier : _barriers[subpass.barrierID].get().rearBarriers) {
                 const auto& res = getBarrier(rearBarrier, &_resourceTable);
-                if(rearBarrier.resourceType == ResourceType::BUFFER) {
-                    bufferBarriers.emplace_back(res.first);
-                    buffers.emplace_back(res.second);
-                } else if(rearBarrier.resourceType == ResourceType::TEXTURE) {
-                    textureBarriers.emplace_back(res.first);
-                    textures.emplace_back(res.second);
+                if (rearBarrier.resourceType == ResourceType::BUFFER) {
+                    bufferBarriers.emplace_back(static_cast<gfx::BufferBarrier *>(res.first));
+                    buffers.emplace_back(static_cast<gfx::Buffer*>(res.second));
+                } else if (rearBarrier.resourceType == ResourceType::TEXTURE) {
+                    textureBarriers.emplace_back(static_cast<gfx::TextureBarrier *>(res.first));
+                    textures.emplace_back(static_cast<gfx::Texture*>(res.second));
                 } else {
                     CC_ASSERT(false);
                 }
@@ -177,15 +177,15 @@ void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo& rpInfo) {
 
         if(textureBarriers.size() > lastTextureIndex || bufferBarriers.size() > lastBufferIndex) {
             rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
-                                                 _subpasses.size() - 1,
+                static_cast<uint32_t>(_subpasses.size() - 1),
                                                  gfx::SUBPASS_EXTERNAL,
                                                  nullptr,
                                                  bufferBarriers.data() + lastBufferIndex,
                                                  buffers.data() + lastBufferIndex,
-                                                 buffers.size() - lastBufferIndex + 1,
+                static_cast<uint32_t>(buffers.size() - lastBufferIndex + 1),
                                                  textureBarriers.data() + lastTextureIndex,
                                                  textures.data() + lastTextureIndex,
-                                                 textures.size() - lastTextureIndex + 1
+                static_cast<uint32_t>(textures.size() - lastTextureIndex + 1)
                                              });
         }
     }
