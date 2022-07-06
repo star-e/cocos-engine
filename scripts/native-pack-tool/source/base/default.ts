@@ -83,6 +83,10 @@ export abstract class NativePackTool {
     init(params: CocosParams<Object>) {
         this.params = new CocosParams(params);
         this.paths = new Paths(params);
+
+        this.setEnv('NATIVE_DIR', this.paths.platformTemplateDirInPrj);
+        this.setEnv('COMMON_DIR', this.paths.commonDirInPrj);
+        this.setEnv('PROJECT_NAME', this.params.projectName);
     }
 
     protected parseVersion(content: string, key: string, def: number): number {
@@ -129,7 +133,7 @@ export abstract class NativePackTool {
     protected tryReadProjectTemplateVersion(): { version: string, skipCheck: boolean | undefined } | null {
         const versionJsonPath = this.projEngineVersionPath;
         if (!fs.existsSync(versionJsonPath)) {
-            console.warn(`${versionJsonPath} not exists`);
+            console.log(`warning: ${versionJsonPath} not exists`);
             return null;
         }
         try {
@@ -251,7 +255,7 @@ export abstract class NativePackTool {
 
             const newerThanEngineVersion = this.versionParser.parse(`>${engineVersion}`);
             if (newerThanEngineVersion.match(projEngineVersion)) {
-                console.warn(`warning: ${projEngineVersion} is newer than engine version ${engineVersion}`);
+                console.log(`warning: ${projEngineVersion} is newer than engine version ${engineVersion}`);
             }
             return true;
         }

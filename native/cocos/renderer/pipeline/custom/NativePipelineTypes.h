@@ -53,6 +53,7 @@ public:
     uint32_t addRenderPhase(const ccstd::string& name, uint32_t parentID) override;
     void addShader(const ccstd::string& name, uint32_t parentPhaseID) override;
     void addDescriptorBlock(uint32_t nodeID, const DescriptorBlockIndex& index, const DescriptorBlockFlattened& block) override;
+    void addUniformBlock(uint32_t nodeID, const DescriptorBlockIndex& index, const ccstd::string& name, const gfx::UniformBlock& uniformBlock) override;
     void reserveDescriptorBlock(uint32_t nodeID, const DescriptorBlockIndex& index, const DescriptorBlockFlattened& block) override;
     int compile() override;
 
@@ -74,8 +75,8 @@ public:
     void addSceneOfCamera(scene::Camera* camera, scene::Light* light, SceneFlags sceneFlags, const ccstd::string& name) override;
     void addSceneOfCamera(scene::Camera* camera, scene::Light* light, SceneFlags sceneFlags) override;
     void addScene(const ccstd::string& name, SceneFlags sceneFlags) override;
-    void addFullscreenQuad(const ccstd::string& shader, const ccstd::string& name) override;
-    void addFullscreenQuad(const ccstd::string& shader) override;
+    void addFullscreenQuad(cc::Material *material, const ccstd::string& name) override;
+    void addFullscreenQuad(cc::Material *material) override;
 
     void setMat4(const ccstd::string& name, const cc::Mat4& mat) override;
     void setQuaternion(const ccstd::string& name, const cc::Quaternion& quat) override;
@@ -105,14 +106,14 @@ public:
       passID(passIDIn),
       layoutID(layoutIDIn) {}
 
-    void                addRasterView(const ccstd::string& name, const RasterView& view) override;
-    void                addComputeView(const ccstd::string& name, const ComputeView& view) override;
+    void addRasterView(const ccstd::string& name, const RasterView& view) override;
+    void addComputeView(const ccstd::string& name, const ComputeView& view) override;
     RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string& layoutName, const ccstd::string& name) override;
     RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string& layoutName) override;
     RasterQueueBuilder *addQueue(QueueHint hint) override;
-    void                addFullscreenQuad(const ccstd::string& shader, const ccstd::string& layoutName, const ccstd::string& name) override;
-    void                addFullscreenQuad(const ccstd::string& shader, const ccstd::string& layoutName) override;
-    void                addFullscreenQuad(const ccstd::string& shader) override;
+    void addFullscreenQuad(cc::Material *material, const ccstd::string& layoutName, const ccstd::string& name) override;
+    void addFullscreenQuad(cc::Material *material, const ccstd::string& layoutName) override;
+    void addFullscreenQuad(cc::Material *material) override;
 
     void setMat4(const ccstd::string& name, const cc::Mat4& mat) override;
     void setQuaternion(const ccstd::string& name, const cc::Quaternion& quat) override;
@@ -283,6 +284,10 @@ public:
 
     float getShadingScale() const override;
     void  setShadingScale(float scale) override;
+
+    const ccstd::string& getMacroString(const ccstd::string& name) const override;
+    int32_t getMacroInt(const ccstd::string& name) const override;
+    bool getMacroBool(const ccstd::string& name) const override;
 
     void setMacroString(const ccstd::string& name, const ccstd::string& value) override;
     void setMacroInt(const ccstd::string& name, int32_t value) override;

@@ -24,7 +24,7 @@
  */
 
 import { Component } from '../../core';
-import { Attribute, Feature } from '../../core/gfx';
+import { Attribute, deviceManager, Feature } from '../../core/gfx';
 import ParticleBatchModel from '../models/particle-batch-model';
 import ParticleSystemRenderer from './particle-system-renderer-data';
 import { Material } from '../../core/assets';
@@ -62,6 +62,7 @@ export interface IParticleSystemRenderer {
     beforeRender (): void;
     setUseInstance (value: boolean): void;
     getUseInstance (): boolean;
+    getNoisePreview (out: number[], width: number, height: number): void;
 }
 
 export abstract class ParticleSystemRendererBase implements IParticleSystemRenderer {
@@ -73,7 +74,7 @@ export abstract class ParticleSystemRendererBase implements IParticleSystemRende
 
     constructor (info: ParticleSystemRenderer) {
         this._renderInfo = info;
-        if (!legacyCC.game._gfxDevice.hasFeature(Feature.INSTANCED_ARRAYS)) {
+        if (!deviceManager.gfxDevice.hasFeature(Feature.INSTANCED_ARRAYS)) {
             this._useInstance = false;
         } else {
             this._useInstance = true;
@@ -168,4 +169,5 @@ export abstract class ParticleSystemRendererBase implements IParticleSystemRende
     public abstract enableModule (name: string, val: boolean, pm: IParticleModule): void;
     public abstract beforeRender (): void;
     public abstract setUseInstance (value: boolean): void;
+    public abstract getNoisePreview (out: number[], width: number, height: number): void;
 }

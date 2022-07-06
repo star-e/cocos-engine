@@ -280,6 +280,9 @@ bool sevalue_to_native(const se::Value &from, cc::Quaternion *to, se::Object * /
 
 bool sevalue_to_native(const se::Value &from, cc::Color *to, se::Object * /*unused*/); // NOLINT(readability-identifier-naming)
 
+bool sevalue_to_native(const se::Value &from, cc::Rect *to, se::Object * /*unused*/); // NOLINT(readability-identifier-naming)
+bool sevalue_to_native(const se::Value &from, cc::gfx::Rect *to, se::Object * /*unused*/); // NOLINT(readability-identifier-naming)
+
 inline bool sevalue_to_native(const se::Value &from, ccstd::vector<se::Value> *to, se::Object * /*unused*/) { // NOLINT(readability-identifier-naming)
     if (from.isNullOrUndefined()) {
         to->clear();
@@ -386,6 +389,12 @@ bool DownloadTask_to_seval(const cc::network::DownloadTask &v, se::Value *ret); 
 //bool nativevalue_to_se(const cc::TypedArray &typedArray, se::Value &to, se::Object * /*ctx*/); // NOLINT(readability-identifier-naming) // NOLINT
 
 bool nativevalue_to_se(const cc::ArrayBuffer &arrayBuffer, se::Value &to, se::Object * /*ctx*/); // NOLINT(readability-identifier-naming) // NOLINT
+inline bool nativevalue_to_se(cc::ArrayBuffer *arrayBuffer, se::Value &to, se::Object *ctx) {    // NOLINT(readability-identifier-naming) // NOLINT
+    if (arrayBuffer == nullptr) {
+        return false;
+    }
+    return nativevalue_to_se(*arrayBuffer, to, ctx);
+}
 
 inline bool nativevalue_to_se(const ccstd::vector<int8_t> &from, se::Value &to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
     se::HandleObject array{se::Object::createTypedArray(se::Object::TypedArrayType::INT8, from.data(), from.size())};
@@ -514,6 +523,8 @@ bool nativevalue_to_se(const cc::Quaternion &from, se::Value &to, se::Object *ct
 bool nativevalue_to_se(const cc::extension::ManifestAsset &from, se::Value &to, se::Object *ctx); // NOLINT(readability-identifier-naming)
 
 bool nativevalue_to_se(const cc::Rect &from, se::Value &to, se::Object *ctx); // NOLINT(readability-identifier-naming)
+
+bool nativevalue_to_se(const cc::gfx::Rect &from, se::Value &to, se::Object *ctx); // NOLINT(readability-identifier-naming)
 
 inline bool nativevalue_to_se(const cc::network::DownloadTask &from, se::Value &to, se::Object * /*ctx*/) { // NOLINT(readability-identifier-naming)
     return DownloadTask_to_seval(from, &to);

@@ -28,6 +28,7 @@
 #include "Define.h"
 #include "RenderInstancedQueue.h"
 #include "gfx-base/GFXDevice.h"
+#include "scene/Light.h"
 
 namespace cc {
 namespace pipeline {
@@ -52,10 +53,14 @@ void GlobalDSManager::activate(gfx::Device *device) {
         gfx::Address::CLAMP,
     });
 
+    //tips: for compatibility with old version, when maxVertexUniformVectors is 128, maxJoints = 30
+    uint maxJoints = (_device->getCapabilities().maxVertexUniformVectors - 38) / 3;
+    maxJoints = maxJoints < 256 ? maxJoints : 256;
+    SkinningJointCapacity::jointUniformCapacity = maxJoints;
+    UBOSkinning::initLayout(maxJoints);
+
     setDescriptorSetLayout();
-    CC_SAFE_DESTROY_NULL(_descriptorSetLayout)
     _descriptorSetLayout = device->createDescriptorSetLayout({globalDescriptorSetLayout.bindings});
-    CC_SAFE_DESTROY_NULL(_globalDescriptorSet)
     _globalDescriptorSet = device->createDescriptorSet({_descriptorSetLayout});
 }
 
@@ -107,11 +112,12 @@ void GlobalDSManager::update() {
     }
 }
 
-gfx::DescriptorSet *GlobalDSManager::getOrCreateDescriptorSet(uint32_t idx) {
+gfx::DescriptorSet *GlobalDSManager::getOrCreateDescriptorSet(const scene::Light *light) {
+    CC_ASSERT(light);
     // The global descriptorSet is managed by the pipeline and binds the buffer
-    if (_descriptorSetMap.count(idx) <= 0 || (_descriptorSetMap.at(idx) == nullptr)) {
+    if (_descriptorSetMap.count(light) == 0 || (_descriptorSetMap.at(light) == nullptr)) {
         auto *descriptorSet = _device->createDescriptorSet({_descriptorSetLayout});
-        _descriptorSetMap.emplace(idx, descriptorSet);
+        _descriptorSetMap[light] = descriptorSet;
 
         const auto begin = static_cast<uint32_t>(PipelineGlobalBindings::UBO_GLOBAL);
         const auto end = static_cast<uint32_t>(PipelineGlobalBindings::COUNT);
@@ -137,26 +143,22 @@ gfx::DescriptorSet *GlobalDSManager::getOrCreateDescriptorSet(uint32_t idx) {
             UBOShadow::SIZE,
             gfx::BufferFlagBit::NONE,
         });
-        _shadowUBOs.push_back(shadowUBO);
+        _shadowUBOs.emplace_back(shadowUBO);
         descriptorSet->bindBuffer(UBOShadow::BINDING, shadowUBO);
 
         descriptorSet->update();
     }
 
-    return _descriptorSetMap.at(idx);
+    return _descriptorSetMap.at(light);
 }
 
 void GlobalDSManager::destroy() {
-    for (auto *shadowUBO : _shadowUBOs) {
-        CC_SAFE_DELETE(shadowUBO)
-    }
-    for (auto &pair : _descriptorSetMap) {
-        CC_SAFE_DELETE(pair.second)
-    }
+    _shadowUBOs.clear();
     _descriptorSetMap.clear();
-
-    CC_SAFE_DESTROY_NULL(_descriptorSetLayout)
-    CC_SAFE_DELETE(_globalDescriptorSet)
+    _descriptorSetLayout = nullptr;
+    _globalDescriptorSet = nullptr;
+    _linearSampler = nullptr;
+    _pointSampler = nullptr;
 }
 
 void GlobalDSManager::setDescriptorSetLayout() {
@@ -172,8 +174,8 @@ void GlobalDSManager::setDescriptorSetLayout() {
     globalDescriptorSetLayout.bindings[SHADOWMAP::BINDING] = SHADOWMAP::DESCRIPTOR;
     globalDescriptorSetLayout.samplers[ENVIRONMENT::NAME] = ENVIRONMENT::LAYOUT;
     globalDescriptorSetLayout.bindings[ENVIRONMENT::BINDING] = ENVIRONMENT::DESCRIPTOR;
-    globalDescriptorSetLayout.samplers[SPOTLIGHTINGMAP::NAME] = SPOTLIGHTINGMAP::LAYOUT;
-    globalDescriptorSetLayout.bindings[SPOTLIGHTINGMAP::BINDING] = SPOTLIGHTINGMAP::DESCRIPTOR;
+    globalDescriptorSetLayout.samplers[SPOTSHADOWMAP::NAME] = SPOTSHADOWMAP::LAYOUT;
+    globalDescriptorSetLayout.bindings[SPOTSHADOWMAP::BINDING] = SPOTSHADOWMAP::DESCRIPTOR;
     globalDescriptorSetLayout.samplers[DIFFUSEMAP::NAME] = DIFFUSEMAP::LAYOUT;
     globalDescriptorSetLayout.bindings[DIFFUSEMAP::BINDING] = DIFFUSEMAP::DESCRIPTOR;
 
@@ -190,7 +192,7 @@ void GlobalDSManager::setDescriptorSetLayout() {
     localDescriptorSetLayout.bindings[UBOSkinningTexture::BINDING] = UBOSkinningTexture::DESCRIPTOR;
     localDescriptorSetLayout.blocks[UBOSkinningAnimation::NAME] = UBOSkinningAnimation::LAYOUT;
     localDescriptorSetLayout.bindings[UBOSkinningAnimation::BINDING] = UBOSkinningAnimation::DESCRIPTOR;
-    localDescriptorSetLayout.blocks[UBOSkinning::NAME] = UBOSkinning::LAYOUT;
+    localDescriptorSetLayout.blocks[UBOSkinning::NAME] = UBOSkinning::layout;
     localDescriptorSetLayout.bindings[UBOSkinning::BINDING] = UBOSkinning::DESCRIPTOR;
     localDescriptorSetLayout.blocks[UBOMorph::NAME] = UBOMorph::LAYOUT;
     localDescriptorSetLayout.bindings[UBOMorph::BINDING] = UBOMorph::DESCRIPTOR;
@@ -198,6 +200,8 @@ void GlobalDSManager::setDescriptorSetLayout() {
     localDescriptorSetLayout.bindings[UBOUILocal::BINDING] = UBOUILocal::DESCRIPTOR;
     localDescriptorSetLayout.samplers[JOINTTEXTURE::NAME] = JOINTTEXTURE::LAYOUT;
     localDescriptorSetLayout.bindings[JOINTTEXTURE::BINDING] = JOINTTEXTURE::DESCRIPTOR;
+    localDescriptorSetLayout.samplers[REALTIMEJOINTTEXTURE::NAME] = REALTIMEJOINTTEXTURE::LAYOUT;
+    localDescriptorSetLayout.bindings[REALTIMEJOINTTEXTURE::BINDING] = REALTIMEJOINTTEXTURE::DESCRIPTOR;
     localDescriptorSetLayout.samplers[POSITIONMORPH::NAME] = POSITIONMORPH::LAYOUT;
     localDescriptorSetLayout.bindings[POSITIONMORPH::BINDING] = POSITIONMORPH::DESCRIPTOR;
     localDescriptorSetLayout.samplers[NORMALMORPH::NAME] = NORMALMORPH::LAYOUT;

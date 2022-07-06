@@ -24,10 +24,13 @@
 */
 import { ccclass, override } from 'cc.decorator';
 import { ALIPAY, XIAOMI, JSB, TEST, BAIDU } from 'internal:constants';
-import { Format, FormatFeatureBit } from '../gfx';
+import { Format, FormatFeatureBit, deviceManager } from '../gfx';
 import { legacyCC } from '../global-exports';
 import { PixelFormat } from './asset-enum';
-import { warnID } from '../platform';
+import { sys } from '../platform/sys';
+import { macro } from '../platform/macro';
+import { warnID } from '../platform/debug';
+import './asset';
 
 export type ImageAsset = jsb.ImageAsset;
 export const ImageAsset = jsb.ImageAsset;
@@ -45,7 +48,7 @@ export type ImageSource = HTMLCanvasElement | HTMLImageElement | IMemoryImageSou
 const extnames = ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.pvr', '.pkm', '.astc'];
 
 function isImageBitmap (imageSource: any): boolean {
-    return !!(legacyCC.sys.hasFeature(legacyCC.sys.Feature.IMAGE_BITMAP) && imageSource instanceof ImageBitmap);
+    return !!(sys.hasFeature(sys.Feature.IMAGE_BITMAP) && imageSource instanceof ImageBitmap);
 }
 
 function isNativeImage (imageSource: ImageSource): imageSource is (HTMLImageElement | HTMLCanvasElement | ImageBitmap) {
@@ -206,14 +209,14 @@ imageAssetProto._deserialize = function (data: any) {
         this._height = data.h;
         fmtStr = data.fmt;
     }
-    const device = legacyCC.director.root.device;
+    const device = deviceManager.gfxDevice;
     const extensionIDs = fmtStr.split('_');
 
     let preferedExtensionIndex = Number.MAX_VALUE;
     // let format = this._format;
     let format = this.format;
     let ext = '';
-    const SupportTextureFormats = legacyCC.macro.SUPPORT_TEXTURE_FORMATS as string[];
+    const SupportTextureFormats = macro.SUPPORT_TEXTURE_FORMATS as string[];
     for (const extensionID of extensionIDs) {
         const extFormat = extensionID.split('@');
 
@@ -237,7 +240,7 @@ imageAssetProto._deserialize = function (data: any) {
             } else if ((fmt === PixelFormat.RGB_ETC2 || fmt === PixelFormat.RGBA_ETC2)
                 && (!device || !(device.getFormatFeatures(Format.ETC2_RGB8) & FormatFeatureBit.SAMPLED_TEXTURE))) {
                 continue;
-            } else if (tmpExt === '.webp' && !legacyCC.sys.hasFeature(legacyCC.sys.Feature.WEBP)) {
+            } else if (tmpExt === '.webp' && !sys.hasFeature(sys.Feature.WEBP)) {
                 continue;
             }
             preferedExtensionIndex = index;

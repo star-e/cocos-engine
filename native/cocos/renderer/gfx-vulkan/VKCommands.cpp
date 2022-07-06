@@ -1316,6 +1316,7 @@ void cmdFuncCCVKCopyBuffersToTexture(CCVKDevice *device, const uint8_t *const *b
 
         uint32_t layerCount = region.texSubres.layerCount;
         uint32_t baseLayer = region.texSubres.baseArrayLayer;
+        uint32_t mipLevel = region.texSubres.mipLevel;
 
         uint32_t rowPitchSize = formatSize(gpuTexture->format, extent.width, 1, 1);
         rowPitchSize = utils::alignTo(rowPitchSize, optimalRowPitchAlignment);
@@ -1338,8 +1339,8 @@ void cmdFuncCCVKCopyBuffersToTexture(CCVKDevice *device, const uint8_t *const *b
         uint32_t destOffset = 0;
         uint32_t buffOffset = 0;
 
-        uint32_t destWidth = region.texExtent.width + offset.x == gpuTexture->width ? region.texExtent.width : extent.width;
-        uint32_t destHeight = region.texExtent.height + offset.y == gpuTexture->height ? region.texExtent.height : extent.height;
+        uint32_t destWidth = (region.texExtent.width + offset.x == (gpuTexture->width >> mipLevel)) ? region.texExtent.width : extent.width;
+        uint32_t destHeight = (region.texExtent.height + offset.y == (gpuTexture->height >> mipLevel)) ? region.texExtent.height : extent.height;
 
         int32_t heightOffset = 0;
         uint32_t stepHeight = 0;
@@ -1366,7 +1367,7 @@ void cmdFuncCCVKCopyBuffersToTexture(CCVKDevice *device, const uint8_t *const *b
                     stagingRegion.bufferOffset = stagingBuffer.startOffset;
                     stagingRegion.bufferRowLength = rowPitch;
                     stagingRegion.bufferImageHeight = stepHeight;
-                    stagingRegion.imageSubresource = {gpuTexture->aspectMask, region.texSubres.mipLevel, l + baseLayer, 1};
+                    stagingRegion.imageSubresource = {gpuTexture->aspectMask, mipLevel, l + baseLayer, 1};
                     stagingRegion.imageOffset = {offset.x, offset.y + heightOffset, offset.z + static_cast<int>(depth)};
                     stagingRegion.imageExtent = {destWidth, std::min(stepHeight, destHeight - heightOffset), 1};
 

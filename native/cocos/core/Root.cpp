@@ -35,6 +35,7 @@
 #include "renderer/pipeline/custom/RenderInterfaceTypes.h"
 #include "renderer/pipeline/deferred/DeferredPipeline.h"
 #include "renderer/pipeline/forward/ForwardPipeline.h"
+#include "renderer/pipeline/GeometryRenderer.h"
 #include "scene/Camera.h"
 #include "scene/DirectionalLight.h"
 #include "scene/DrawBatch2D.h"
@@ -168,6 +169,31 @@ public:
     }
     void setShadingScale(float scale) override {
         pipeline->setShadingScale(scale);
+    }
+    const ccstd::string& getMacroString(const ccstd::string& name) const override {
+        static const ccstd::string EMPTY_STRING;
+        const auto& macros = pipeline->getMacros();
+        auto iter = macros.find(name);
+        if (iter == macros.end()) {
+            return EMPTY_STRING;
+        }
+        return ccstd::get<ccstd::string>(iter->second);
+    }
+    int32_t getMacroInt(const ccstd::string& name) const override {
+        const auto& macros = pipeline->getMacros();
+        auto iter = macros.find(name);
+        if (iter == macros.end()) {
+            return 0;
+        }
+        return ccstd::get<int32_t>(iter->second);
+    }
+    bool getMacroBool(const ccstd::string& name) const override {
+        const auto& macros = pipeline->getMacros();
+        auto iter = macros.find(name);
+        if (iter == macros.end()) {
+            return false;
+        }
+        return ccstd::get<bool>(iter->second);
     }
     void setMacroString(const ccstd::string& name, const ccstd::string& value) override {
         pipeline->setValue(name, value);
@@ -332,6 +358,12 @@ void Root::frameMove(float deltaTime, int32_t totalFrames) {
             return a->getPriority() < b->getPriority();
         });
 #if !defined(CC_SERVER_MODE)
+        for (auto *camera : _cameraList) {
+            if (camera->getGeometryRenderer()) {
+                camera->getGeometryRenderer()->update();
+            }
+        }
+
         _pipelineRuntime->render(_cameraList);
 #endif
         _device->present();

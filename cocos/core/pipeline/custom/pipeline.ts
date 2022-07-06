@@ -29,9 +29,10 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 /* eslint-disable max-len */
+import { Material } from '../../assets';
 import { Camera } from '../../renderer/scene/camera';
 import { GeometryRenderer } from '../geometry-renderer';
-import { Buffer, Color, DescriptorSet, DescriptorSetLayout, DrawInfo, Format, InputAssembler, PipelineState, Rect, Sampler, Swapchain, Texture, Viewport } from '../../gfx';
+import { Buffer, Color, DescriptorSet, DescriptorSetLayout, DrawInfo, Format, InputAssembler, PipelineState, Rect, Sampler, Swapchain, Texture, UniformBlock, Viewport } from '../../gfx';
 import { GlobalDSManager } from '../global-descriptor-set-manager';
 import { DescriptorBlockFlattened, DescriptorBlockIndex } from './layout-graph';
 import { Mat4, Quat, Vec2, Vec4 } from '../../math';
@@ -56,6 +57,9 @@ export abstract class PipelineRuntime {
     public abstract get geometryRenderer(): GeometryRenderer | null;
     public abstract get shadingScale(): number;
     public abstract set shadingScale(scale: number);
+    public abstract getMacroString(name: string): string;
+    public abstract getMacroInt(name: string): number;
+    public abstract getMacroBool(name: string): boolean;
     public abstract setMacroString(name: string, value: string): void;
     public abstract setMacroInt(name: string, value: number): void;
     public abstract setMacroBool(name: string, value: boolean): void;
@@ -82,8 +86,8 @@ export abstract class RasterQueueBuilder extends Setter {
     public abstract addSceneOfCamera(camera: Camera, light: Light | null, sceneFlags: SceneFlags, name: string): void;
     public abstract addSceneOfCamera(camera: Camera, light: Light | null, sceneFlags: SceneFlags): void;
     public abstract addScene(name: string, sceneFlags: SceneFlags): void;
-    public abstract addFullscreenQuad(shader: string, name: string): void;
-    public abstract addFullscreenQuad(shader: string): void;
+    public abstract addFullscreenQuad(material: Material, name: string): void;
+    public abstract addFullscreenQuad(material: Material): void;
 }
 
 export abstract class RasterPassBuilder extends Setter {
@@ -92,9 +96,9 @@ export abstract class RasterPassBuilder extends Setter {
     public abstract addQueue(hint: QueueHint, layoutName: string, name: string): RasterQueueBuilder;
     public abstract addQueue(hint: QueueHint, layoutName: string): RasterQueueBuilder;
     public abstract addQueue(hint: QueueHint): RasterQueueBuilder;
-    public abstract addFullscreenQuad(shader: string, layoutName: string, name: string): void;
-    public abstract addFullscreenQuad(shader: string, layoutName: string): void;
-    public abstract addFullscreenQuad(shader: string): void;
+    public abstract addFullscreenQuad(material: Material, layoutName: string, name: string): void;
+    public abstract addFullscreenQuad(material: Material, layoutName: string): void;
+    public abstract addFullscreenQuad(material: Material): void;
 }
 
 export abstract class ComputeQueueBuilder extends Setter {
@@ -150,6 +154,7 @@ export abstract class LayoutGraphBuilder {
     public abstract addRenderPhase(name: string, parentID: number): number;
     public abstract addShader(name: string, parentPhaseID: number): void;
     public abstract addDescriptorBlock(nodeID: number, index: DescriptorBlockIndex, block: DescriptorBlockFlattened): void;
+    public abstract addUniformBlock(nodeID: number, index: DescriptorBlockIndex, name: string, uniformBlock: UniformBlock): void;
     public abstract reserveDescriptorBlock(nodeID: number, index: DescriptorBlockIndex, block: DescriptorBlockFlattened): void;
     public abstract compile(): number;
     public abstract print(): string;

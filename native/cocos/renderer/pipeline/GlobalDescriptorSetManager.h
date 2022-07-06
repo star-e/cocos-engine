@@ -31,6 +31,9 @@
 #include "base/std/container/vector.h"
 
 namespace cc {
+namespace scene {
+class Light;
+}
 namespace gfx {
 class DescriptorSet;
 class DescriptorSetLayout;
@@ -46,7 +49,6 @@ public:
     GlobalDSManager() = default;
     ~GlobalDSManager() = default;
 
-    inline ccstd::unordered_map<uint32_t, gfx::DescriptorSet *> getDescriptorSetMap() const { return _descriptorSetMap; }
     inline gfx::Sampler *getLinearSampler() const { return _linearSampler; }
     inline gfx::Sampler *getPointSampler() const { return _pointSampler; }
     inline gfx::DescriptorSetLayout *getDescriptorSetLayout() const { return _descriptorSetLayout; }
@@ -57,19 +59,24 @@ public:
     void bindTexture(uint32_t binding, gfx::Texture *texture);
     void bindSampler(uint32_t binding, gfx::Sampler *sampler);
     void update();
-    gfx::DescriptorSet *getOrCreateDescriptorSet(uint32_t idx);
+    gfx::DescriptorSet *getOrCreateDescriptorSet(const scene::Light *light);
     void destroy();
 
     static void setDescriptorSetLayout();
 
 private:
-    gfx::Device *_device = nullptr;
-    gfx::Sampler *_linearSampler = nullptr;
-    gfx::Sampler *_pointSampler = nullptr;
+    // weak reference
+    gfx::Device *_device{nullptr};
+
+    // Samplers are hold by device
+    gfx::Sampler *_linearSampler{nullptr};
+    gfx::Sampler *_pointSampler{nullptr};
+
     IntrusivePtr<gfx::DescriptorSetLayout> _descriptorSetLayout;
-    gfx::DescriptorSet *_globalDescriptorSet = nullptr;
-    ccstd::unordered_map<uint32_t, gfx::DescriptorSet *> _descriptorSetMap{};
-    ccstd::vector<gfx::Buffer *> _shadowUBOs;
+    IntrusivePtr<gfx::DescriptorSet> _globalDescriptorSet;
+    ccstd::vector<IntrusivePtr<gfx::Buffer>> _shadowUBOs;
+    // light is weak reference
+    ccstd::unordered_map<const scene::Light *, IntrusivePtr<gfx::DescriptorSet>> _descriptorSetMap;
 };
 
 } // namespace pipeline

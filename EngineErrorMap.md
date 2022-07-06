@@ -1840,6 +1840,10 @@ Instancing/Batching enabled for non-baked skinning model '%s', this may result i
 ### 3937
 Previous error occurred when instantiating animation clip %s on node %s.
 
+### 3938
+
+'%s' is not found from '%s'. It's specified as the root node to play animation clip '%s'.
+
 ### 4000
 
 <!-- DEPRECATED -->
@@ -3264,7 +3268,22 @@ Diffuse map resource is missing, please change environment lighting type to rege
 
 The shadow visible distance is so small that CSM stratification is not effective, Please change the value of shadowDistance so that it is 10 times greater than 0.1
 
-
 ### 15004
 
 The native folder may be generated from older versions, please refer https://docs.cocos.com/creator/manual/en/release-notes/ to upgrade.
+
+### 16000
+
+'%s' is deprecated since v%s.
+
+### 16001
+
+'%s' is deprecated since v%s, please use '%s' instead.
+
+### 16002
+
+'%s' is removed since v%s.
+
+### 16003
+
+'%s' is removed since v%s, please use '%s' instead.
