@@ -53,7 +53,7 @@ TEST(barrierTest, test10) {
     // 1st node
     const auto& node1 = barrierMap.at(1);
     ExpectEq(node1.blockBarrier.frontBarriers.empty(), true);
-    ExpectEq(node1.blockBarrier.rearBarriers.size() == 4, true);
+    ExpectEq(node1.blockBarrier.rearBarriers.size() == 1, true);
 
     ExpectEq(node1.subpassBarriers[0].frontBarriers.empty(), true);
     ExpectEq(node1.subpassBarriers[0].rearBarriers.size() == 3, true);
@@ -61,12 +61,12 @@ TEST(barrierTest, test10) {
     ExpectEq(node1.subpassBarriers[1].frontBarriers.empty(), true);
     ExpectEq(node1.subpassBarriers[1].rearBarriers.size() == 1, true);
 
-    for (size_t i = 0; i < node1.blockBarrier.rearBarriers.size(); ++i) {
-        const auto& barrier = node1.blockBarrier.rearBarriers[i];
-        ExpectEq(barrier.type == BarrierType::FULL, true);
-        ExpectEq(barrier.beginStatus.access == MemoryAccessBit::WRITE_ONLY, true);
-        ExpectEq(barrier.beginStatus.visibility == std::get<2>(layoutInfo[0][i]), true);
-    }
+    const auto& barrier = node1.blockBarrier.rearBarriers[0];
+    ExpectEq(barrier.type == BarrierType::FULL, true);
+    ExpectEq(barrier.beginStatus.access == MemoryAccessBit::WRITE_ONLY, true);
+    //resID 3
+    ExpectEq(barrier.beginStatus.visibility == std::get<2>(layoutInfo[0][3]), true);
+    
     
     //// 2nd node
     const auto& node2 = barrierMap.at(2);

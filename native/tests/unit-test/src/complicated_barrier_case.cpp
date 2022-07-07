@@ -60,23 +60,16 @@ TEST(complicatedBarrierTest, test12) {
     // 1st node
     const auto& node1 = barrierMap.at(1);
     ExpectEq(node1.blockBarrier.frontBarriers.empty(), true);
-    ExpectEq(node1.blockBarrier.rearBarriers.size() == 2, true);
+    ExpectEq(node1.blockBarrier.rearBarriers.size() == 1, true);
     ExpectEq(node1.subpassBarriers.empty(), false);
 
     //block barrier: what comes in and what comes out, no matter how many subpasses inside.
     ExpectEq(node1.blockBarrier.rearBarriers[0].type == cc::gfx::BarrierType::FULL, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[0].resourceID == 0, true);
+    ExpectEq(node1.blockBarrier.rearBarriers[0].resourceID == 1, true);
     ExpectEq(node1.blockBarrier.rearBarriers[0].beginStatus.vertID == 1, true);
     ExpectEq(node1.blockBarrier.rearBarriers[0].beginStatus.access == MemoryAccessBit::WRITE_ONLY, true);
     ExpectEq(node1.blockBarrier.rearBarriers[0].endStatus.vertID == 1, true);
     ExpectEq(node1.blockBarrier.rearBarriers[0].endStatus.access == MemoryAccessBit::READ_ONLY, true);
-
-    ExpectEq(node1.blockBarrier.rearBarriers[1].type == cc::gfx::BarrierType::FULL, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[1].resourceID == 1, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[1].beginStatus.vertID == 1, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[1].beginStatus.access == MemoryAccessBit::WRITE_ONLY, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[1].endStatus.vertID == 1, true);
-    ExpectEq(node1.blockBarrier.rearBarriers[1].endStatus.access == MemoryAccessBit::READ_ONLY, true);
 
     //subpass barrier: like normal pass
     const auto& node1subpass = node1.subpassBarriers;
@@ -106,7 +99,7 @@ TEST(complicatedBarrierTest, test12) {
     //node2
     const auto& node2 = barrierMap.at(2);
     ExpectEq(node2.blockBarrier.frontBarriers.empty(), true);
-    ExpectEq(node2.blockBarrier.rearBarriers.size() == 3, true);
+    ExpectEq(node2.blockBarrier.rearBarriers.size() == 2, true);
     ExpectEq(node2.subpassBarriers.size() == 2, true);
 
     const auto& node2blockRear = node2.blockBarrier.rearBarriers;

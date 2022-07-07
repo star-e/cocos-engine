@@ -239,8 +239,8 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
     using Edge = ResourceAccessGraph::edge_descriptor;
     using Graph = ResourceAccessGraph;
 
-    explicit BarrierVisitor(const ResourceGraph &rg, BarrierMap &barriers, ExternalResMap &extMap, ResourceNames &externalNames)
-    : barrierMap(barriers), resourceGraph(rg), externalMap(extMap), externalResNames(externalNames) {
+    explicit BarrierVisitor(const ResourceGraph &rg, BarrierMap &barriers, ExternalResMap &extMap, ResourceNames &externalNames, const AccessTable& accessRecordIn)
+    : barrierMap(barriers), resourceGraph(rg), externalMap(extMap), externalResNames(externalNames), accessRecord(accessRecordIn) {
     }
 
     struct AccessNodeInfo {
@@ -287,6 +287,27 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
             srcAccess = dstAccess;
             dstAccess = dstAccess->nextSubpass;
+        }
+
+        // last vertex front block barrier
+        if(!out_degree(u, g)) {
+            auto &rearBarriers = barrierMap[u].blockBarrier.rearBarriers;
+            auto &frontBarriers = barrierMap[u].blockBarrier.frontBarriers;
+            for (const auto &barriers : barrierMap[u].subpassBarriers) {
+                for (const auto &barrier : barriers.frontBarriers) {
+                    auto resID = barrier.resourceID;
+                    auto findBarrierByResID = [resID](const Barrier &barrier) {
+                        return barrier.resourceID == resID;
+                    };
+                    auto resFinalPassID = accessRecord.at(resID).currStatus.vertID;
+                    auto firstMeetIter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
+                    auto innerResIter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
+
+                    if (firstMeetIter == frontBarriers.end() && innerResIter == rearBarriers.end() && resFinalPassID >= u) {
+                        frontBarriers.emplace_back(barrier);
+                    }
+                }
+            }
         }
     }
 
@@ -579,7 +600,6 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
             ++srcSubpassIndex;
         }
 
-        
         auto &rearBarriers = barrierMap[from].blockBarrier.rearBarriers;
         auto &frontBarriers = barrierMap[from].blockBarrier.frontBarriers;
         for (const auto &barriers : barrierMap[from].subpassBarriers) {
@@ -589,11 +609,14 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                     return barrier.resourceID == resID;
                 };
                 auto iter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
+                auto resFinalPassID = accessRecord.at(resID).currStatus.vertID;
 
-                if (iter == rearBarriers.end()) {
-                    rearBarriers.emplace_back(barrier);
-                } else {
-                    (*iter) = barrier;
+                if(resFinalPassID > from) {
+                    if (iter == rearBarriers.end()) {
+                        rearBarriers.emplace_back(barrier);
+                    } else {
+                        (*iter) = barrier;
+                    }
                 }
             }
 
@@ -602,15 +625,18 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                 auto findBarrierByResID = [resID](const Barrier &barrier) {
                     return barrier.resourceID == resID;
                 };
+                auto resFinalPassID = accessRecord.at(resID).currStatus.vertID;
                 auto firstMeetIter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
                 auto innerResIter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
-                if (firstMeetIter == frontBarriers.end() && innerResIter == rearBarriers.end()) {
+
+                if (firstMeetIter == frontBarriers.end() && innerResIter == rearBarriers.end() && resFinalPassID > from) {
                     frontBarriers.emplace_back(barrier);
                 }
             }
         }
     }
 
+    const AccessTable& accessRecord;
     BarrierMap &barrierMap;
     const ResourceGraph &resourceGraph;
     ExternalResMap &externalMap;     // last frame to curr frame status transition
@@ -640,7 +666,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
         ResourceNames namesSet;
         {
             // _externalResNames records external resource between frames
-            BarrierVisitor visitor(resourceGraph, batchedBarriers, externalResMap, namesSet);
+            BarrierVisitor visitor(resourceGraph, batchedBarriers, externalResMap, namesSet, rag.accessRecord);
             auto colors = rag.colors(scratch);
             boost::queue<AccessVertex> q;
 
