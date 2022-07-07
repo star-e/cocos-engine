@@ -2169,14 +2169,13 @@ void cmdFuncGLES3EndRenderPass(GLES3Device *device) {
             if(device->getOptions().barrierDeduce) {
                 cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers.back().glBarriers, gpuRenderPass->barriers.back().glBarriersByRegion);
             }    
+        } else {
+            if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_EXT) {
+                GL_CHECK(glFramebufferFetchBarrierEXT());
+            } else if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_QCOM) {
+                GL_CHECK(glFramebufferFetchBarrierQCOM());
+            }
         }
-
-        if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_EXT) {
-            GL_CHECK(glFramebufferFetchBarrierEXT());
-        } else if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_QCOM) {
-            GL_CHECK(glFramebufferFetchBarrierQCOM());
-        }
-
     } else {
         const auto &indices = subpass.resolves.empty() ? subpass.colors : subpass.resolves;
         for (const auto attachmentIndex : indices) {

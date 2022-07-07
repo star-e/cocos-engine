@@ -567,7 +567,7 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
             vkDependency.dstSubpass = dependency.dstSubpass;
             vkDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-            auto addStageAccessMask = [&vkDependency, &subpassExternalFilter](const auto *barrier, const GFXObject* res) {
+            auto addStageAccessMask = [&vkDependency](const auto *barrier, const GFXObject* res) {
                 VkPipelineStageFlags srcStageMask;
                 VkAccessFlags srcAccessMask;
                 VkPipelineStageFlags dstStageMask;
@@ -591,19 +591,12 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
                     &dstAccessMask,
                     &imageLayout, &hasWriteAccess);
 
-                if(std::find(subpassExternalFilter.begin(), subpassExternalFilter.end(), res) != subpassExternalFilter.end()) {
                     // offset += gpuBarrier->nextAccesses.size();
                     vkDependency.srcStageMask |= srcStageMask;
                     vkDependency.srcAccessMask |= srcAccessMask;
                     vkDependency.dstStageMask |= dstStageMask;
                     vkDependency.dstAccessMask |= dstAccessMask;
                     dependencyManager.append(vkDependency);
-                } else {
-                    for (const auto& access : gpuBarrier->nextAccesses)
-                    if (access > THSVS_END_OF_READ_ACCESS) {
-                        subpassExternalFilter.insert(res);
-                    }
-                }
             };
 
             if (dependency.generalBarrier) {
