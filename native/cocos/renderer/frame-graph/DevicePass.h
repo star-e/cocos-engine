@@ -77,7 +77,6 @@ private:
 
     void subpassBarrierFallback(gfx::RenderPassInfo& rpInfo);
 
-
     bool _enableAutoBarrier{true};
 
     ccstd::vector<Subpass> _subpasses{};

@@ -123,14 +123,17 @@ void CCVKCommandBuffer::end() {
 void CCVKCommandBuffer::beginRenderPass(RenderPass *renderPass, Framebuffer *fbo, const Rect &renderArea, const Color *colors,
                                         float depth, uint32_t stencil, CommandBuffer *const * /*secondaryCBs*/, uint32_t secondaryCBCount) {
 #if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
-    // guard against RAW hazard
-    VkMemoryBarrier vkBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-    vkBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    vkBarrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-    vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                         0, 1, &vkBarrier, 0, nullptr, 0, nullptr);
+    CCVKDevice *device = CCVKDevice::getInstance();
+    if(device->getOptions().barrierDeduce) {
+        // guard against RAW hazard
+        VkMemoryBarrier vkBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+        vkBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkBarrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0, 1, &vkBarrier, 0, nullptr, 0, nullptr);
+    }
 #endif
 
     _curGPUFBO = static_cast<CCVKFramebuffer *>(fbo)->gpuFBO();
@@ -184,7 +187,8 @@ void CCVKCommandBuffer::beginRenderPass(RenderPass *renderPass, Framebuffer *fbo
 void CCVKCommandBuffer::endRenderPass() {
     vkCmdEndRenderPass(_gpuCommandBuffer->vkCommandBuffer);
 
-    CCVKGPUDevice *gpuDevice = CCVKDevice::getInstance()->gpuDevice();
+    auto* device = CCVKDevice::getInstance();
+    CCVKGPUDevice *gpuDevice = device->gpuDevice();
     size_t colorAttachmentCount = _curGPURenderPass->colorAttachments.size();
     for (size_t i = 0U; i < colorAttachmentCount; ++i) {
         _curGPUFBO->gpuColorViews[i]->gpuTexture->currentAccessTypes = _curGPURenderPass->getBarrier(i, gpuDevice)->nextAccesses;
@@ -197,10 +201,12 @@ void CCVKCommandBuffer::endRenderPass() {
     _curGPUFBO = nullptr;
 
 #if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
-    // guard against WAR hazard
-    vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
-                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+    if(device->getOptions().barrierDeduce) {
+        // guard against WAR hazard
+        vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
+                             VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+    } 
 #endif
 }
 

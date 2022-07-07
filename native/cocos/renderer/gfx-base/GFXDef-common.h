@@ -847,6 +847,12 @@ struct DeviceCaps {
     EXPOSE_COPY_FN(DeviceCaps)
 };
 
+struct DeviceOptions {
+    // if you wanna do the barrier thing by yourself
+    // on the top of gfx layer, then set it to false.
+    bool barrierDeduce{true};
+};
+
 struct Offset {
     int32_t x{0};
     int32_t y{0};

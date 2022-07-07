@@ -48,6 +48,8 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
         _subpasses.back().barrierID = index++;
     }
 
+    _enableAutoBarrier = !gfx::Device::getInstance()->getOptions().barrierDeduce;
+
     // Important Notice:
     // here attchment index has changed.
     // _attachments is flattened previously, and it is spliced into two parts here:
