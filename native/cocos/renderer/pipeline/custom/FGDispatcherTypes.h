@@ -88,7 +88,7 @@ struct ResourceTransition {
 
 struct ResourceAccessNode {
     std::vector<AccessStatus>  attachemntStatus;
-    std::unique_ptr<ResourceAccessNode> nextSubpass{nullptr};
+    struct ResourceAccessNode* nextSubpass{nullptr};
 };
 
 struct ResourceAccessGraph {
@@ -175,6 +175,20 @@ struct ResourceAccessGraph {
     using edge_iterator   = impl::DirectedEdgeIterator<vertex_iterator, out_edge_iterator, ResourceAccessGraph>;
     using edges_size_type = uint32_t;
 
+    ResourceAccessGraph::~ResourceAccessGraph() {
+        for (auto& node : access) {
+            auto* resNode = node.nextSubpass;
+            node.nextSubpass = nullptr;
+            while(resNode) {
+                auto* oldResNode = resNode;
+                resNode = resNode->nextSubpass;
+                oldResNode->nextSubpass = nullptr;
+                delete oldResNode;
+            }
+        }
+    }
+
+
     // ContinuousContainer
     void reserve(vertices_size_type sz);
 
@@ -215,6 +229,7 @@ struct ResourceAccessGraph {
     PmrUnorderedStringMap<ccstd::pmr::string, uint32_t> resourceIndex;
     RenderGraph::vertex_descriptor                      presentPassID{0xFFFFFFFF};
     ccstd::pmr::vector<RenderGraph::vertex_descriptor>  externalPasses;
+    PmrFlatMap<uint32_t, ResourceTransition>            accessRecord;
 };
 
 struct EmptyGraph {
@@ -317,7 +332,7 @@ struct BarrierPair {
 };
 
 struct BarrierNode {
-    BarrierPair blockBarrier;
+    BarrierPair              blockBarrier;
     std::vector<BarrierPair> subpassBarriers;
 };
 

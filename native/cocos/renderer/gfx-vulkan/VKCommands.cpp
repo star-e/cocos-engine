@@ -567,7 +567,7 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
             vkDependency.dstSubpass = dependency.dstSubpass;
             vkDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-            auto addStageAccessMask = [&vkDependency](const auto *barrier, const GFXObject* res) {
+            auto addStageAccessMask = [&vkDependency](const auto *barrier) {
                 VkPipelineStageFlags srcStageMask;
                 VkAccessFlags srcAccessMask;
                 VkPipelineStageFlags dstStageMask;
@@ -600,18 +600,18 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
             };
 
             if (dependency.generalBarrier) {
-                addStageAccessMask(static_cast<CCVKGeneralBarrier *>(dependency.generalBarrier), nullptr);
+                addStageAccessMask(static_cast<CCVKGeneralBarrier *>(dependency.generalBarrier));
             }
 
             if (dependency.textureBarriers) {
                 for (size_t index = 0; index < dependency.textureBarrierCount; ++index) {
-                    addStageAccessMask(static_cast<CCVKTextureBarrier *>(dependency.textureBarriers[index]), dependency.textures[index]);
+                    addStageAccessMask(static_cast<CCVKTextureBarrier *>(dependency.textureBarriers[index]));
                 }
             }
 
             if (dependency.bufferBarriers) {
                 for (size_t index = 0; index < dependency.bufferBarrierCount; ++index) {
-                    addStageAccessMask(static_cast<CCVKBufferBarrier *>(dependency.bufferBarriers[index]), dependency.buffers[index]);
+                    addStageAccessMask(static_cast<CCVKBufferBarrier *>(dependency.bufferBarriers[index]));
                 }
             }
         }
