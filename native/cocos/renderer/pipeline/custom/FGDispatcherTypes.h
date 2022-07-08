@@ -175,7 +175,7 @@ struct ResourceAccessGraph {
     using edge_iterator   = impl::DirectedEdgeIterator<vertex_iterator, out_edge_iterator, ResourceAccessGraph>;
     using edges_size_type = uint32_t;
 
-    ResourceAccessGraph::~ResourceAccessGraph() {
+    ~ResourceAccessGraph() {
         for (auto& node : access) {
             auto* resNode = node.nextSubpass;
             node.nextSubpass = nullptr;

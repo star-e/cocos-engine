@@ -697,7 +697,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
 
             if (hasSubpass) {
                 auto &subpassBarriers = batchedBarriers[passID].subpassBarriers;
-                for (int i = subpassBarriers.size() - 1; i >= 0; --i) {
+                for (int i = static_cast<int>(subpassBarriers.size()) - 1; i >= 0; --i) {
                     auto findBarrierByResID = [resID](const Barrier &barrier) {
                         return barrier.resourceID == resID;
                     };
@@ -1389,7 +1389,7 @@ gfx::ShaderStageFlagBit getVisibilityByDescName(const LGD &lgd, uint32_t passID,
 };
 
 bool checkRasterViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, PassType passType, ResourceAccessNode &node, const RasterViewsMap &rasterViews) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
 
     for (const auto &pair : rasterViews) {
@@ -1413,7 +1413,7 @@ bool checkRasterViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, Pa
 }
 
 bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, PassType passType, ResourceAccessNode &node, const ComputeViewsMap &computeViews) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     bool dependent = false;
 
     for (const auto &pair : computeViews) {
@@ -1439,7 +1439,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
 }
 
 void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &pass) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
 
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
@@ -1451,11 +1451,10 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
     bool dependent = false;
     if (hasSubpass) {
         auto *lastNode = &node;
-        for (size_t i = 0; i < subpasses.container->size(); ++i) {
+        for(auto &subpass : (*subpasses.container)) {
             lastNode->nextSubpass = new ResourceAccessNode;
             auto *head = lastNode->nextSubpass;
 
-            const auto &subpass = (*subpasses.container)[i];
             dependent |= checkRasterViews(graphs, vertID, passID, PassType::RASTER, *head, subpass.rasterViews);
             dependent |= checkComputeViews(graphs, vertID, passID, PassType::RASTER, *head, subpass.computeViews);
 
@@ -1486,7 +1485,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
 }
 
 void processComputePass(const Graphs &graphs, uint32_t passID, const ComputePass &pass) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
@@ -1501,7 +1500,7 @@ void processComputePass(const Graphs &graphs, uint32_t passID, const ComputePass
 }
 
 void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
 
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
@@ -1551,7 +1550,7 @@ void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass
 }
 
 void processRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass &pass) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
 
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
@@ -1567,7 +1566,7 @@ void processRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePa
 }
 
 void processPresentPass(const Graphs &graphs, uint32_t passID, const PresentPass &pass) {
-    auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &[resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
 
     auto rlgVertID = add_vertex(relationGraph);
     auto vertID = add_vertex(resourceAccessGraph, passID);
