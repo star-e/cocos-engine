@@ -146,8 +146,8 @@ void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo& rpInfo) {
                 }
             }
 
-            lastBufferIndex = buffers.size();
-            lastTextureIndex = textures.size();
+            lastBufferIndex = static_cast<uint32_t>(buffers.size());
+            lastTextureIndex = static_cast<uint32_t>(textures.size());
 
             rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
                                                  index > 1 ? index - 1 : gfx::SUBPASS_EXTERNAL,

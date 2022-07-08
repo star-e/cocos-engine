@@ -1451,7 +1451,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
     bool dependent = false;
     if (hasSubpass) {
         auto *lastNode = &node;
-        for(auto &subpass : (*subpasses.container)) {
+        for(const auto &subpass : (*subpasses.container)) {
             lastNode->nextSubpass = new ResourceAccessNode;
             auto *head = lastNode->nextSubpass;
 
