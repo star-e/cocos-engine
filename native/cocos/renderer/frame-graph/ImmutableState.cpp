@@ -42,8 +42,84 @@ using gfx::ShaderStageFlags;
 using gfx::PassType;
 using gfx::AccessFlags;
 
+
+namespace {
+    enum class CommonUsage : uint32_t{
+        NONE = 0,
+        COPY_SRC = 1 << 0,
+        COPY_DST = 1 << 1,
+        ROM = 1 << 2,   // sampled or UNIFORM
+        STORAGE = 1 << 3,
+        IB_OR_CA = 1 << 4,
+        VB_OR_DS = 1 << 5,
+        INDIRECT_OR_INPUT = 1 << 6,
+    };
+    CC_ENUM_BITWISE_OPERATORS(CommonUsage);
+
+    constexpr auto IGNORE_0 = MemoryAccess::NONE;
+    constexpr auto IGNORE_1 = MemoryUsage::NONE;
+    constexpr auto IGNORE_2 = PassType::RASTER;
+    constexpr auto IGNORE_3 = ResourceType::UNKNOWN;
+    constexpr auto IGNORE_4 = ShaderStageFlags::NONE;
+    constexpr auto IGNORE_5 = CommonUsage::NONE;
+    
+    struct AccessKey {
+        MemoryAccess memAccess{IGNORE_0};
+        MemoryUsage memUsage{IGNORE_1};
+        PassType passType{IGNORE_2};
+        ResourceType resourceType{IGNORE_3};
+        ShaderStageFlags shaderStage{IGNORE_4};
+        CommonUsage usage{IGNORE_5};
+    };
+
+    const ccstd::unordered_map<AccessKey, AccessFlags> ACCESS_MAP = {
+        {{}, AccessFlags::NONE},
+        
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::BUFFER, IGNORE_4, CommonUsage::INDIRECT_OR_INPUT}, AccessFlags::INDIRECT_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, IGNORE_4, CommonUsage::IB_OR_CA}, AccessFlags::INDEX_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, IGNORE_4, CommonUsage::VB_OR_DS}, AccessFlags::VERTEX_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, ShaderStageFlags::VERTEX, CommonUsage::ROM}, AccessFlags::VERTEX_SHADER_READ_UNIFORM_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::VERTEX, CommonUsage::ROM}, AccessFlags::VERTEX_SHADER_READ_TEXTURE},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::VERTEX, IGNORE_5}, AccessFlags::VERTEX_SHADER_READ_OTHER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, ShaderStageFlags::FRAGMENT, CommonUsage::ROM}, AccessFlags::FRAGMENT_SHADER_READ_UNIFORM_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::ROM}, AccessFlags::FRAGMENT_SHADER_READ_TEXTURE},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::INDIRECT_OR_INPUT | CommonUsage::IB_OR_CA}, AccessFlags::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::INDIRECT_OR_INPUT | CommonUsage::VB_OR_DS}, AccessFlags::FRAGMENT_SHADER_READ_DEPTH_STENCIL_INPUT_ATTACHMENT},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::FRAGMENT, IGNORE_5}, AccessFlags::FRAGMENT_SHADER_READ_OTHER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::IB_OR_CA}, AccessFlags::COLOR_ATTACHMENT_READ},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::VB_OR_DS}, AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::BUFFER, IGNORE_4, CommonUsage::ROM}, AccessFlags::COMPUTE_SHADER_READ_UNIFORM_BUFFER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::TEXTURE, IGNORE_4, CommonUsage::ROM}, AccessFlags::COMPUTE_SHADER_READ_TEXTURE},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::COMPUTE_SHADER_READ_OTHER},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::COPY, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::TRANSFER_READ},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::HOST, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::HOST_READ},
+        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::PRESENT, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::PRESENT},
+
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::VERTEX, IGNORE_5}, AccessFlags::VERTEX_SHADER_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::FRAGMENT, IGNORE_5}, AccessFlags::FRAGMENT_SHADER_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::IB_OR_CA}, AccessFlags::COLOR_ATTACHMENT_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::VB_OR_DS}, AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::COMPUTE_SHADER_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::COPY, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::TRANSFER_WRITE},
+        {{MemoryAccess::WRITE_ONLY, MemoryUsage::HOST, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::HOST_WRITE},
+    };
+
+}  // namespace
+
 std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const DevicePassResourceTable* dictPtr) noexcept {
+
+
     std::pair<gfx::GFXObject*, gfx::GFXObject*> res;
+
+    auto extract = [&](const AccessStatus& status, ccstd::vector<AccessKey>& keys) {
+        if(!status.access) {
+            keys.emplace_back();
+        }
+
+        if(hasFlag(status.access, MemoryAccess::READ_ONLY)) {
+            keys.emplace_back(AccessKey{MemoryAccess::READ_ONLY});
+        }
+    };
 
     const auto& dict = *dictPtr;
     if(barrierInfo.resourceType == ResourceType::BUFFER) {

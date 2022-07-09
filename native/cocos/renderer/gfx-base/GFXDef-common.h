@@ -848,8 +848,9 @@ struct DeviceCaps {
 };
 
 struct DeviceOptions {
+    // whether deduce barrier in gfx internally.
     // if you wanna do the barrier thing by yourself
-    // on the top of gfx layer, then set it to false.
+    // on the top of gfx layer, set it to false.
     bool barrierDeduce{true};
 };
 
