@@ -463,8 +463,6 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
                                       const framegraph::DevicePassResourceTable &table) {
                 };
 
-                CC_LOG_INFO("%d", passID);
-
                 auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
                 framegraph.addPass<TestRenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
             },

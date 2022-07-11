@@ -25,104 +25,209 @@
 ****************************************************************************/
 
 #include "ImmutableState.h"
-#include <tuple>
+#include <vector>
+#include "DevicePassResourceTable.h"
 #include "gfx-base/GFXDef-common.h"
 #include "pipeline/custom/GslUtils.h"
-#include "DevicePassResourceTable.h"
 
 namespace cc {
 namespace framegraph {
 
-using gfx::hasFlag;
-using gfx::BufferUsage;
-using gfx::TextureUsage;
-using gfx::MemoryUsage;
-using gfx::MemoryAccess;
-using gfx::ShaderStageFlags;
-using gfx::PassType;
 using gfx::AccessFlags;
-
+using gfx::BufferUsage;
+using gfx::hasFlag;
+using gfx::MemoryAccess;
+using gfx::MemoryUsage;
+using gfx::PassType;
+using gfx::ShaderStageFlags;
+using gfx::TextureUsage;
 
 namespace {
-    enum class CommonUsage : uint32_t{
-        NONE = 0,
-        COPY_SRC = 1 << 0,
-        COPY_DST = 1 << 1,
-        ROM = 1 << 2,   // sampled or UNIFORM
-        STORAGE = 1 << 3,
-        IB_OR_CA = 1 << 4,
-        VB_OR_DS = 1 << 5,
-        INDIRECT_OR_INPUT = 1 << 6,
-    };
-    CC_ENUM_BITWISE_OPERATORS(CommonUsage);
+enum class CommonUsage : uint32_t {
+    NONE = 0,
+    COPY_SRC = 1 << 0,
+    COPY_DST = 1 << 1,
+    ROM = 1 << 2, // sampled or UNIFORM
+    STORAGE = 1 << 3,
+    IB_OR_CA = 1 << 4,
+    VB_OR_DS = 1 << 5,
+    INDIRECT_OR_INPUT = 1 << 6,
+};
+CC_ENUM_BITWISE_OPERATORS(CommonUsage);
 
-    constexpr auto IGNORE_0 = MemoryAccess::NONE;
-    constexpr auto IGNORE_1 = MemoryUsage::NONE;
-    constexpr auto IGNORE_2 = PassType::RASTER;
-    constexpr auto IGNORE_3 = ResourceType::UNKNOWN;
-    constexpr auto IGNORE_4 = ShaderStageFlags::NONE;
-    constexpr auto IGNORE_5 = CommonUsage::NONE;
-    
-    struct AccessKey {
-        MemoryAccess memAccess{IGNORE_0};
-        MemoryUsage memUsage{IGNORE_1};
-        PassType passType{IGNORE_2};
-        ResourceType resourceType{IGNORE_3};
-        ShaderStageFlags shaderStage{IGNORE_4};
-        CommonUsage usage{IGNORE_5};
-    };
+struct AccessElem {
+    uint32_t mask{0xFFFFFFFF};
+    uint32_t key{0xFFFFFFFF};
+    AccessFlags access{AccessFlags::NONE};
+};
 
-    const ccstd::unordered_map<AccessKey, AccessFlags> ACCESS_MAP = {
-        {{}, AccessFlags::NONE},
-        
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::BUFFER, IGNORE_4, CommonUsage::INDIRECT_OR_INPUT}, AccessFlags::INDIRECT_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, IGNORE_4, CommonUsage::IB_OR_CA}, AccessFlags::INDEX_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, IGNORE_4, CommonUsage::VB_OR_DS}, AccessFlags::VERTEX_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, ShaderStageFlags::VERTEX, CommonUsage::ROM}, AccessFlags::VERTEX_SHADER_READ_UNIFORM_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::VERTEX, CommonUsage::ROM}, AccessFlags::VERTEX_SHADER_READ_TEXTURE},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::VERTEX, IGNORE_5}, AccessFlags::VERTEX_SHADER_READ_OTHER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::BUFFER, ShaderStageFlags::FRAGMENT, CommonUsage::ROM}, AccessFlags::FRAGMENT_SHADER_READ_UNIFORM_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::ROM}, AccessFlags::FRAGMENT_SHADER_READ_TEXTURE},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::INDIRECT_OR_INPUT | CommonUsage::IB_OR_CA}, AccessFlags::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::INDIRECT_OR_INPUT | CommonUsage::VB_OR_DS}, AccessFlags::FRAGMENT_SHADER_READ_DEPTH_STENCIL_INPUT_ATTACHMENT},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::FRAGMENT, IGNORE_5}, AccessFlags::FRAGMENT_SHADER_READ_OTHER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::IB_OR_CA}, AccessFlags::COLOR_ATTACHMENT_READ},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::VB_OR_DS}, AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::BUFFER, IGNORE_4, CommonUsage::ROM}, AccessFlags::COMPUTE_SHADER_READ_UNIFORM_BUFFER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, ResourceType::TEXTURE, IGNORE_4, CommonUsage::ROM}, AccessFlags::COMPUTE_SHADER_READ_TEXTURE},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::COMPUTE_SHADER_READ_OTHER},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::COPY, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::TRANSFER_READ},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::HOST, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::HOST_READ},
-        {{MemoryAccess::READ_ONLY, MemoryUsage::DEVICE, PassType::PRESENT, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::PRESENT},
+// 23 and above :reserved
+// 21 ~ 22: MemoryAccess
+// 19 ~ 20: MemoryUsage
+// 13 ~ 18: PassType
+// 11 ~ 12: ResourceType
+// 9 ~ 10: ShaderStageFlags
+// 0 ~ 8: CommonUsage
+constexpr uint32_t IGNORE_MEMACCESS = 0b0011111111111111111111;
+constexpr uint32_t IGNORE_MEMUSAGE = 0b1100111111111111111111;
+constexpr uint32_t IGNORE_PASSTYPE = 0b1111000000111111111111;
+constexpr uint32_t IGNORE_RESTYPE = 0b1111111111001111111111;
+constexpr uint32_t IGNORE_SHADERSTAGE = 0b1111111111110011111111;
+constexpr uint32_t IGNORE_CMNUSAGE = 0b1111111111111100000000;
+constexpr uint32_t IGNORE_NONE = 0xFFFFFFFF;
 
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::VERTEX, IGNORE_5}, AccessFlags::VERTEX_SHADER_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, IGNORE_3, ShaderStageFlags::FRAGMENT, IGNORE_5}, AccessFlags::FRAGMENT_SHADER_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::IB_OR_CA}, AccessFlags::COLOR_ATTACHMENT_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::RASTER, ResourceType::TEXTURE, ShaderStageFlags::FRAGMENT, CommonUsage::VB_OR_DS}, AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::COMPUTE_SHADER_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::DEVICE, PassType::COPY, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::TRANSFER_WRITE},
-        {{MemoryAccess::WRITE_ONLY, MemoryUsage::HOST, IGNORE_2, IGNORE_3, IGNORE_4, IGNORE_5}, AccessFlags::HOST_WRITE},
-    };
+constexpr uint32_t CARE_MEMACCESS = ~IGNORE_MEMACCESS;
+constexpr uint32_t CARE_MEMUSAGE = ~IGNORE_MEMUSAGE;
+constexpr uint32_t CARE_PASSTYPE = ~IGNORE_PASSTYPE;
+constexpr uint32_t CARE_RESTYPE = ~IGNORE_RESTYPE;
+constexpr uint32_t CARE_SHADERSTAGE = ~IGNORE_SHADERSTAGE;
+constexpr uint32_t CARE_CMNUSAGE = ~IGNORE_CMNUSAGE;
+constexpr uint32_t CARE_NONE = ~IGNORE_NONE;
 
-}  // namespace
+#define OPERABLE(val) static_cast<std::underlying_type<decltype(val)>::type>(val)
+
+constexpr auto ACCESS_READ = OPERABLE(MemoryAccess::READ_ONLY) << 20;
+constexpr auto ACCESS_WRITE = OPERABLE(MemoryAccess::WRITE_ONLY) << 20;
+constexpr auto MEM_DEVICE = OPERABLE(MemoryUsage::DEVICE) << 18;
+constexpr auto MEM_HOST = OPERABLE(MemoryUsage::HOST) << 18;
+constexpr auto PASS_RASTER = 1 << (OPERABLE(PassType::RASTER) + 12);
+constexpr auto PASS_COMPUTE = 1 << (OPERABLE(PassType::COMPUTE) + 12);
+constexpr auto PASS_COPY = 1 << (OPERABLE(PassType::COPY) + 12);
+constexpr auto PASS_MOVE = 1 << (OPERABLE(PassType::MOVE) + 12);
+constexpr auto PASS_RAYTRACE = 1 << (OPERABLE(PassType::RAYTRACE) + 12);
+constexpr auto PASS_PRESENT = 1 << (OPERABLE(PassType::PRESENT) + 12);
+constexpr auto RES_BUFFER = 1 << (OPERABLE(ResourceType::BUFFER) + 10);
+constexpr auto RES_TEXTURE = 1 << (OPERABLE(ResourceType::TEXTURE) + 10);
+constexpr auto SHADERSTAGE_VERT = 1 << 8;
+constexpr auto SHADERSTAGE_FRAG = 1 << 9;
+constexpr auto CMN_COPY_SRC = OPERABLE(CommonUsage::COPY_SRC);
+constexpr auto CMN_COPY_DST = OPERABLE(CommonUsage::COPY_DST);
+constexpr auto CMN_ROM = OPERABLE(CommonUsage::ROM);
+constexpr auto CMN_STORAGE = OPERABLE(CommonUsage::STORAGE);
+constexpr auto CMN_IB_OR_CA = OPERABLE(CommonUsage::IB_OR_CA);
+constexpr auto CMN_VB_OR_DS = OPERABLE(CommonUsage::VB_OR_DS);
+constexpr auto CMN_INDIRECT_OR_INPUT = OPERABLE(CommonUsage::INDIRECT_OR_INPUT);
+
+std::vector<AccessElem> AccessMap = {
+    {CARE_MEMACCESS,
+     0x0,
+     AccessFlags::NONE},
+
+    {CARE_MEMUSAGE,
+     0x0,
+     AccessFlags::NONE},
+
+    {IGNORE_PASSTYPE & IGNORE_SHADERSTAGE,
+     ACCESS_READ | MEM_DEVICE | RES_BUFFER | CMN_INDIRECT_OR_INPUT,
+     AccessFlags::INDIRECT_BUFFER},
+
+    {IGNORE_SHADERSTAGE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_BUFFER | CMN_IB_OR_CA,
+     AccessFlags::INDEX_BUFFER}, // buffer usage indicates what it is, so shader stage ignored.
+
+    {IGNORE_SHADERSTAGE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_BUFFER | CMN_VB_OR_DS,
+     AccessFlags::VERTEX_BUFFER}, // ditto
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_BUFFER | SHADERSTAGE_VERT | CMN_ROM,
+     AccessFlags::VERTEX_SHADER_READ_UNIFORM_BUFFER},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_VERT | CMN_ROM,
+     AccessFlags::VERTEX_SHADER_READ_TEXTURE},
+
+    {IGNORE_RESTYPE & IGNORE_CMNUSAGE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | SHADERSTAGE_VERT,
+     AccessFlags::VERTEX_SHADER_READ_OTHER},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_BUFFER | SHADERSTAGE_FRAG | CMN_ROM,
+     AccessFlags::FRAGMENT_SHADER_READ_UNIFORM_BUFFER},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_ROM,
+     AccessFlags::FRAGMENT_SHADER_READ_TEXTURE},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_IB_OR_CA | CMN_INDIRECT_OR_INPUT,
+     AccessFlags::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_VB_OR_DS | CMN_INDIRECT_OR_INPUT,
+     AccessFlags::FRAGMENT_SHADER_READ_DEPTH_STENCIL_INPUT_ATTACHMENT},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | SHADERSTAGE_FRAG,
+     AccessFlags::FRAGMENT_SHADER_READ_OTHER},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_IB_OR_CA,
+     AccessFlags::COLOR_ATTACHMENT_READ},
+
+    {IGNORE_NONE,
+     ACCESS_READ | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_VB_OR_DS,
+     AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ},
+
+    {IGNORE_PASSTYPE & IGNORE_SHADERSTAGE,
+     ACCESS_READ | MEM_DEVICE | RES_BUFFER | CMN_ROM,
+     AccessFlags::COMPUTE_SHADER_READ_UNIFORM_BUFFER},
+
+    {IGNORE_PASSTYPE & IGNORE_SHADERSTAGE,
+     ACCESS_READ | MEM_DEVICE | RES_TEXTURE | CMN_ROM,
+     AccessFlags::COMPUTE_SHADER_READ_TEXTURE},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE,
+     ACCESS_READ | MEM_DEVICE,
+     AccessFlags::COMPUTE_SHADER_READ_OTHER},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE | CARE_PASSTYPE,
+     ACCESS_READ | MEM_DEVICE | PASS_COMPUTE,
+     AccessFlags::TRANSFER_READ},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE,
+     ACCESS_READ | MEM_HOST,
+     AccessFlags::HOST_READ},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE | CARE_PASSTYPE,
+     ACCESS_READ | MEM_DEVICE | PASS_PRESENT,
+     AccessFlags::PRESENT},
+
+    {IGNORE_RESTYPE & IGNORE_CMNUSAGE,
+     ACCESS_WRITE | MEM_DEVICE | PASS_RASTER | SHADERSTAGE_VERT,
+     AccessFlags::VERTEX_SHADER_WRITE},
+
+    {IGNORE_RESTYPE & IGNORE_CMNUSAGE,
+     ACCESS_WRITE | MEM_DEVICE | PASS_RASTER | SHADERSTAGE_FRAG,
+     AccessFlags::FRAGMENT_SHADER_WRITE},
+
+    {IGNORE_NONE,
+     ACCESS_WRITE | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_IB_OR_CA,
+     AccessFlags::COLOR_ATTACHMENT_WRITE},
+
+    {IGNORE_NONE,
+     ACCESS_WRITE | MEM_DEVICE | PASS_RASTER | RES_TEXTURE | SHADERSTAGE_FRAG | CMN_VB_OR_DS,
+     AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE,
+     ACCESS_WRITE | MEM_DEVICE,
+     AccessFlags::COMPUTE_SHADER_WRITE},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE | CARE_PASSTYPE,
+     ACCESS_WRITE | MEM_DEVICE | PASS_COPY,
+     AccessFlags::TRANSFER_WRITE},
+
+    {CARE_MEMACCESS | CARE_MEMUSAGE,
+     ACCESS_WRITE | MEM_HOST,
+     AccessFlags::HOST_WRITE},
+};
+} // namespace
 
 std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& barrierInfo, const DevicePassResourceTable* dictPtr) noexcept {
-
-
     std::pair<gfx::GFXObject*, gfx::GFXObject*> res;
 
-    auto extract = [&](const AccessStatus& status, ccstd::vector<AccessKey>& keys) {
-        if(!status.access) {
-            keys.emplace_back();
-        }
-
-        if(hasFlag(status.access, MemoryAccess::READ_ONLY)) {
-            keys.emplace_back(AccessKey{MemoryAccess::READ_ONLY});
-        }
-    };
-
     const auto& dict = *dictPtr;
-    if(barrierInfo.resourceType == ResourceType::BUFFER) {
+    if (barrierInfo.resourceType == ResourceType::BUFFER) {
         gfx::Buffer* gfxBuffer{nullptr};
         if (hasFlag(barrierInfo.endStatus.access, MemoryAccess::WRITE_ONLY)) {
             gfxBuffer = dict.getWrite(static_cast<BufferHandle>(barrierInfo.handle));
@@ -135,70 +240,32 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
             auto usage = gfxBuffer->getUsage();
             auto memUsage = gfxBuffer->getMemUsage();
 
+            uint32_t info = 0xFFFFFFFF;
+            info &= (OPERABLE(status.access) << 20 | IGNORE_MEMACCESS);
+            info &= (OPERABLE(memUsage) << 18 | IGNORE_MEMUSAGE);
+            info &= (1 << (OPERABLE(status.passType) + 12) | IGNORE_PASSTYPE);
+            info &= (1 << (OPERABLE(ResourceType::BUFFER) + 10) | IGNORE_RESTYPE);
+            switch (status.visibility) {
+                case ShaderStageFlags::NONE:
+                    info &= IGNORE_SHADERSTAGE;
+                    break;
+                case ShaderStageFlags::VERTEX:
+                    info &= ((1 << 8) | IGNORE_SHADERSTAGE);
+                    break;
+                case ShaderStageFlags::FRAGMENT:
+                    info &= ((1 << 9) | IGNORE_SHADERSTAGE);
+                    break;
+                default:
+                    info |= ((0b11 << 8) | IGNORE_SHADERSTAGE);
+            }
+            info &= OPERABLE(usage);
+
             AccessFlags flags{AccessFlags::NONE};
-            if(hasFlag(usage, BufferUsage::INDIRECT)) {
-                flags |= AccessFlags::INDIRECT_BUFFER;
-            }
-            if(hasFlag(usage, BufferUsage::INDEX)) {
-                flags |= AccessFlags::INDEX_BUFFER;
-            }
-            if(hasFlag(usage, BufferUsage::VERTEX)) {
-                flags |= AccessFlags::VERTEX_BUFFER;
-            }
-
-            if(memUsage == MemoryUsage::HOST) {
-                if(hasFlag(status.access, MemoryAccess::READ_ONLY)) {
-                    flags |= AccessFlags::HOST_READ;
-                }
-                if(hasFlag(status.access, MemoryAccess::WRITE_ONLY)) {
-                    flags |= AccessFlags::HOST_WRITE;
-                }
-            } 
-
-            if(hasFlag(status.access, MemoryAccess::READ_ONLY)) {
-                if(status.passType == PassType::RASTER) {
-                    if(hasFlag(status.visibility, ShaderStageFlags::VERTEX)) {
-                        if(hasFlag(usage, BufferUsage::UNIFORM)) {
-                            flags |= AccessFlags::VERTEX_SHADER_READ_UNIFORM_BUFFER;
-                        } else {
-                            flags |= AccessFlags::VERTEX_SHADER_READ_OTHER;
-                        }
-                    } 
-                    if(hasFlag(status.visibility, ShaderStageFlags::FRAGMENT)){
-                        if(hasFlag(usage, BufferUsage::UNIFORM)) {
-                            flags |= AccessFlags::FRAGMENT_SHADER_READ_UNIFORM_BUFFER;
-                        } else {
-                            flags |= AccessFlags::FRAGMENT_SHADER_READ_OTHER;
-                        }
-                    }
-                } else if(status.passType == PassType::COMPUTE) {
-                    if(hasFlag(usage, BufferUsage::UNIFORM)) {
-                        flags |= AccessFlags::COMPUTE_SHADER_READ_UNIFORM_BUFFER;
-                    } else {
-                        flags |= AccessFlags::COMPUTE_SHADER_READ_OTHER;
-                    }
-                } else if(status.passType == PassType::COPY) {
-                    flags |= AccessFlags::TRANSFER_READ;
-                } else if(status.passType == PassType::RAYTRACE){
-                    if(hasFlag(usage, BufferUsage::UNIFORM)) {
-                        flags |= AccessFlags::COMPUTE_SHADER_READ_TEXTURE;
-                    } else {
-                        flags |= AccessFlags::COMPUTE_SHADER_READ_OTHER;
-                    }
-                }
-            }
-            if(hasFlag(status.access, MemoryAccess::WRITE_ONLY)) {
-                if(status.passType == PassType::RASTER) {
-                    if(hasFlag(status.visibility, ShaderStageFlags::VERTEX)) {
-                        flags |= AccessFlags::VERTEX_SHADER_WRITE;
-                    }
-                    if(hasFlag(status.visibility, ShaderStageFlags::FRAGMENT)) {
-                        flags |= AccessFlags::FRAGMENT_SHADER_WRITE;
-                    }
-                } else if(status.passType == PassType::COPY) {
-                    flags |= AccessFlags::TRANSFER_WRITE;
-                } else if(status.passType == PassType::COMPUTE || status.passType == PassType::RAYTRACE){
-                    flags |= AccessFlags::COMPUTE_SHADER_WRITE;
+            for (const auto& elem : AccessMap) {
+                auto testFlag = info & elem.mask;
+                //hasKey
+                if ((testFlag & elem.key) == elem.key) {
+                    flags |= elem.access;
                 }
             }
             return flags;
@@ -212,7 +279,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
 
         res.first = gfx::Device::getInstance()->getBufferBarrier(info);
         res.second = gfxBuffer;
-    } else if(barrierInfo.resourceType == ResourceType::TEXTURE) {
+    } else if (barrierInfo.resourceType == ResourceType::TEXTURE) {
         gfx::Texture* gfxTexture{nullptr};
         if (hasFlag(barrierInfo.beginStatus.access, MemoryAccess::WRITE_ONLY)) {
             gfxTexture = dict.getWrite(static_cast<TextureHandle>(barrierInfo.handle));
@@ -224,68 +291,32 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
         auto getGFXAccess = [&gfxTexture](const AccessStatus& status) {
             auto usage = gfxTexture->getInfo().usage;
 
-            AccessFlags flags{AccessFlags::NONE};
-            if(hasFlag(status.access, MemoryAccess::READ_ONLY)) {
-                if(status.passType == PassType::RASTER) {
-                    if(hasFlag(status.visibility, ShaderStageFlags::VERTEX)) {
-                        if(hasFlag(usage, TextureUsage::SAMPLED)) {
-                            flags |= AccessFlags::VERTEX_SHADER_READ_TEXTURE;
-                        } else {
-                            flags |= AccessFlags::VERTEX_SHADER_READ_OTHER;
-                        }
-                    } 
-                    if(hasFlag(status.visibility, ShaderStageFlags::FRAGMENT)){
-                        if(hasFlag(usage, TextureUsage::COLOR_ATTACHMENT)) {
-                            if(hasFlag(usage, TextureUsage::INPUT_ATTACHMENT)) {
-                                flags |= AccessFlags::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT;
-                            } else {
-                                flags |= AccessFlags::COLOR_ATTACHMENT_READ;
-                            }
-                        } else if(hasFlag(usage, TextureUsage::DEPTH_STENCIL_ATTACHMENT)) {
-                            if(hasFlag(usage, TextureUsage::INPUT_ATTACHMENT)) {
-                                flags |= AccessFlags::FRAGMENT_SHADER_READ_DEPTH_STENCIL_INPUT_ATTACHMENT;
-                            } else {
-                                flags |= AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ;
-                            }
-                        }
-                    }
-                }
-            } else if(status.passType == PassType::COMPUTE) {
-                if(hasFlag(usage, TextureUsage::SAMPLED)) {
-                    flags |= AccessFlags::COMPUTE_SHADER_READ_TEXTURE;
-                } else {
-                    flags |= AccessFlags::COMPUTE_SHADER_READ_OTHER;
-                }
-            } else if(status.passType == PassType::COPY) {
-                flags |= AccessFlags::TRANSFER_READ;
-            } else if(status.passType == PassType::RAYTRACE){
-                if(hasFlag(usage, TextureUsage::SAMPLED)) {
-                    flags |= AccessFlags::COMPUTE_SHADER_READ_TEXTURE;
-                } else {
-                    flags |= AccessFlags::COMPUTE_SHADER_READ_OTHER;
-                }
+            uint32_t info = 0xFFFFFFFF;
+            info &= (OPERABLE(status.access) << 20 | IGNORE_MEMACCESS);
+            info &= MEM_DEVICE;
+            info &= (1 << (OPERABLE(status.passType) + 12) | IGNORE_PASSTYPE);
+            info &= (1 << (OPERABLE(ResourceType::BUFFER) + 10) | IGNORE_RESTYPE);
+            switch (status.visibility) {
+                case ShaderStageFlags::NONE:
+                    info &= IGNORE_SHADERSTAGE;
+                    break;
+                case ShaderStageFlags::VERTEX:
+                    info &= ((1 << 8) | IGNORE_SHADERSTAGE);
+                    break;
+                case ShaderStageFlags::FRAGMENT:
+                    info &= ((1 << 9) | IGNORE_SHADERSTAGE);
+                    break;
+                default:
+                    info |= ((0b11 << 8) | IGNORE_SHADERSTAGE);
             }
+            info &= OPERABLE(usage);
 
-            if(hasFlag(status.access, MemoryAccess::WRITE_ONLY)) {
-                if(status.passType == PassType::RASTER) {
-                    if(hasFlag(status.visibility, ShaderStageFlags::VERTEX)) {
-                        flags |= AccessFlags::VERTEX_SHADER_WRITE;
-                    }
-                    if(hasFlag(status.visibility, ShaderStageFlags::FRAGMENT)) {
-                        if(hasFlag(usage, TextureUsage::COLOR_ATTACHMENT)) {
-                            flags |= AccessFlags::COLOR_ATTACHMENT_WRITE;
-                        } else if(hasFlag(usage, TextureUsage::DEPTH_STENCIL_ATTACHMENT)) {
-                            flags |= AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE;
-                        } else {
-                            flags |= AccessFlags::FRAGMENT_SHADER_WRITE;
-                        }
-                    }
-                } else if(status.passType == PassType::COPY) {
-                    flags |= AccessFlags::TRANSFER_WRITE;
-                } else if(status.passType == PassType::COMPUTE || status.passType == PassType::RAYTRACE){
-                    flags |= AccessFlags::COMPUTE_SHADER_WRITE;
-                } else if (status.passType == PassType::PRESENT) {
-                    flags |= AccessFlags::PRESENT;
+            AccessFlags flags{AccessFlags::NONE};
+            for (const auto& elem : AccessMap) {
+                auto testFlag = info & elem.mask;
+                //hasKey
+                if ((testFlag & elem.key) == elem.key) {
+                    flags |= elem.access;
                 }
             }
             return flags;
@@ -300,7 +331,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
         info.sliceCount = static_cast<uint32_t>(barrierInfo.layerRange.len);
 
         res.first = gfx::Device::getInstance()->getTextureBarrier(info);
-        res.second = gfxTexture;       
+        res.second = gfxTexture;
     }
 
     return res;
