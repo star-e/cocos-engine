@@ -37,10 +37,10 @@
 #include "../RenderGraphGraphs.h"
 #include "../RenderGraphTypes.h"
 #include "GFXDeviceManager.h"
+#include "cocos/base/std/container/vector.h"
 #include "frame-graph/FrameGraph.h"
 #include "gfx-base/GFXDef-common.h"
 #include "gfx-base/GFXDevice.h"
-#include "cocos/base/std/container/vector.h"
 
 namespace cc {
 
@@ -205,22 +205,20 @@ static void fillTestGraph(const ViewInfo &rasterData, const ResourceInfo &rescIn
                 const auto vertexID = add_vertex(renderGraph, CopyTag{}, name.c_str());
                 assert(subpasses.back().size() == 2); // inputs and outputs
                 auto &copyPass = get(CopyTag{}, vertexID, renderGraph);
-                const auto& inputsAndOutputs = subpasses.back();
-                const auto& inputs = inputsAndOutputs.front();
-                const auto& outputs = inputsAndOutputs.back();
+                const auto &inputsAndOutputs = subpasses.back();
+                const auto &inputs = inputsAndOutputs.front();
+                const auto &outputs = inputsAndOutputs.back();
                 copyPass.copyPairs.emplace_back(CopyPair{
-                                                    inputs.front().c_str(),
-                                                    outputs.front().c_str(),
-                                                    1,
-                                                    1,
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    0
-                                                });
-
+                    inputs.front().c_str(),
+                    outputs.front().c_str(),
+                    1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0});
 
                 break;
             }
@@ -435,7 +433,7 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
     for (const auto passID : makeRange(vertices(renderGraph))) {
         visitObject(
             passID, renderGraph,
-            [&, passID](const RasterPass &pass) {
+            [&](const RasterPass &pass) {
                 // TestRenderData tmpData;
                 const auto &subpasses = get(SubpassGraph::Subpass, pass.subpassGraph);
                 uint32_t count = 0;
@@ -453,10 +451,66 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
                     addPassToFrameGraph(info);
                     ++count;
                 };
+                if ((*subpasses.container).empty()) {
+                    FrameGraphPassInfo info = {
+                        framegraph,
+                        renderGraph,
+                        resourceGraph,
+                        pass.rasterViews,
+                        pass.computeViews,
+                        fgDispatcher.getBarriers(),
+                        passID,
+                        false,
+                        false};
+                    addPassToFrameGraph(info);
+                    ++count;
+                }
             },
-            [&](const ComputePass &pass) {},
+            [&](const ComputePass &pass) {
+                // TestRenderData tmpData;
+                FrameGraphPassInfo info = {
+                    framegraph,
+                    renderGraph,
+                    resourceGraph,
+                    {},
+                    pass.computeViews,
+                    fgDispatcher.getBarriers(),
+                    passID,
+                    false,
+                    false};
+                addPassToFrameGraph(info);
+            },
             [&](const CopyPass &pass) {
-                auto forwardSetup = [](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
+                auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
+                    for (const auto &pair : pass.copyPairs) {
+                        for (size_t i = 0; i < 2; ++i) {
+                            bool write = (i % 2 == 0);
+                            const auto handle = framegraph::FrameGraph::stringToHandle(write ? pair.target.c_str() : pair.source.c_str());
+                            auto typedHandle = builder.readFromBlackboard(handle);
+                            data.outputTexes.emplace_back();
+                            auto &lastTex = data.outputTexes.back();
+                            framegraph::Texture::Descriptor colorTexInfo;
+                            colorTexInfo.format = gfx::Format::RGBA8;
+                            colorTexInfo.usage = write ? gfx::TextureUsage::TRANSFER_DST : gfx::TextureUsage::TRANSFER_SRC;
+
+                            lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+
+                            if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                                colorTexInfo.width = 960;
+                                colorTexInfo.height = 640;
+
+                                lastTex.second = builder.create(handle, colorTexInfo);
+                            }
+
+                            if (write) {
+                                lastTex.second = builder.write(lastTex.second);
+                                builder.writeToBlackboard(handle, lastTex.second);
+                            } else {
+                                auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                                builder.writeToBlackboard(handle, res);
+                            }
+                        }
+                    }
                 };
 
                 auto forwardExec = [](const TestRenderData &data,
@@ -468,59 +522,45 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
             },
             [&](const RaytracePass &pass) {},
             [&](const PresentPass &pass) {
-                // auto iter = pass.presents.end();
-                // std::advance(iter, -1);
-                // auto presentHandle = (*iter).first;
+                auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
+                    for (const auto &pair : pass.presents) {
+                        auto *externalRes = gfx::Device::getInstance()->createTexture(gfx::TextureInfo{
+                            gfx::TextureType::TEX2D,
+                            gfx::TextureUsageBit::COLOR_ATTACHMENT,
+                            gfx::Format::RGBA8,
+                            960,
+                            640,
+                        });
 
-                // auto forwardSetup = [&](framegraph::PassNodeBuilder &builder, TestRenderData &data) {
-                //     const auto handle = framegraph::FrameGraph::stringToHandle(presentHandle.c_str());
-                //     auto typedHandle = builder.readFromBlackboard(handle);
-                //     data.outputTexes.push_back({});
-                //     auto &lastTex = data.outputTexes.back();
-                //     framegraph::Texture::Descriptor colorTexInfo;
-                //     colorTexInfo.format = gfx::Format::RGBA8;
+                        const auto handle = framegraph::FrameGraph::stringToHandle(pair.first.c_str());
+                        auto typedHandle = builder.readFromBlackboard(handle);
+                        data.outputTexes.emplace_back();
+                        auto &lastTex = data.outputTexes.back();
+                        framegraph::Texture::Descriptor colorTexInfo;
+                        colorTexInfo.format = gfx::Format::RGBA8;
+                        colorTexInfo.usage = gfx::TextureUsage::SAMPLED;
 
-                //    // if (rasterView.second.accessType == AccessType::READ) {
-                //    colorTexInfo.usage = gfx::TextureUsage::INPUT_ATTACHMENT | gfx::TextureUsage::COLOR_ATTACHMENT;
-                //    //}
-                //    lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
+                        lastTex.second = static_cast<framegraph::TextureHandle>(typedHandle);
 
-                //    framegraph::RenderTargetAttachment::Descriptor colorAttachmentInfo;
-                //    colorAttachmentInfo.usage = framegraph::RenderTargetAttachment::Usage::COLOR;
-                //    colorAttachmentInfo.clearColor = {0.2, 0.2, 0.2, 1.0};
-                //    if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
-                //        colorTexInfo.width = 960;
-                //        colorTexInfo.height = 640;
+                        if (framegraph::Handle::IndexType(typedHandle) == framegraph::Handle::UNINITIALIZED) {
+                            colorTexInfo.width = 960;
+                            colorTexInfo.height = 640;
 
-                //        lastTex.second = builder.create(handle, colorTexInfo);
-                //        colorAttachmentInfo.loadOp = gfx::LoadOp::CLEAR;
-                //    } else {
-                //        colorAttachmentInfo.loadOp = gfx::LoadOp::LOAD;
-                //    }
+                            lastTex.second = builder.create(handle, colorTexInfo);
+                        }
 
-                //    lastTex.second = builder.write(lastTex.second, colorAttachmentInfo);
-                //    builder.writeToBlackboard(handle, lastTex.second);
-                //    builder.read(lastTex.second);
-                //    colorAttachmentInfo.beginAccesses = colorAttachmentInfo.endAccesses = gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
-                //};
+                        auto res = builder.read(framegraph::TextureHandle(builder.readFromBlackboard(handle)));
+                        builder.writeToBlackboard(handle, res);
 
-                // auto forwardExec = [](const RenderData &data,
-                //                       const framegraph::DevicePassResourceTable &table) {
-                // };
+                        framegraph.presentFromBlackboard(framegraph::FrameGraph::stringToHandle(pair.first.c_str()), externalRes, false);
+                    }
+                };
 
-                // CC_LOG_INFO("%d", passID);
-
-                // auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
-                // framegraph.addPass<RenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
-
-                // auto *externalRes = gfx::Device::getInstance()->createTexture(gfx::TextureInfo{
-                //     gfx::TextureType::TEX2D,
-                //     gfx::TextureUsageBit::COLOR_ATTACHMENT,
-                //     gfx::Format::RGBA8,
-                //     960,
-                //     640,
-                // });
-                // framegraph.presentFromBlackboard(framegraph::FrameGraph::stringToHandle(presentHandle.c_str()), externalRes, false);
+                auto forwardExec = [](const TestRenderData &data,
+                                      const framegraph::DevicePassResourceTable &table) {
+                };
+                auto passHandle = framegraph::FrameGraph::stringToHandle(get(RenderGraph::Name, renderGraph, passID).c_str());
+                framegraph.addPass<TestRenderData>(static_cast<uint32_t>(ForwardInsertPoint::IP_FORWARD), passHandle, forwardSetup, forwardExec);
             },
             [&](const auto & /*pass*/) {});
     }
@@ -769,182 +809,182 @@ static void runTestGraph(const RenderGraph &renderGraph, const ResourceGraph &re
         },                                                     \
     };
 
-#define TEST_CASE_3                                        \
-    TEST_CASE_DEFINE                                       \
-                                                           \
-    ViewInfo rasterData = {                                      \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{}, {"0"}},                               \
-                {{"0"}, {"1"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"1"}, {"2"}},                            \
-                {{"2"}, {"3"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"3"}, {"4"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"4"}, {"5"}},                            \
-                {{"5"}, {"6"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::COMPUTE,                             \
-            {                                              \
-                {{"3"}, {"7"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::COPY,                                \
-            {                                              \
-                {{"7"}, {"8"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::COMPUTE,                             \
-            {                                              \
-                {{"1"}, {"9"}},                            \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"1"}, {"14"}},                           \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::COMPUTE,                             \
-            {                                              \
-                {{"14"}, {"15"}},                          \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"15", "9"}, {"10"}},                     \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"1"}, {"16"}},                           \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::COPY,                                \
-            {                                              \
-                {{"16"}, {"17"}},                          \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"8", "10", "17"}, {"11"}},               \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"11", "5", "6"}, {"12"}},                     \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::RASTER,                              \
-            {                                              \
-                {{"12"}, {"13"}},                          \
-            },                                             \
-        },                                                 \
-        {                                                  \
-            PassType::PRESENT,                             \
-            {                                              \
-                {{"13"}, {}},                              \
-            },                                             \
-        },                                                 \
-    };                                                     \
-                                                           \
-    LayoutInfo layoutInfo = {                              \
-        {                                                  \
+#define TEST_CASE_3                                            \
+    TEST_CASE_DEFINE                                           \
+                                                               \
+    ViewInfo rasterData = {                                    \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{}, {"0"}},                                   \
+                {{"0"}, {"1"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"1"}, {"2"}},                                \
+                {{"2"}, {"3"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"3"}, {"4"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"4"}, {"5"}},                                \
+                {{"5"}, {"6"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::COMPUTE,                                 \
+            {                                                  \
+                {{"3"}, {"7"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::COPY,                                    \
+            {                                                  \
+                {{"7"}, {"8"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::COMPUTE,                                 \
+            {                                                  \
+                {{"1"}, {"9"}},                                \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"1"}, {"14"}},                               \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::COMPUTE,                                 \
+            {                                                  \
+                {{"14"}, {"15"}},                              \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"15", "9"}, {"10"}},                         \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"1"}, {"16"}},                               \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::COPY,                                    \
+            {                                                  \
+                {{"16"}, {"17"}},                              \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"8", "10", "17"}, {"11"}},                   \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"11", "5", "6"}, {"12"}},                    \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::RASTER,                                  \
+            {                                                  \
+                {{"12"}, {"13"}},                              \
+            },                                                 \
+        },                                                     \
+        {                                                      \
+            PassType::PRESENT,                                 \
+            {                                                  \
+                {{"13"}, {}},                                  \
+            },                                                 \
+        },                                                     \
+    };                                                         \
+                                                               \
+    LayoutInfo layoutInfo = {                                  \
+        {                                                      \
             {"0", 0, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"2", 2, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
-            {"3", 3, cc::gfx::ShaderStageFlagBit::VERTEX},   \
+        },                                                     \
+        {                                                      \
+            {"3", 3, cc::gfx::ShaderStageFlagBit::VERTEX},     \
             {"4", 4, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"4", 4, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"5", 5, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"6", 6, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"3", 3, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"7", 7, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"7", 7, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-            {"8", 8, cc::gfx::ShaderStageFlagBit::FRAGMENT},     \
-        },                                                 \
-        {                                                  \
-            {"1", 1, cc::gfx::ShaderStageFlagBit::VERTEX},   \
+            {"8", 8, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
+        },                                                     \
+        {                                                      \
+            {"1", 1, cc::gfx::ShaderStageFlagBit::VERTEX},     \
             {"9", 9, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"14", 14, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"14", 14, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"15", 15, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"15", 15, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"9", 9, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"10", 10, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"1", 1, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"16", 16, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"16", 16, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"17", 17, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"8", 8, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"10", 10, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"17", 17, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"11", 11, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"5", 5, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"6", 6, cc::gfx::ShaderStageFlagBit::FRAGMENT},   \
             {"11", 11, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"12", 12, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"12", 12, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
             {"13", 13, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
-        {                                                  \
+        },                                                     \
+        {                                                      \
             {"13", 13, cc::gfx::ShaderStageFlagBit::FRAGMENT}, \
-        },                                                 \
+        },                                                     \
     };
 
 /*
