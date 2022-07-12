@@ -86,8 +86,9 @@ export abstract class RasterQueueBuilder extends Setter {
     public abstract addSceneOfCamera(camera: Camera, light: Light | null, sceneFlags: SceneFlags, name: string): void;
     public abstract addSceneOfCamera(camera: Camera, light: Light | null, sceneFlags: SceneFlags): void;
     public abstract addScene(name: string, sceneFlags: SceneFlags): void;
-    public abstract addFullscreenQuad(material: Material, name: string): void;
-    public abstract addFullscreenQuad(material: Material): void;
+    public abstract addFullscreenQuad(material: Material, sceneFlags: SceneFlags, name: string): void;
+    public abstract addFullscreenQuad(material: Material, sceneFlags: SceneFlags): void;
+    public abstract addCameraQuad(camera: Camera, material: Material, sceneFlags: SceneFlags): void;
 }
 
 export abstract class RasterPassBuilder extends Setter {
@@ -96,9 +97,9 @@ export abstract class RasterPassBuilder extends Setter {
     public abstract addQueue(hint: QueueHint, layoutName: string, name: string): RasterQueueBuilder;
     public abstract addQueue(hint: QueueHint, layoutName: string): RasterQueueBuilder;
     public abstract addQueue(hint: QueueHint): RasterQueueBuilder;
-    public abstract addFullscreenQuad(material: Material, layoutName: string, name: string): void;
-    public abstract addFullscreenQuad(material: Material, layoutName: string): void;
-    public abstract addFullscreenQuad(material: Material): void;
+    public abstract addFullscreenQuad(material: Material, sceneFlags: SceneFlags, name: string): void;
+    public abstract addFullscreenQuad(material: Material, sceneFlags: SceneFlags): void;
+    public abstract addCameraQuad(camera: Camera, material: Material, sceneFlags: SceneFlags): void;
 }
 
 export abstract class ComputeQueueBuilder extends Setter {

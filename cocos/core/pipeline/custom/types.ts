@@ -185,5 +185,27 @@ export const enum SceneFlags {
     TRANSPARENT_OBJECT = 0x4,
     SHADOW_CASTER = 0x8,
     UI = 0x10,
+    DEFAULT_LIGHTING = 0x20,
+    VOLUMETRIC_LIGHTING = 0x40,
+    CLUSTERED_LIGHTING = 0x80,
     ALL = 0xFFFFFFFF,
+}
+
+export const enum LightingMode {
+    NONE,
+    DEFAULT,
+    CLUSTERED,
+}
+
+export function getLightingModeName (e: LightingMode): string {
+    switch (e) {
+    case LightingMode.NONE:
+        return 'NONE';
+    case LightingMode.DEFAULT:
+        return 'DEFAULT';
+    case LightingMode.CLUSTERED:
+        return 'CLUSTERED';
+    default:
+        return '';
+    }
 }

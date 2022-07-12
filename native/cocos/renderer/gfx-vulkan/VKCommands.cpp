@@ -34,10 +34,10 @@
 #include "VKCommands.h"
 #include "VKDevice.h"
 #include "VKGPUObjects.h"
-#include "gfx-vulkan/states/VKBufferBarrier.h"
+#include "gfx-base/GFXDef.h"
+#include "states/VKBufferBarrier.h"
 #include "states/VKGeneralBarrier.h"
 #include "states/VKTextureBarrier.h"
-#include "states/VKBufferBarrier.h"
 
 #include "gfx-base/SPIRVUtils.h"
 
@@ -558,7 +558,7 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
 
     if (dependencyCount) {
         // offset = 0U;
-        ccstd::unordered_set<const GFXObject*> subpassExternalFilter;
+        ccstd::unordered_set<const GFXObject *> subpassExternalFilter;
 
         for (uint32_t i = 0U; i < dependencyCount; ++i) {
             const auto &dependency{gpuRenderPass->dependencies[i]};
@@ -591,12 +591,12 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
                     &dstAccessMask,
                     &imageLayout, &hasWriteAccess);
 
-                    // offset += gpuBarrier->nextAccesses.size();
-                    vkDependency.srcStageMask |= srcStageMask;
-                    vkDependency.srcAccessMask |= srcAccessMask;
-                    vkDependency.dstStageMask |= dstStageMask;
-                    vkDependency.dstAccessMask |= dstAccessMask;
-                    dependencyManager.append(vkDependency);
+                // offset += gpuBarrier->nextAccesses.size();
+                vkDependency.srcStageMask |= srcStageMask;
+                vkDependency.srcAccessMask |= srcAccessMask;
+                vkDependency.dstStageMask |= dstStageMask;
+                vkDependency.dstAccessMask |= dstAccessMask;
+                dependencyManager.append(vkDependency);
             };
 
             if (dependency.generalBarrier) {
@@ -1282,6 +1282,7 @@ void cmdFuncCCVKCopyBuffersToTexture(CCVKDevice *device, const uint8_t *const *b
 
     uint32_t optimalOffsetAlignment = device->gpuContext()->physicalDeviceProperties.limits.optimalBufferCopyOffsetAlignment;
     uint32_t optimalRowPitchAlignment = device->gpuContext()->physicalDeviceProperties.limits.optimalBufferCopyRowPitchAlignment;
+    uint32_t offsetAlignment = lcm(GFX_FORMAT_INFOS[toNumber(gpuTexture->format)].size, optimalRowPitchAlignment);
 
     auto blockSize = formatAlignment(gpuTexture->format);
 
@@ -1348,7 +1349,7 @@ void cmdFuncCCVKCopyBuffersToTexture(CCVKDevice *device, const uint8_t *const *b
 
                     CCVKGPUBuffer stagingBuffer;
                     stagingBuffer.size = rowPitchSize * (stepHeight / blockSize.second);
-                    device->gpuStagingBufferPool()->alloc(&stagingBuffer, optimalOffsetAlignment);
+                    device->gpuStagingBufferPool()->alloc(&stagingBuffer, offsetAlignment);
 
                     for (uint32_t j = 0; j < stepHeight; j += blockSize.second) {
                         memcpy(stagingBuffer.mappedData + destOffset, buffers[idx] + buffOffset, destRowSize);

@@ -75,8 +75,9 @@ public:
     void addSceneOfCamera(scene::Camera* camera, scene::Light* light, SceneFlags sceneFlags, const ccstd::string& name) override;
     void addSceneOfCamera(scene::Camera* camera, scene::Light* light, SceneFlags sceneFlags) override;
     void addScene(const ccstd::string& name, SceneFlags sceneFlags) override;
-    void addFullscreenQuad(cc::Material *material, const ccstd::string& name) override;
-    void addFullscreenQuad(cc::Material *material) override;
+    void addFullscreenQuad(cc::Material *material, SceneFlags sceneFlags, const ccstd::string& name) override;
+    void addFullscreenQuad(cc::Material *material, SceneFlags sceneFlags) override;
+    void addCameraQuad(scene::Camera* camera, cc::Material *material, SceneFlags sceneFlags) override;
 
     void setMat4(const ccstd::string& name, const cc::Mat4& mat) override;
     void setQuaternion(const ccstd::string& name, const cc::Quaternion& quat) override;
@@ -111,9 +112,9 @@ public:
     RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string& layoutName, const ccstd::string& name) override;
     RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string& layoutName) override;
     RasterQueueBuilder *addQueue(QueueHint hint) override;
-    void addFullscreenQuad(cc::Material *material, const ccstd::string& layoutName, const ccstd::string& name) override;
-    void addFullscreenQuad(cc::Material *material, const ccstd::string& layoutName) override;
-    void addFullscreenQuad(cc::Material *material) override;
+    void addFullscreenQuad(cc::Material *material, SceneFlags sceneFlags, const ccstd::string& name) override;
+    void addFullscreenQuad(cc::Material *material, SceneFlags sceneFlags) override;
+    void addCameraQuad(scene::Camera* camera, cc::Material *material, SceneFlags sceneFlags) override;
 
     void setMat4(const ccstd::string& name, const cc::Mat4& mat) override;
     void setQuaternion(const ccstd::string& name, const cc::Quaternion& quat) override;
@@ -306,6 +307,7 @@ public:
     ccstd::string                              constantMacros;
     std::unique_ptr<pipeline::GlobalDSManager> globalDSManager;
     scene::Model*                              profiler{nullptr};
+    LightingMode                               lightingMode{LightingMode::DEFAULT};
     IntrusivePtr<pipeline::PipelineSceneData>  pipelineSceneData;
     LayoutGraphData                            layoutGraph;
     framegraph::FrameGraph                     frameGraph;

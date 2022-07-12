@@ -131,6 +131,9 @@ enum class SceneFlags : uint32_t {
     TRANSPARENT_OBJECT = 0x4,
     SHADOW_CASTER = 0x8,
     UI = 0x10,
+    DEFAULT_LIGHTING = 0x20,
+    VOLUMETRIC_LIGHTING = 0x40,
+    CLUSTERED_LIGHTING = 0x80,
     ALL = 0xFFFFFFFF,
 };
 
@@ -157,6 +160,12 @@ constexpr bool operator!(SceneFlags e) noexcept {
 constexpr bool any(SceneFlags e) noexcept {
     return !!e;
 }
+
+enum class LightingMode : uint32_t {
+    NONE,
+    DEFAULT,
+    CLUSTERED,
+};
 
 } // namespace render
 

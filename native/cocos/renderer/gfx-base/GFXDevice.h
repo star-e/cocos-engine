@@ -118,13 +118,9 @@ public:
     template <typename ExecuteMethod>
     void registerOnAcquireCallback(ExecuteMethod &&execute);
 
-    inline bool isRendererAvailable() const { return _rendererAvailable; }
-
-    inline void setRendererAvailable(bool available) { _rendererAvailable = available; }
-
-    inline void setOptions(const DeviceOptions& opts) { _options = opts; }
+    inline void setOptions(const DeviceOptions &opts) { _options = opts; }
     inline DeviceOptions getOptions() const { return _options; }
-    
+
 protected:
     static Device *instance;
 
@@ -194,7 +190,6 @@ protected:
 
 private:
     ccstd::vector<Swapchain *> _swapchains; // weak reference
-    bool _rendererAvailable{false};
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -221,13 +216,6 @@ Swapchain *Device::createSwapchain(const SwapchainInfo &info) {
     Swapchain *res = createSwapchain();
     res->initialize(info);
     _swapchains.push_back(res);
-#if CC_PLATFORM == CC_PLATFORM_ANDROID || CC_PLATFORM == CC_PLATFORM_OHOS
-    if (res->getWindowHandle()) {
-        setRendererAvailable(true);
-    }
-#else
-    setRendererAvailable(true);
-#endif
     return res;
 }
 

@@ -67,20 +67,34 @@ void NativeRasterQueueBuilder::addScene(const ccstd::string &name, SceneFlags sc
     CC_ENSURES(sceneID != RenderGraph::null_vertex());
 }
 
-void NativeRasterQueueBuilder::addFullscreenQuad(Material* material, const ccstd::string &name) {
+void NativeRasterQueueBuilder::addFullscreenQuad(Material* material,
+    SceneFlags sceneFlags, const ccstd::string &name) {
     auto drawID = addVertex(
         BlitTag{},
         std::forward_as_tuple(name.c_str()),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
-        std::forward_as_tuple(material),
+        std::forward_as_tuple(material, sceneFlags, nullptr),
         *renderGraph, queueID);
     CC_ENSURES(drawID != RenderGraph::null_vertex());
 }
 
-void NativeRasterQueueBuilder::addFullscreenQuad(Material* material) {
-    addFullscreenQuad(material, "FullscreenQuad");
+void NativeRasterQueueBuilder::addFullscreenQuad(Material* material, SceneFlags sceneFlags) {
+    addFullscreenQuad(material, sceneFlags, "FullscreenQuad");
+}
+
+void NativeRasterQueueBuilder::addCameraQuad(scene::Camera* camera,
+    cc::Material *material, SceneFlags sceneFlags) {
+    auto drawID = addVertex(
+        BlitTag{},
+        std::forward_as_tuple("CameraQuad"),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(material, sceneFlags, camera),
+        *renderGraph, queueID);
+    CC_ENSURES(drawID != RenderGraph::null_vertex());
 }
 
 namespace {
@@ -267,11 +281,11 @@ RasterQueueBuilder *NativeRasterPassBuilder::addQueue(QueueHint hint) {
 }
 
 void NativeRasterPassBuilder::addFullscreenQuad(
-    Material* material, const ccstd::string &layoutName, const ccstd::string &name) { // NOLINT(bugprone-easily-swappable-parameters)
+    Material* material, SceneFlags sceneFlags, const ccstd::string &name) { // NOLINT(bugprone-easily-swappable-parameters)
     auto queueID = addVertex(
         QueueTag{},
-        std::forward_as_tuple(name.c_str()),
-        std::forward_as_tuple(layoutName.c_str()),
+        std::forward_as_tuple("Queue"),
+        std::forward_as_tuple(),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
         std::forward_as_tuple(QueueHint::RENDER_TRANSPARENT),
@@ -279,22 +293,38 @@ void NativeRasterPassBuilder::addFullscreenQuad(
 
     addVertex(
         BlitTag{},
-        std::forward_as_tuple("FullscreenQuad"),
+        std::forward_as_tuple(name),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
-        std::forward_as_tuple(material),
+        std::forward_as_tuple(material, sceneFlags, nullptr),
         *renderGraph, queueID);
 }
 
 void NativeRasterPassBuilder::addFullscreenQuad(
-    Material* material, const ccstd::string &layoutName) {
-    return addFullscreenQuad(material, layoutName, "FullscreenQuad");
+    Material* material, SceneFlags sceneFlags) {
+    return addFullscreenQuad(material, sceneFlags, "FullscreenQuad");
 }
 
-void NativeRasterPassBuilder::addFullscreenQuad(Material* material) {
-    const auto &layoutName = getFirstChildLayoutName(*layoutGraph, passID);
-    return addFullscreenQuad(material, layoutName.c_str()); // NOLINT(readability-redundant-string-cstr)
+void NativeRasterPassBuilder::addCameraQuad(scene::Camera* camera,
+    cc::Material *material, SceneFlags sceneFlags) {
+    auto queueID = addVertex(
+        QueueTag{},
+        std::forward_as_tuple("Queue"),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(QueueHint::RENDER_TRANSPARENT),
+        *renderGraph, passID);
+
+    addVertex(
+        BlitTag{},
+        std::forward_as_tuple("CameraQuad"),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(),
+        std::forward_as_tuple(material, sceneFlags, camera),
+        *renderGraph, queueID);
 }
 
 void NativeRasterPassBuilder::setMat4(const ccstd::string &name, const Mat4 &mat) {
