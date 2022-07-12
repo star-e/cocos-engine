@@ -38,6 +38,8 @@
 namespace cc {
 namespace framegraph {
 
+static constexpr bool ENABLE_AUTO_BARRIER{true};
+
 DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const &subpassNodes) {
     ccstd::vector<RenderTargetAttachment> attachments;
 
@@ -48,12 +50,15 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
         _subpasses.back().barrierID = index++;
     }
 
+    auto* device = gfx::Device::getInstance();
     // _enableAutoBarrier: auto barrier in framegraph
     // barrierDeduce: deduce barrier gfx internally
     // to avoid redundant instructions, either inside or outside
-    _enableAutoBarrier = !gfx::Device::getInstance()->getOptions().barrierDeduce;
+    auto opts = device->getOptions();
+    opts.enableBarrierDeduce = !ENABLE_AUTO_BARRIER;
+    device->setOptions(opts);
 
-    CC_ASSERT(_enableAutoBarrier ^ gfx::Device::getInstance()->getOptions().barrierDeduce);
+    CC_ASSERT(ENABLE_AUTO_BARRIER ^ gfx::Device::getInstance()->getOptions().enableBarrierDeduce);
 
     // Important Notice:
     // here attchment index has changed.
@@ -120,8 +125,8 @@ DevicePass::DevicePass(const FrameGraph &graph, ccstd::vector<PassNode *> const 
     }
 }
 
-void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo &rpInfo) {
-    if (_enableAutoBarrier) {
+void DevicePass::subpassDependency(gfx::RenderPassInfo &rpInfo) {
+    if constexpr (ENABLE_AUTO_BARRIER) {
         uint32_t index = 0;
 
         thread_local gfx::BufferBarrierList bufferBarriers;
@@ -197,7 +202,7 @@ void DevicePass::subpassBarrierFallback(gfx::RenderPassInfo &rpInfo) {
 }
 
 void DevicePass::applyBarriers(gfx::CommandBuffer *cmdBuff, bool front) {
-    if (_enableAutoBarrier) {
+    if constexpr (ENABLE_AUTO_BARRIER) {
         auto gatherBarrier = [this](gfx::TextureList &textures, gfx::BufferList &buffers, gfx::TextureBarrierList &texBarriers, gfx::BufferBarrierList &bufBarriers, gfx::GeneralBarrier **generalBarrier, bool front) {
             // no barrier is allowed inside renderpass
             auto index = front ? _subpasses.front().barrierID : _subpasses.back().barrierID;
@@ -452,7 +457,7 @@ void DevicePass::begin(gfx::CommandBuffer *cmdBuff) {
     }
 
     if (_subpasses.size() > 1) {
-        subpassBarrierFallback(rpInfo);
+        subpassDependency(rpInfo);
     }
 
     _renderPass = RenderPass(rpInfo);

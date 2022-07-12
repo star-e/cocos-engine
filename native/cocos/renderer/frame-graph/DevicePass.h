@@ -75,9 +75,7 @@ private:
 
     void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
 
-    void subpassBarrierFallback(gfx::RenderPassInfo& rpInfo);
-
-    bool _enableAutoBarrier{true};
+    void subpassDependency(gfx::RenderPassInfo& rpInfo);
 
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};

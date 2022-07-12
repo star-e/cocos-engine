@@ -851,7 +851,7 @@ struct DeviceOptions {
     // whether deduce barrier in gfx internally.
     // if you wanna do the barrier thing by yourself
     // on the top of gfx layer, set it to false.
-    bool barrierDeduce{true};
+    bool enableBarrierDeduce{true};
 };
 
 struct Offset {

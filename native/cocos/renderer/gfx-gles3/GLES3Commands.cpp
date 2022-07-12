@@ -2004,7 +2004,7 @@ void cmdFuncGLES3BeginRenderPass(GLES3Device *device, uint32_t subpassIdx, GLES3
         uint32_t glAttachmentIndex = 0U;
         if (gpuFramebuffer->usesFBF) {
             if (subpassIdx == 0) {
-                if(device->getOptions().barrierDeduce) {
+                if(device->getOptions().enableBarrierDeduce) {
                     cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers[0].glBarriers, gpuRenderPass->barriers[0].glBarriersByRegion);
                 }
 
@@ -2166,7 +2166,7 @@ void cmdFuncGLES3EndRenderPass(GLES3Device *device) {
                 region.srcExtent.height = region.dstExtent.height = blitSrc->height;
                 cmdFuncGLES3BlitTexture(device, blitSrc, blitDst, &region, 1, Filter::POINT);
             }
-            if(device->getOptions().barrierDeduce) {
+            if(device->getOptions().enableBarrierDeduce) {
                 cmdFuncGLES3MemoryBarrier(device, gpuRenderPass->barriers.back().glBarriers, gpuRenderPass->barriers.back().glBarriersByRegion);
             }    
         } else {

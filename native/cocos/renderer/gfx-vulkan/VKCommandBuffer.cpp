@@ -124,7 +124,7 @@ void CCVKCommandBuffer::beginRenderPass(RenderPass *renderPass, Framebuffer *fbo
                                         float depth, uint32_t stencil, CommandBuffer *const * /*secondaryCBs*/, uint32_t secondaryCBCount) {
 #if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
     CCVKDevice *device = CCVKDevice::getInstance();
-    if(device->getOptions().barrierDeduce) {
+    if(device->getOptions().enableBarrierDeduce) {
         // guard against RAW hazard
         VkMemoryBarrier vkBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
         vkBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -201,7 +201,7 @@ void CCVKCommandBuffer::endRenderPass() {
     _curGPUFBO = nullptr;
 
 #if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
-    if(device->getOptions().barrierDeduce) {
+    if(device->getOptions().enableBarrierDeduce) {
         // guard against WAR hazard
         vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
                              VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
