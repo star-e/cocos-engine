@@ -258,7 +258,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
                 default:
                     info |= ((0b11 << 8) | IGNORE_SHADERSTAGE);
             }
-            info &= OPERABLE(usage);
+            info &= OPERABLE(usage) | IGNORE_CMNUSAGE;
 
             AccessFlags flags{AccessFlags::NONE};
             for (const auto& elem : AccessMap) {
@@ -309,7 +309,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
                 default:
                     info |= ((0b11 << 8) | IGNORE_SHADERSTAGE);
             }
-            info &= OPERABLE(usage);
+            info &= OPERABLE(usage) | IGNORE_CMNUSAGE;
 
             AccessFlags flags{AccessFlags::NONE};
             for (const auto& elem : AccessMap) {
