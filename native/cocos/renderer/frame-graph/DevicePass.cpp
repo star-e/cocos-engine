@@ -158,8 +158,8 @@ void DevicePass::passDependency(gfx::RenderPassInfo &rpInfo) {
             lastTextureIndex = static_cast<uint32_t>(textures.size());
 
             rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
-                index > 1 ? index - 1 : gfx::SUBPASS_EXTERNAL,
-                index,
+                subpassIndex > 1 ? subpassIndex - 1 : gfx::SUBPASS_EXTERNAL,
+                subpassIndex,
                 nullptr,
                 bufferBarriers.data() + lastBufferIndex,
                 buffers.data() + lastBufferIndex,
@@ -194,7 +194,7 @@ void DevicePass::passDependency(gfx::RenderPassInfo &rpInfo) {
 
         if (textureBarriers.size() > lastTextureIndex || bufferBarriers.size() > lastBufferIndex) {
             rpInfo.dependencies.emplace_back(gfx::SubpassDependency{
-                _subpasses.empty() ? gfx::SUBPASS_EXTERNAL : static_cast<uint32_t>(_subpasses.size() - 1),
+                _subpasses.empty() ? 0 : static_cast<uint32_t>(_subpasses.size() - 1),
                 gfx::SUBPASS_EXTERNAL,
                 nullptr,
                 bufferBarriers.data() + lastBufferIndex,
