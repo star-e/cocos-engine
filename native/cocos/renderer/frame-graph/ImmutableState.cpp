@@ -108,7 +108,7 @@ constexpr auto CMN_IB_OR_CA = OPERABLE(CommonUsage::IB_OR_CA);
 constexpr auto CMN_VB_OR_DS = OPERABLE(CommonUsage::VB_OR_DS);
 constexpr auto CMN_INDIRECT_OR_INPUT = OPERABLE(CommonUsage::INDIRECT_OR_INPUT);
 
-std::vector<AccessElem> AccessMap = {
+std::vector<AccessElem> accessMap = {
     {CARE_MEMACCESS,
      0x0,
      AccessFlags::NONE},
@@ -261,7 +261,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
             info &= OPERABLE(usage) | IGNORE_CMNUSAGE;
 
             AccessFlags flags{AccessFlags::NONE};
-            for (const auto& elem : AccessMap) {
+            for (const auto& elem : accessMap) {
                 auto testFlag = info & elem.mask;
                 //hasKey
                 if ((testFlag & elem.key) == elem.key) {
@@ -312,7 +312,7 @@ std::pair<gfx::GFXObject*, gfx::GFXObject*> getBarrier(const ResourceBarrier& ba
             info &= OPERABLE(usage) | IGNORE_CMNUSAGE;
 
             AccessFlags flags{AccessFlags::NONE};
-            for (const auto& elem : AccessMap) {
+            for (const auto& elem : accessMap) {
                 auto testFlag = info & elem.mask;
                 //hasKey
                 if ((testFlag & elem.key) == elem.key) {
