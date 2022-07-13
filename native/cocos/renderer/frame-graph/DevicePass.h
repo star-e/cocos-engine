@@ -73,9 +73,7 @@ private:
     void next(gfx::CommandBuffer *cmdBuff) noexcept;
     void end(gfx::CommandBuffer *cmdBuff);
 
-    void applyBarriers(gfx::CommandBuffer *cmdBuff, bool front);
-
-    void subpassDependency(gfx::RenderPassInfo& rpInfo);
+    void passDependency(gfx::RenderPassInfo& rpInfo);
 
     ccstd::vector<Subpass> _subpasses{};
     ccstd::vector<Attachment> _attachments{};

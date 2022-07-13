@@ -106,6 +106,9 @@ using TextureList = ccstd::vector<Texture *>;
 using SamplerList = ccstd::vector<Sampler *>;
 using DescriptorSetLayoutList = ccstd::vector<DescriptorSetLayout *>;
 
+// make sure you have FILLED GRAPHs before enable this!
+static constexpr bool ENABLE_GRAPH_AUTO_BARRIER{false};
+
 /**
  * @en Graphics object type
  * @zh 图形API对象的类型

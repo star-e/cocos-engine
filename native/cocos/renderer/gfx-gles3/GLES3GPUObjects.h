@@ -329,7 +329,8 @@ struct GLES3GPURenderPass {
 
     ccstd::vector<AttachmentStatistics> statistics; // per attachment
 
-    ccstd::vector<GLES3GPUGeneralBarrier> barriers; // per subpass
+    ccstd::vector<GLES3GPUGeneralBarrier> subpassBarriers; // per subpass
+    GLES3GPUGeneralBarrier blockBarrier;
 };
 
 class GLES3GPUFramebufferCacheMap;

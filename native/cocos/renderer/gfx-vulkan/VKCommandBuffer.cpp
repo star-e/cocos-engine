@@ -122,9 +122,9 @@ void CCVKCommandBuffer::end() {
 
 void CCVKCommandBuffer::beginRenderPass(RenderPass *renderPass, Framebuffer *fbo, const Rect &renderArea, const Color *colors,
                                         float depth, uint32_t stencil, CommandBuffer *const * /*secondaryCBs*/, uint32_t secondaryCBCount) {
-#if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
     CCVKDevice *device = CCVKDevice::getInstance();
-    if(device->getOptions().enableBarrierDeduce) {
+    if constexpr (!ENABLE_GRAPH_AUTO_BARRIER) {
+#if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
         // guard against RAW hazard
         VkMemoryBarrier vkBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
         vkBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -133,9 +133,12 @@ void CCVKCommandBuffer::beginRenderPass(RenderPass *renderPass, Framebuffer *fbo
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                              0, 1, &vkBarrier, 0, nullptr, 0, nullptr);
-    }
 #endif
-
+    } else {
+        const auto& frontBarrier = renderPass->getDependencies().front();
+        pipelineBarrier(frontBarrier.generalBarrier, frontBarrier.bufferBarriers, frontBarrier.buffers, frontBarrier.bufferBarrierCount, frontBarrier.textureBarriers, frontBarrier.textures, frontBarrier.textureBarrierCount);
+    }
+ 
     _curGPUFBO = static_cast<CCVKFramebuffer *>(fbo)->gpuFBO();
     _curGPURenderPass = static_cast<CCVKRenderPass *>(renderPass)->gpuRenderPass();
     VkFramebuffer framebuffer{_curGPUFBO->vkFramebuffer};
@@ -200,14 +203,17 @@ void CCVKCommandBuffer::endRenderPass() {
 
     _curGPUFBO = nullptr;
 
+    if constexpr (!ENABLE_GRAPH_AUTO_BARRIER) {
 #if BARRIER_DEDUCTION_LEVEL >= BARRIER_DEDUCTION_LEVEL_BASIC
-    if(device->getOptions().enableBarrierDeduce) {
         // guard against WAR hazard
         vkCmdPipelineBarrier(_gpuCommandBuffer->vkCommandBuffer,
                              VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
-    } 
 #endif
+    } else {
+        const auto& rearBarrier = _curGPURenderPass->dependencies.back();
+        pipelineBarrier(rearBarrier.generalBarrier, rearBarrier.bufferBarriers, rearBarrier.buffers, rearBarrier.bufferBarrierCount, rearBarrier.textureBarriers, rearBarrier.textures, rearBarrier.textureBarrierCount);
+    }
 }
 
 void CCVKCommandBuffer::bindPipelineState(PipelineState *pso) {
