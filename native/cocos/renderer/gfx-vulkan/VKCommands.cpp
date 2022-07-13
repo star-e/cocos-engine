@@ -556,8 +556,14 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
     size_t dependencyCount = gpuRenderPass->dependencies.size();
     dependencyManager.clear();
 
-    // single pass front and rear cost 2 slot.
-    if (dependencyCount > 2) {
+    bool manuallyDeduce = true;
+    if constexpr(ENABLE_GRAPH_AUTO_BARRIER) {
+        // single pass front and rear cost 2 slot.
+        manuallyDeduce = dependencyCount <= 2;
+    } else {
+        manuallyDeduce = dependencyCount == 0;
+    }
+    if (!manuallyDeduce) {
         // offset = 0U;
         ccstd::unordered_set<const GFXObject *> subpassExternalFilter;
 
