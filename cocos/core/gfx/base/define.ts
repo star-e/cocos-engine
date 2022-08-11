@@ -35,6 +35,7 @@ import { GeneralBarrier } from './states/general-barrier';
 import { TextureBarrier } from './states/texture-barrier';
 import { BufferBarrier } from './states/buffer-barrier';
 import { GCObject } from '../../data/gc-object';
+import { ccclass } from '../../data/decorators';
 
 interface ICopyable { copy (info: ICopyable): ICopyable; }
 
@@ -1243,6 +1244,7 @@ export class Uniform {
     }
 }
 
+@ccclass('cc.UniformBlock')
 export class UniformBlock {
     declare private _token: never; // to make sure all usages must be an instance of this exact class, not assembled from plain object
 

@@ -30,8 +30,9 @@
  */
 /* eslint-disable max-len */
 import * as impl from './graph';
-import { DescriptorSet, DescriptorSetLayout, ShaderStageFlagBit, Type, UniformBlock } from '../../gfx';
+import { DescriptorSet, DescriptorSetLayout, DescriptorSetLayoutInfo, ShaderStageFlagBit, Type, UniformBlock } from '../../gfx';
 import { ParameterType, UpdateFrequency } from './types';
+import { ccclass } from '../../data/decorators';
 
 export const enum DescriptorTypeOrder {
     UNIFORM_BUFFER,
@@ -70,6 +71,7 @@ export function getDescriptorTypeOrderName (e: DescriptorTypeOrder): string {
     }
 }
 
+@ccclass('cc.Descriptor')
 export class Descriptor {
     constructor (type: Type = Type.UNKNOWN) {
         this.type = type;
@@ -78,6 +80,7 @@ export class Descriptor {
     count = 1;
 }
 
+@ccclass('cc.DescriptorBlock')
 export class DescriptorBlock {
     readonly descriptors: Map<string, Descriptor> = new Map<string, Descriptor>();
     readonly uniformBlocks: Map<string, UniformBlock> = new Map<string, UniformBlock>();
@@ -85,6 +88,7 @@ export class DescriptorBlock {
     count = 0;
 }
 
+@ccclass('cc.DescriptorBlockFlattened')
 export class DescriptorBlockFlattened {
     readonly descriptorNames: string[] = [];
     readonly uniformBlockNames: string[] = [];
@@ -94,6 +98,7 @@ export class DescriptorBlockFlattened {
     count = 0;
 }
 
+@ccclass('cc.DescriptorBlockIndex')
 export class DescriptorBlockIndex {
     constructor (updateFrequency: UpdateFrequency = UpdateFrequency.PER_INSTANCE, parameterType: ParameterType = ParameterType.CONSTANTS, descriptorType: DescriptorTypeOrder = DescriptorTypeOrder.UNIFORM_BUFFER, visibility: ShaderStageFlagBit = ShaderStageFlagBit.NONE) {
         this.updateFrequency = updateFrequency;
@@ -107,6 +112,7 @@ export class DescriptorBlockIndex {
     visibility: ShaderStageFlagBit;
 }
 
+@ccclass('cc.DescriptorDB')
 export class DescriptorDB {
     readonly blocks: Map<string, DescriptorBlock> = new Map<string, DescriptorBlock>();
 }
@@ -201,6 +207,7 @@ interface LayoutGraphComponentPropertyMap {
 
 //-----------------------------------------------------------------
 // LayoutGraph Implementation
+@ccclass('cc.LayoutGraph')
 export class LayoutGraph implements impl.BidirectionalGraph
 , impl.AdjacencyGraph
 , impl.VertexListGraph
@@ -678,10 +685,12 @@ export class DescriptorSetData {
         this.descriptorSetLayoutData = descriptorSetLayoutData;
         this.descriptorSetLayout = descriptorSetLayout;
         this.descriptorSet = descriptorSet;
+        this.descriptorSetLayoutInfo = null;
     }
     readonly descriptorSetLayoutData: DescriptorSetLayoutData;
     /*object*/ descriptorSetLayout: DescriptorSetLayout | null;
     /*object*/ descriptorSet: DescriptorSet | null;
+    /*object*/ descriptorSetLayoutInfo: DescriptorSetLayoutInfo | null;
 }
 
 export class PipelineLayoutData {
@@ -801,6 +810,7 @@ interface LayoutGraphDataComponentPropertyMap {
 
 //-----------------------------------------------------------------
 // LayoutGraphData Implementation
+@ccclass('cc.LayoutGraphData')
 export class LayoutGraphData implements impl.BidirectionalGraph
 , impl.AdjacencyGraph
 , impl.VertexListGraph
