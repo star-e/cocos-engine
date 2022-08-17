@@ -154,7 +154,6 @@ export abstract class SceneTransversal {
     public abstract transverse(visitor: SceneVisitor): SceneTask;
 }
 
-@ccclass('cc.LayoutGraphBuilder')
 export abstract class LayoutGraphBuilder {
     public abstract clear(): void;
     public abstract addRenderStage(name: string): number;

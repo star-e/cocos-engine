@@ -71,7 +71,6 @@ export function getDescriptorTypeOrderName (e: DescriptorTypeOrder): string {
     }
 }
 
-@ccclass('cc.Descriptor')
 export class Descriptor {
     constructor (type: Type = Type.UNKNOWN) {
         this.type = type;
@@ -80,7 +79,6 @@ export class Descriptor {
     count = 1;
 }
 
-@ccclass('cc.DescriptorBlock')
 export class DescriptorBlock {
     readonly descriptors: Map<string, Descriptor> = new Map<string, Descriptor>();
     readonly uniformBlocks: Map<string, UniformBlock> = new Map<string, UniformBlock>();
@@ -98,7 +96,6 @@ export class DescriptorBlockFlattened {
     count = 0;
 }
 
-@ccclass('cc.DescriptorBlockIndex')
 export class DescriptorBlockIndex {
     constructor (updateFrequency: UpdateFrequency = UpdateFrequency.PER_INSTANCE, parameterType: ParameterType = ParameterType.CONSTANTS, descriptorType: DescriptorTypeOrder = DescriptorTypeOrder.UNIFORM_BUFFER, visibility: ShaderStageFlagBit = ShaderStageFlagBit.NONE) {
         this.updateFrequency = updateFrequency;
@@ -112,7 +109,6 @@ export class DescriptorBlockIndex {
     visibility: ShaderStageFlagBit;
 }
 
-@ccclass('cc.DescriptorDB')
 export class DescriptorDB {
     readonly blocks: Map<string, DescriptorBlock> = new Map<string, DescriptorBlock>();
 }
@@ -207,7 +203,6 @@ interface LayoutGraphComponentPropertyMap {
 
 //-----------------------------------------------------------------
 // LayoutGraph Implementation
-@ccclass('cc.LayoutGraph')
 export class LayoutGraph implements impl.BidirectionalGraph
 , impl.AdjacencyGraph
 , impl.VertexListGraph
