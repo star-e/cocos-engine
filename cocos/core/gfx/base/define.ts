@@ -1244,7 +1244,6 @@ export class Uniform {
     }
 }
 
-@ccclass('cc.UniformBlock')
 export class UniformBlock {
     declare private _token: never; // to make sure all usages must be an instance of this exact class, not assembled from plain object
 
