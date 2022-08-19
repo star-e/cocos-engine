@@ -65,7 +65,7 @@ public:
 } // namespace cc
 
 #define ccnew                new (std::nothrow) //NOLINT(readability-identifier-naming)
-#define ccnew_placement(...) new (__VA_ARGS__) //NOLINT(readability-identifier-naming)
+#define ccnew_placement(...) new (__VA_ARGS__)  //NOLINT(readability-identifier-naming)
 
 #define CC_SAFE_DELETE(ptr) \
     if (ptr) {              \
@@ -125,7 +125,7 @@ public:
         (p)->addRef();     \
     }
 
-#if (CC_PLATFORM == CC_PLATFORM_IOS) && (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_11_0)
+#if ((CC_PLATFORM == CC_PLATFORM_IOS) && (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_11_0)) || SWIGCOCOS
     #define ALIGNAS(x)
 #else
     #define ALIGNAS(x) alignas(x)
