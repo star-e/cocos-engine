@@ -1,5 +1,4 @@
 import { DEBUG } from 'internal:constants';
-import { ccclass } from '../../data/decorators';
 // eslint-disable-next-line max-len
 import { DescriptorSetInfo, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutInfo, DescriptorType, Device, ShaderStageFlagBit, Type, Uniform, UniformBlock } from '../../gfx';
 import { VectorGraphColorMap } from './effect';
@@ -184,12 +183,11 @@ class PrintVisitor extends DefaultVisitor {
     oss = '';
 }
 
-@ccclass('cc.WebLayoutGraphBuilder')
 export class WebLayoutGraphBuilder extends LayoutGraphBuilder  {
     private _data: LayoutGraphData;
-    private _device: Device | null;
+    private _device: Device;
 
-    constructor (deviceIn: Device | null, dataIn: LayoutGraphData) {
+    constructor (deviceIn: Device, dataIn: LayoutGraphData) {
         super();
         this._device = deviceIn;
         this._data = dataIn;
@@ -221,7 +219,7 @@ export class WebLayoutGraphBuilder extends LayoutGraphBuilder  {
         }
     }
 
-    private createDscriptorInfo (layoutData: DescriptorSetLayoutData) {
+    private createDescriptorSetLayout (layoutData: DescriptorSetLayoutData) {
         const info: DescriptorSetLayoutInfo = new DescriptorSetLayoutInfo();
         for (let i = 0; i < layoutData.descriptorBlocks.length; ++i) {
             const block = layoutData.descriptorBlocks[i];
@@ -240,17 +238,8 @@ export class WebLayoutGraphBuilder extends LayoutGraphBuilder  {
                 slot += d.count;
             }
         }
-        return info;
-    }
 
-    private createDescriptorSetLayout (layoutData: DescriptorSetLayoutData) {
-        const info: DescriptorSetLayoutInfo = this.createDscriptorInfo(layoutData);
-
-        if (this._device) {
-            return this._device.createDescriptorSetLayout(info);
-        } else {
-            return null;
-        }
+        return this._device.createDescriptorSetLayout(info);
     }
 
     public clear (): void {
@@ -362,16 +351,9 @@ export class WebLayoutGraphBuilder extends LayoutGraphBuilder  {
             ppl.descriptorSets.forEach((value, key) => {
                 const level = value;
                 const layoutData = level.descriptorSetLayoutData;
-                if (this._device) {
-                    const layout: DescriptorSetLayout | null = this.createDescriptorSetLayout(layoutData);
-                    if (layout) {
-                        level.descriptorSetLayout = (layout);
-                        level.descriptorSet = (this._device.createDescriptorSet(new DescriptorSetInfo(layout)));
-                    }
-                } else {
-                    const layout: DescriptorSetLayoutInfo = this.createDscriptorInfo(layoutData);
-                    level.descriptorSetLayoutInfo = layout;
-                }
+                const layout: DescriptorSetLayout = this.createDescriptorSetLayout(layoutData);
+                level.descriptorSetLayout = (layout);
+                level.descriptorSet = (this._device.createDescriptorSet(new DescriptorSetInfo(layout)));
             });
         }
         if (DEBUG) {

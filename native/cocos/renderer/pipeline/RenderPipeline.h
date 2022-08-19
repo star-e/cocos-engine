@@ -26,7 +26,6 @@
 #pragma once
 
 #include "Define.h"
-#include "RenderFlow.h"
 #include "base/std/container/string.h"
 #include "base/std/container/unordered_map.h"
 #include "core/assets/Asset.h"
@@ -188,6 +187,7 @@ protected:
     bool _clusterEnabled{false};
     bool _bloomEnabled{false};
     bool _occlusionQueryEnabled{false};
+    bool _isResourceOwner{false};
 };
 
 } // namespace pipeline

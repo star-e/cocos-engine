@@ -25,7 +25,7 @@
 
 import { JSB } from 'internal:constants';
 import { SpriteFrame } from '../../assets';
-import { Mat4, Vec2 } from '../../../core/math';
+import { Color, Mat4, Vec2, Vec3 } from '../../../core/math';
 import { IRenderData, RenderData } from '../../renderer/render-data';
 import { IBatcher } from '../../renderer/i-batcher';
 import { Sprite } from '../../components';
@@ -35,7 +35,8 @@ import { StaticVBChunk } from '../../renderer/static-vb-accessor';
 
 const PI_2 = Math.PI * 2;
 const EPSILON = 1e-6;
-const m = new Mat4();
+const matrix = new Mat4();
+const vec3_temp = new Vec3();
 
 const _vertPos: Vec2[] = [new Vec2(), new Vec2(), new Vec2(), new Vec2()];
 const _vertices: number[] = new Array(4);
@@ -407,7 +408,7 @@ export const radialFilled: IAssembler = {
     // only for TS
     updateWorldVertexAndUVData (sprite: Sprite, chunk: StaticVBChunk) {
         const node = sprite.node;
-        node.getWorldMatrix(m);
+        node.getWorldMatrix(matrix);
 
         const renderData = sprite.renderData!;
         const stride = renderData.floatStride;
@@ -418,14 +419,11 @@ export const radialFilled: IAssembler = {
         let vertexOffset = 0;
         for (let i = 0; i < vertexCount; i++) {
             const vert = dataList[i];
-            const x = vert.x;
-            const y = vert.y;
-            let rhw = m.m03 * x + m.m07 * y + m.m15;
-            rhw = rhw ? Math.abs(1 / rhw) : 1;
-
-            vData[vertexOffset + 0] = (m.m00 * x + m.m04 * y + m.m12) * rhw;
-            vData[vertexOffset + 1] = (m.m01 * x + m.m05 * y + m.m13) * rhw;
-            vData[vertexOffset + 2] = (m.m02 * x + m.m06 * y + m.m14) * rhw;
+            Vec3.set(vec3_temp, vert.x, vert.y, 0);
+            Vec3.transformMat4(vec3_temp, vec3_temp, matrix);
+            vData[vertexOffset + 0] = vec3_temp.x;
+            vData[vertexOffset + 1] = vec3_temp.y;
+            vData[vertexOffset + 2] = vec3_temp.z;
             vData[vertexOffset + 3] = vert.u;
             vData[vertexOffset + 4] = vert.v;
             vertexOffset += stride;

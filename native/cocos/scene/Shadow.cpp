@@ -157,16 +157,6 @@ void Shadows::activate() {
     if (_enabled) {
         if (_type == ShadowType::PLANAR) {
             updatePlanarInfo();
-        } else {
-            auto *pipeline = pipeline::RenderPipeline::getInstance();
-            if (pipeline) {
-                pipeline->setValue("CC_SHADOW_TYPE", 2);
-            }
-        }
-    } else {
-        auto *pipeline = pipeline::RenderPipeline::getInstance();
-        if (pipeline) {
-            pipeline->setValue("CC_SHADOW_TYPE", 0);
         }
     }
 }
@@ -177,11 +167,6 @@ void Shadows::updatePlanarInfo() {
     }
     if (!_instancingMaterial) {
         createInstanceMaterial();
-    }
-
-    auto *pipeline = pipeline::RenderPipeline::getInstance();
-    if (pipeline) {
-        pipeline->setValue("CC_SHADOW_TYPE", 1);
     }
 }
 

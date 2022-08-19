@@ -23,8 +23,6 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-
 #import <Cocoa/Cocoa.h>
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
@@ -34,5 +32,5 @@
 - (void)windowWillCloseNotification;
 - (void)applicationWillTerminate:(NSNotification*)aNotification;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*)theApplication;
-- (NSWindow*)getWindow;
+- (NSWindow*) getWindow;
 @end

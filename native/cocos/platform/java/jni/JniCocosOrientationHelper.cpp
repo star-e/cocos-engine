@@ -29,8 +29,8 @@
 #include "platform/java/jni/JniHelper.h"
 #include "platform/java/jni/glue/JniNativeGlue.h"
 #if CC_PLATFORM == CC_PLATFORM_ANDROID
-    #include "platform/BasePlatform.h"
     #include "platform/android/AndroidPlatform.h"
+    #include "platform/BasePlatform.h"
 #endif
 
 extern "C" {

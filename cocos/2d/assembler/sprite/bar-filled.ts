@@ -23,7 +23,7 @@
  THE SOFTWARE.
 */
 
-import {  Mat4 } from '../../../core/math';
+import { Color, Mat4, Vec3 } from '../../../core/math';
 import { IRenderData, RenderData } from '../../renderer/render-data';
 import { IBatcher } from '../../renderer/i-batcher';
 import { Sprite } from '../../components';
@@ -33,7 +33,8 @@ import { dynamicAtlasManager } from '../../utils/dynamic-atlas/atlas-manager';
 import { StaticVBChunk } from '../../renderer/static-vb-accessor';
 
 const FillType = Sprite.FillType;
-const m = new Mat4();
+const matrix = new Mat4();
+const vec3_temp = new Vec3();
 const QUAD_INDICES = Uint16Array.from([0, 1, 2, 1, 3, 2]);
 
 /**
@@ -214,7 +215,7 @@ export const barFilled: IAssembler = {
 
     updateWorldVertexData (sprite: Sprite, chunk: StaticVBChunk) {
         const node = sprite.node;
-        node.getWorldMatrix(m);
+        node.getWorldMatrix(matrix);
 
         const renderData = sprite.renderData!;
         const stride = renderData.floatStride;
@@ -224,15 +225,12 @@ export const barFilled: IAssembler = {
         let offset = 0;
         for (let i = 0; i < 4; i++) {
             const local = dataList[i];
-            const x = local.x;
-            const y = local.y;
-            let rhw = m.m03 * x + m.m07 * y + m.m15;
-            rhw = rhw ? Math.abs(1 / rhw) : 1;
-
+            Vec3.set(vec3_temp, local.x, local.y, 0);
+            Vec3.transformMat4(vec3_temp, vec3_temp, matrix);
             offset = i * stride;
-            vData[offset] = (m.m00 * x + m.m04 * y + m.m12) * rhw;
-            vData[offset + 1] = (m.m01 * x + m.m05 * y + m.m13) * rhw;
-            vData[offset + 2] = (m.m02 * x + m.m06 * y + m.m14) * rhw;
+            vData[offset] = vec3_temp.x;
+            vData[offset + 1] = vec3_temp.y;
+            vData[offset + 2] = vec3_temp.z;
         }
     },
 

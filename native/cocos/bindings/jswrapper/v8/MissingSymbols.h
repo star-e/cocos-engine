@@ -23,8 +23,6 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-
 #include <cerrno>
 #include <cstddef>
 #include <cstring>

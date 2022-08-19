@@ -29,8 +29,8 @@
 #include "json/prettywriter.h"
 #include "json/stringbuffer.h"
 
-#include <algorithm>
 #include <cstdio>
+#include <algorithm>
 #include <fstream>
 
 #define KEY_VERSION          "version"

@@ -23,8 +23,8 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#include "NativePipelineTypes.h"
 #include "RenderInterfaceTypes.h"
+#include "NativePipelineTypes.h"
 #include "boost/container/pmr/global_resource.hpp"
 
 namespace cc {

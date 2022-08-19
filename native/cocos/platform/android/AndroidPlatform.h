@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include "base/Timer.h"
 #include "platform/UniversalPlatform.h"
+#include "base/Timer.h"
 
 struct android_app;
 

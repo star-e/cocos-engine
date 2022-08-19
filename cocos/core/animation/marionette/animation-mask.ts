@@ -22,15 +22,11 @@ export class AnimationMask extends Asset {
     }
 
     /**
-     * @zh 添加一个关节遮罩项。
-     * 已存在的相同路径的关节遮罩项会被替换为新的。
-     * @en Add a joint mask item.
-     * Already existing joint mask with same path item will be replaced.
-     * @param path @zh 关节的路径。 @en The joint's path.
-     * @param enabled @zh 是否启用该关节。 @en Whether to enable the joint.
+     * It's undefined behaviour to add same joint path for twice or more.
+     * @param path
+     * @param enabled
      */
     public addJoint (path: string, enabled: boolean) {
-        this.removeJoint(path);
         const info = new JointMask();
         info.path = path;
         info.enabled = enabled;

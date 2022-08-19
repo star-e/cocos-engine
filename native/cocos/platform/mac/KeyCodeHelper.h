@@ -23,9 +23,8 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-
 #import "cocos/bindings/event/EventDispatcher.h"
+#pragma once
 
 extern int translateKeycode(int);
 extern void updateModifierKeyState(int keyCodeInWeb);

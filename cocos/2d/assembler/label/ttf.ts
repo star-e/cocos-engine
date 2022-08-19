@@ -29,7 +29,7 @@
  */
 
 import * as js from '../../../core/utils/js';
-import { Color } from '../../../core/math';
+import { Color, Vec3 } from '../../../core/math';
 import { IBatcher } from '../../renderer/i-batcher';
 import { Label } from '../../components/label';
 import { IAssembler } from '../../renderer/base';
@@ -37,6 +37,7 @@ import { ttfUtils } from './ttfUtils';
 import { IRenderData } from '../../renderer/render-data';
 
 const WHITE = Color.WHITE.clone();
+const vec3_temp = new Vec3();
 const QUAD_INDICES = Uint16Array.from([0, 1, 2, 1, 3, 2]);
 
 /**
@@ -74,21 +75,17 @@ export const ttf: IAssembler = {
         const vData = chunk.vb;
 
         // normal version
-        const m = node.worldMatrix;
+        const matrix = node.worldMatrix;
         const stride = renderData.floatStride;
         let offset = 0;
-        const length = dataList.length;
-        for (let i = 0; i < length; i++) {
+        for (let i = 0; i < dataList.length; i++) {
             const curData = dataList[i];
-            const x = curData.x;
-            const y = curData.y;
-            let rhw = m.m03 * x + m.m07 * y + m.m15;
-            rhw = rhw ? Math.abs(1 / rhw) : 1;
-
+            Vec3.set(vec3_temp, curData.x, curData.y, 0);
+            Vec3.transformMat4(vec3_temp, vec3_temp, matrix);
             offset = i * stride;
-            vData[offset + 0] = (m.m00 * x + m.m04 * y + m.m12) * rhw;
-            vData[offset + 1] = (m.m01 * x + m.m05 * y + m.m13) * rhw;
-            vData[offset + 2] = (m.m02 * x + m.m06 * y + m.m14) * rhw;
+            vData[offset++] = vec3_temp.x;
+            vData[offset++] = vec3_temp.y;
+            vData[offset++] = vec3_temp.z;
         }
 
         // quick version

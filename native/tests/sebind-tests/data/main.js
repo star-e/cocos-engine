@@ -22,9 +22,6 @@ function flush() {
 
 try {
 
-    l("create Coconut static function");
-    let e = new demo.Coconut(1,2,3,4);
-    
     let f1 = new demo.Fruit("Banana");
     block("create fruit", () => {
         f1 = new demo.Fruit("Banana");
@@ -78,13 +75,6 @@ try {
     block("call inherited function", () => {
         assert(typeof c.fullInfo === 'function', "function fullInfo/toString found");
     });
-    block("test combine", ()=>{
-        let d = new demo.Coconut();
-        d.combine(c);
-        d.combine1(c);
-        d.combine2(c);
-        d.combine3(c);
-    })
 
 
     l("create CoconutExt");

@@ -1,10 +1,10 @@
 
-#include <cstdlib>
-#include <sstream>
-#include <string>
 #include "cocos/bindings/jswrapper/SeApi.h"
-#include "cocos/bindings/manual/jsb_global_init.h"
 #include "cocos/platform/FileUtils.h"
+#include <string>
+#include <sstream>
+#include <cstdlib>
+#include "cocos/bindings/manual/jsb_global_init.h"
 
 int main(int argc, char **argv) {
     std::string scriptPath = "index.js";

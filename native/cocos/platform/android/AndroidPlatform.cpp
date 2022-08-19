@@ -422,6 +422,7 @@ public:
     }
 
 private:
+
     static void addTouchEvent(int index, GameActivityMotionEvent *motionEvent) {
         if (index < 0 || index >= motionEvent->pointerCount) {
             ABORT_IF(false);
@@ -487,7 +488,7 @@ int AndroidPlatform::init() {
                 _isLowFrequencyLoopEnabled = false;
                 _loopTimeOut = 0;
             }
-        } else if (APP_CMD_STOP == cmd) {
+        } else if(APP_CMD_STOP == cmd) {
             _lowFrequencyTimer.reset();
             _loopTimeOut = LOW_FREQUENCY_TIME_INTERVAL;
             _isLowFrequencyLoopEnabled = true;
@@ -517,12 +518,13 @@ int AndroidPlatform::getSdkVersion() const {
     return AConfiguration_getSdkVersion(_app->config);
 }
 
-int32_t AndroidPlatform::run(int /*argc*/, const char ** /*argv*/) {
+int32_t AndroidPlatform::run(int  /*argc*/, const char **/*argv*/) {
     loop();
     return 0;
 }
 
 int32_t AndroidPlatform::loop() {
+
     while (true) {
         int events;
         struct android_poll_source *source;

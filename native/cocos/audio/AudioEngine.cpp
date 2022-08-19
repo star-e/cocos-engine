@@ -25,8 +25,8 @@
 ****************************************************************************/
 
 #include "audio/include/AudioEngine.h"
-#include <condition_variable>
 #include <cstdint>
+#include <condition_variable>
 #include <mutex>
 #include <thread>
 #include "base/Log.h"

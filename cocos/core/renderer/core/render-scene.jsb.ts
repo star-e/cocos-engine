@@ -41,15 +41,4 @@ export interface IRaycastResult {
     distance: number;
 }
 
-const renderSceneProto = jsb.RenderScene.prototype;
-
-
-Object.defineProperty(renderSceneProto, 'mainLight', {
-    enumerable: true,
-    configurable: true,
-    get() {
-        return this.getMainLight();
-    }
-});
-
 export const RenderScene = jsb.RenderScene;

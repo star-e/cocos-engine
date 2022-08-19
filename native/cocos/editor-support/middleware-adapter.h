@@ -134,7 +134,7 @@ public:
     /**
      Extension to set the Min / Mag filter
      */
-    struct TexParams { // NOLINT
+    using TexParams = struct _TexParams { // NOLINT
         uint32_t minFilter;
         uint32_t magFilter;
         uint32_t wrapS;

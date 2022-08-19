@@ -48,10 +48,11 @@ extern int cocos_main(int argc, const char **argv);
 @interface MyTimer : NSObject {
     cc::MacPlatform *_platform;
     NSTimer *_timer;
+    int _fps;
 }
 - (instancetype)initWithApp:(cc::MacPlatform *)platform fps:(int)fps;
 - (void)start;
-- (void)changeFPS;
+- (void)changeFPS:(int)fps;
 - (void)pause;
 - (void)resume;
 @end
@@ -60,14 +61,14 @@ extern int cocos_main(int argc, const char **argv);
 
 - (instancetype)initWithApp:(cc::MacPlatform *)platform fps:(int)fps {
     if (self = [super init]) {
+        _fps = fps;
         _platform = platform;
     }
     return self;
 }
 
 - (void)start {
-    int32_t fps = _platform->getFps();
-    _timer = [NSTimer scheduledTimerWithTimeInterval:1.0f / fps
+    _timer = [NSTimer scheduledTimerWithTimeInterval:1.0f / _fps
                                               target:self
                                             selector:@selector(renderScene)
                                             userInfo:nil
@@ -82,9 +83,16 @@ extern int cocos_main(int argc, const char **argv);
     [self start];
 }
 
-- (void)changeFPS {
+- (void)changeFPS:(int)fps {
+    if (fps == _fps)
+        return;
+
     [self pause];
     [self resume];
+}
+
+- (int)getFps {
+    return _fps;
 }
 
 - (void)renderScene {
@@ -135,10 +143,11 @@ int32_t MacPlatform::run(int argc, const char **argv) {
 }
 
 void MacPlatform::setFps(int32_t fps) {
-    if(fps != getFps()) {
-        UniversalPlatform::setFps(fps);
-        [_timer changeFPS];
-    }
+    [_timer changeFPS:fps];
+}
+
+int32_t MacPlatform::getFps() const {
+    return [_timer getFps];
 }
 
 void MacPlatform::onPause() {

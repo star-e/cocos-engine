@@ -38,7 +38,7 @@ public:
     GLES2Shader();
     ~GLES2Shader() override;
 
-    GLES2GPUShader *gpuShader() const;
+    inline GLES2GPUShader *gpuShader() const { return _gpuShader; }
 
 protected:
     void doInit(const ShaderInfo &info) override;

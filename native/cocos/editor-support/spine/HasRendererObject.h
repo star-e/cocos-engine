@@ -30,9 +30,6 @@
 #ifndef Spine_HasRendererObject_h
 #define Spine_HasRendererObject_h
 
-#include "editor-support/spine/dll.h"
-#include <cstdlib>
-
 namespace spine {
 
 typedef void (*DisposeRendererObject)(void* rendererObject);

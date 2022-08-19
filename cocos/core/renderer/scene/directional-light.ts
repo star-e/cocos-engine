@@ -27,7 +27,7 @@ import { legacyCC } from '../../global-exports';
 import { Vec3 } from '../../math';
 import { Ambient } from './ambient';
 import { Light, LightType } from './light';
-import { CSMLevel, CSMOptimizationMode, PCFType, Shadows, ShadowType } from './shadows';
+import { CSMLevel, CSMOptimizationMode, PCFType, Shadows } from './shadows';
 
 const _forward = new Vec3(0, 0, -1);
 const _v3 = new Vec3();
@@ -127,7 +127,6 @@ export class DirectionalLight extends Light {
     }
     set shadowEnabled (val) {
         this._shadowEnabled = val;
-        this._activate();
     }
 
     /**
@@ -139,7 +138,6 @@ export class DirectionalLight extends Light {
     }
     set shadowPcf (val) {
         this._shadowPcf = val;
-        this._activate();
     }
 
     /**
@@ -206,7 +204,6 @@ export class DirectionalLight extends Light {
     }
     set csmLevel (val) {
         this._csmLevel = val;
-        this._activate();
     }
 
     /**
@@ -251,7 +248,6 @@ export class DirectionalLight extends Light {
     }
     set shadowFixedArea (val) {
         this._shadowFixedArea = val;
-        this._activate();
     }
 
     /**
@@ -307,21 +303,5 @@ export class DirectionalLight extends Light {
         if (this._node && this._node.hasChangedFlags) {
             this.direction = Vec3.transformQuat(_v3, _forward, this._node.worldRotation);
         }
-    }
-
-    private _activate () {
-        const root = legacyCC.director.root;
-        const pipeline = root.pipeline;
-        if (this._shadowEnabled) {
-            if (this._shadowFixedArea) {
-                pipeline.macros.CC_DIR_LIGHT_SHADOW_TYPE = 1;
-            } else {
-                pipeline.macros.CC_DIR_LIGHT_SHADOW_TYPE = this.csmLevel > 1 ? 2 : 1;
-            }
-            pipeline.macros.CC_DIR_SHADOW_PCF_TYPE = this._shadowPcf;
-        } else {
-            pipeline.macros.CC_DIR_LIGHT_SHADOW_TYPE = 0;
-        }
-        root.onGlobalPipelineStateChanged();
     }
 }

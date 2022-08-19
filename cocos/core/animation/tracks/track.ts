@@ -1,5 +1,4 @@
 import { ccclass, serializable, uniquelyReferenced } from 'cc.decorator';
-import { SUPPORT_JIT } from 'internal:constants';
 import type { Component } from '../../components';
 import type { ObjectCurve, QuatCurve, RealCurve } from '../../curves';
 import { assertIsTrue } from '../../data/utils/asserts';
@@ -301,8 +300,6 @@ export class TrackBinding {
     @serializable
     public proxy: IValueProxyFactory | undefined;
 
-    private static _animationFunctions = new WeakMap<Constructor, Map<string | number, { getValue:() => any, setValue:(val: any) => void}>>();
-
     public parseTrsPath () {
         if (this.proxy) {
             return null;
@@ -327,36 +324,15 @@ export class TrackBinding {
                 const blendStateWriter = poseOutput.createPoseWriter(resultTarget, lastPropertyKey, isConstant);
                 return blendStateWriter;
             }
-            let setValue; let getValue;
-            if (SUPPORT_JIT) {
-                let animationFunction = TrackBinding._animationFunctions.get(resultTarget.constructor);
-                if (!animationFunction) {
-                    animationFunction = new Map();
-                    TrackBinding._animationFunctions.set(resultTarget.constructor, animationFunction);
-                }
-
-                let accessor = animationFunction.get(lastPropertyKey);
-                if (!accessor) {
-                    accessor = {
-                        // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
-                        setValue: Function('value', `this.target.${lastPropertyKey} = value;`) as (val: any) => void,
-                        // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
-                        getValue: Function(`return this.target.${lastPropertyKey};`) as () => any,
-                    };
-                    animationFunction.set(lastPropertyKey, accessor);
-                }
-                setValue = accessor.setValue;
-                getValue = accessor.getValue;
-            } else {
-                setValue = (value: unknown) => {
-                    resultTarget[lastPropertyKey] = value;
-                };
-                getValue = () => resultTarget[lastPropertyKey] as unknown;
-            }
             return {
-                target: resultTarget,
-                setValue,
-                getValue,
+                setValue: (value: unknown) => {
+                    resultTarget[lastPropertyKey] = value;
+                },
+                // eslint-disable-next-line arrow-body-style
+                getValue: () => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+                    return resultTarget[lastPropertyKey];
+                },
             };
         } else if (!proxy) {
             errorID(3921);

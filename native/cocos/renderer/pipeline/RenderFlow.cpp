@@ -51,27 +51,33 @@ void RenderFlow::activate(RenderPipeline *pipeline) {
         return s1->getPriority() < s2->getPriority();
     });
 
-    for (auto const &stage : _stages) {
+    for (auto *const stage : _stages) {
         stage->activate(pipeline, this);
     }
 }
 
 void RenderFlow::render(scene::Camera *camera) {
-    for (auto const &stage : _stages) {
+    for (auto *const stage : _stages) {
         stage->render(camera);
     }
 }
 
 void RenderFlow::destroy() {
-    for (auto &stage : _stages) {
-        CC_SAFE_DESTROY(stage);
+    if (_isResourceOwner) {
+        for (auto *stage : _stages) {
+            CC_SAFE_DESTROY_AND_DELETE(stage);
+        }
+    } else {
+        for (auto *stage : _stages) {
+            CC_SAFE_DESTROY(stage);
+        }
     }
 
     _stages.clear();
 }
 
 RenderStage *RenderFlow::getRenderstageByName(const ccstd::string &name) const {
-    for (auto const &node : _stages) {
+    for (auto *node : _stages) {
         if (node->getName() == name) {
             return node;
         }

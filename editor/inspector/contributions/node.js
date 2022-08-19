@@ -750,11 +750,6 @@ const Elements = {
                         $prop.regenerate = Elements.scene.regenerate.bind(panel);
                         $prop.addEventListener('change-dump', $prop.regenerate);
                     }
-
-                    if (!$prop.setReflectionConvolutionMap && $prop.dump.name === 'envmap') {
-                        $prop.setReflectionConvolutionMap = Elements.scene.setReflectionConvolutionMap.bind(panel);
-                        $prop.addEventListener('change-dump', $prop.setReflectionConvolutionMap);
-                    }
                 }
             });
         },
@@ -785,17 +780,6 @@ const Elements = {
                     name: 'inspector',
                     method: 'generateVector',
                     args: [envMapUuid],
-                });
-            }
-        },
-        async setReflectionConvolutionMap() {
-            const panel = this;
-            const envMapData = panel.dump._globals.skybox.value['envmap'];
-            if (envMapData.value && envMapData.value.uuid) {
-                await Editor.Message.request('scene', 'execute-scene-script', {
-                    name: 'inspector',
-                    method: 'setReflectionConvolutionMap',
-                    args: [envMapData.value.uuid],
                 });
             }
         },
@@ -1006,25 +990,20 @@ const Elements = {
                     sectionBody.__sections__[i] = $section;
                     sectionBody.appendChild($section);
 
-                    // 排序
-                    const renderListHeader = panel.renderMap.header[$section.__type__] ?? [];
-                    let renderListSection = panel.renderMap.section[$section.__type__] ?? [];
-                    const renderListFooter = panel.renderMap.footer[$section.__type__] ?? [];
-
+                    // 再处理内部
+                    let renderList = panel.renderMap.section[$section.__type__];
 
                     // 如果都没有渲染模板，使用默认 cc.Class 模板
-                    if (!renderListSection.length) {
+                    if (!renderList || !renderList.length) {
                         // 判断继承
                         if (Array.isArray(component.extends)) {
                             const parentClass = component.extends[0];
-                            renderListSection = panel.renderMap.section[parentClass];
+                            renderList = panel.renderMap.section[parentClass];
                         }
-                        if (!renderListSection) {
-                            renderListSection = panel.renderMap.section['cc.Class'];
+                        if (!renderList) {
+                            renderList = panel.renderMap.section['cc.Class'];
                         }
                     }
-
-                    let renderList = [...renderListHeader, ...renderListSection, ...renderListFooter];
 
                     renderList.forEach((file) => {
                         const $panel = document.createElement('ui-panel');

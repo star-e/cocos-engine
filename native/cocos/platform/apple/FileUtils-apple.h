@@ -66,4 +66,5 @@ private:
     std::unique_ptr<IMPL> pimpl_;
 };
 
+
 } // namespace cc

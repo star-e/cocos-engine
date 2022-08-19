@@ -24,8 +24,8 @@
 ****************************************************************************/
 
 #include "MiddlewareManager.h"
-#include <algorithm>
 #include "SeApi.h"
+#include <algorithm>
 
 MIDDLEWARE_BEGIN
 
