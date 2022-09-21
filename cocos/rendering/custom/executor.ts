@@ -987,12 +987,20 @@ class DevicePreSceneTask extends WebSceneTask {
         this._updateGlobal(context, queueRenderData);
     }
 
+
+    protected _updateBlurUbo (camera: Camera) {
+        const ubo = this._currentQueue.devicePass.context.ubo;
+        ubo.updateGlobalUBO(camera.window);
+        ubo.updateCameraUBO(camera);
+        ubo.updateShadowUBO(camera);
+    }
+
     public submit () {
         const context = this._currentQueue.devicePass.context;
         const ubo = context.ubo;
         if (this.graphScene.blit) {
             const blitCam = this.graphScene.blit.camera;
-            if (blitCam) this._updateUbo();
+            if (blitCam) this._updateBlurUbo(blitCam);
             this._currentQueue.blitDesc!.update();
             return;
         }
@@ -1188,13 +1196,31 @@ class DeviceSceneTask extends WebSceneTask {
             }
         }
     }
+
+    // TODO: After the ubo is perfected, it needs to be replaced
+    private _beginBindBlitUbo(devicePass) {
+        this.visitor.bindDescriptorSet(SetIndex.GLOBAL,
+            devicePass.context.pipeline.globalDSManager.globalDescriptorSet);
+    }
+
+    private _endBindBlitUbo(devicePass) {
+        const stageId = devicePass.context.layoutGraph.locateChild(devicePass.context.layoutGraph.nullVertex(), 'default');
+        assert(stageId !== 0xFFFFFFFF);
+        const layout = devicePass.context.layoutGraph.getLayout(stageId);
+        const layoutData = layout.descriptorSets.get(UpdateFrequency.PER_PASS);
+        this.visitor.bindDescriptorSet(SetIndex.GLOBAL,
+            layoutData!.descriptorSet!);
+    }
+
     private _recordBlit () {
         if (!this.graphScene.blit) { return; }
+        
         const blit = this.graphScene.blit;
         const currMat = blit.material;
         const pass = currMat!.passes[blit.passID];
         const shader = pass.getShaderVariant();
         const devicePass = this._currentQueue.devicePass;
+        this._beginBindBlitUbo(devicePass);
         const screenIa: any = this._currentQueue.blitDesc!.screenQuad!.quadIA;
         let pso;
         if (pass !== null && shader !== null && screenIa !== null) {
@@ -1211,6 +1237,7 @@ class DeviceSceneTask extends WebSceneTask {
             this.visitor.bindInputAssembler(screenIa);
             this.visitor.draw(screenIa);
         }
+        this._endBindBlitUbo(devicePass);
     }
     private _recordAdditiveLights () {
         const devicePass = this._currentQueue.devicePass;
