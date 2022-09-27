@@ -1,6 +1,6 @@
 import { Material } from '../../asset/assets';
 import { ClearFlagBit, Color, Format, LoadOp, StoreOp } from '../../gfx/base/define';
-import { Camera } from '../../render-scene/scene';
+import { Camera, CameraUsage } from '../../render-scene/scene';
 import { Vec4 } from '../../core/math';
 import { macro } from '../../core/platform/macro';
 import { AntiAliasing, buildShadowPasses, getCameraUniqueID, getLoadOpOfClearFlag, validPunctualLightsCulling } from './define';
@@ -87,7 +87,11 @@ export class CustomPipelineBuilder implements PipelineBuilder {
             const forwardPassRTName = `dsForwardPassColor${cameraName}`;
             const forwardPassDSName = `dsForwardPassDS${cameraName}`;
             if (!ppl.containsResource(forwardPassRTName)) {
-                ppl.addRenderTarget(forwardPassRTName, Format.RGBA16F, width, height, ResourceResidency.MANAGED);
+                if (camera.cameraUsage === CameraUsage.EDITOR) {
+                    ppl.addRenderTexture(forwardPassRTName, Format.RGBA8, width, height, camera.window);
+                } else {
+                    ppl.addRenderTarget(forwardPassRTName, Format.RGBA16F, width, height, ResourceResidency.MANAGED);
+                }
                 // ppl.addRenderTexture(forwardPassRTName, Format.RGBA8, width, height, camera.window);
                 ppl.addDepthStencil(forwardPassDSName, Format.DEPTH_STENCIL, width, height, ResourceResidency.MANAGED);
             }
@@ -109,7 +113,7 @@ export class CustomPipelineBuilder implements PipelineBuilder {
                 LoadOp.CLEAR,
                 StoreOp.STORE,
                 camera.clearFlag,
-                new Color(camera.clearColor.x, camera.clearColor.y, camera.clearColor.z, 0));
+                new Color(camera.clearColor.x, camera.clearColor.y, camera.clearColor.z, camera.clearColor.w));
             const passDSView = new RasterView('_',
                 AccessType.WRITE, AttachmentType.DEPTH_STENCIL,
                 LoadOp.CLEAR,
@@ -126,6 +130,9 @@ export class CustomPipelineBuilder implements PipelineBuilder {
             forwardPass
                 .addQueue(QueueHint.RENDER_TRANSPARENT)
                 .addSceneOfCamera(camera, new LightInfo(), SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY);
+            if (camera.cameraUsage === CameraUsage.EDITOR) {
+                return;
+            }
             // Start bloom
             const bloomClearColor = new Color(0, 0, 0, 1);
             if (camera.clearFlag & ClearFlagBit.COLOR) {
