@@ -44,7 +44,7 @@ import { DirectionalLight } from '../../render-scene/scene';
 import { Camera } from '../../render-scene/scene/camera';
 import { LightType } from '../../render-scene/scene/light';
 import { CSMLevel, ShadowType } from '../../render-scene/scene/shadows';
-import { Root } from '../../core/root';
+import { Root } from '../../root';
 import { BatchedBuffer } from '../batched-buffer';
 import { SetIndex, UBODeferredLight, UBOForwardLight, UBOLocal } from '../define';
 import { PipelineSceneData } from '../pipeline-scene-data';
@@ -63,7 +63,7 @@ import { RenderAdditiveLightQueue } from '../render-additive-light-queue';
 import { RenderShadowMapBatchedQueue } from '../render-shadow-map-batched-queue';
 import { renderProfiler } from '../pipeline-funcs';
 import { PlanarShadowQueue } from '../planar-shadow-queue';
-import { DefaultVisitor, depthFirstSearch, edge_descriptor, ReferenceGraphView } from './graph';
+import { DefaultVisitor, depthFirstSearch, ReferenceGraphView } from './graph';
 import { VectorGraphColorMap } from './effect';
 
 class DeviceResource {
@@ -1217,6 +1217,7 @@ class DeviceSceneTask extends WebSceneTask {
         const blit = this.graphScene.blit;
         const currMat = blit.material;
         const pass = currMat!.passes[blit.passID];
+        pass.update();
         const shader = pass.getShaderVariant();
         const devicePass = this._currentQueue.devicePass;
         this._beginBindBlitUbo(devicePass);

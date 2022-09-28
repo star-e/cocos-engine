@@ -126,6 +126,9 @@ using namespace cc;
 #define cc_Root_customPipeline_get(self_) self_->getCustomPipeline()
   
 
+#define cc_Root_cameraList_get(self_) self_->getCameraList()
+  
+
 #define cc_scene_RenderWindow_width_get(self_) self_->getWidth()
   
 
@@ -582,6 +585,10 @@ using namespace cc;
   
 
 #define cc_scene_Camera_systemWindowId_get(self_) self_->getSystemWindowId()
+  
+
+#define cc_scene_Camera_cameraUsage_get(self_) self_->getCameraUsage()
+#define cc_scene_Camera_cameraUsage_set(self_, val_) self_->setCameraUsage(val_)
   
 
 #define cc_scene_RenderScene_name_get(self_) self_->getName()
@@ -6229,6 +6236,25 @@ static bool js_cc_Root_customPipeline_get(se::State& s)
 }
 SE_BIND_PROP_GET(js_cc_Root_customPipeline_get) 
 
+static bool js_cc_Root_cameraList_get(se::State& s)
+{
+    CC_UNUSED bool ok = true;
+    cc::Root *arg1 = (cc::Root *) NULL ;
+    ccstd::vector< cc::scene::Camera * > *result = 0 ;
+    
+    arg1 = SE_THIS_OBJECT<cc::Root>(s);
+    SE_PRECONDITION2(arg1, false, "%s: Invalid Native Object", __FUNCTION__); 
+    result = (ccstd::vector< cc::scene::Camera * > *) &cc_Root_cameraList_get(arg1);
+    // %typemap(out) SWIGTYPE&
+    ok &= nativevalue_to_se(*result, s.rval(), s.thisObject() /*ctx*/);
+    SE_PRECONDITION2(ok, false, "Root_cameraList_get, Error processing arguments");
+    SE_HOLD_RETURN_VALUE(*result, s.thisObject(), s.rval()); 
+    
+    
+    return true;
+}
+SE_BIND_PROP_GET(js_cc_Root_cameraList_get) 
+
 bool js_register_cc_Root(se::Object* obj) {
     auto* cls = se::Class::create("Root", obj, nullptr, _SE(js_new_cc_Root)); 
     
@@ -6248,6 +6274,7 @@ bool js_register_cc_Root(se::Object* obj) {
     cls->defineProperty("usesCustomPipeline", _SE(js_cc_Root_usesCustomPipeline_get), nullptr); 
     cls->defineProperty("pipeline", _SE(js_cc_Root_pipeline_get), nullptr); 
     cls->defineProperty("customPipeline", _SE(js_cc_Root_customPipeline_get), nullptr); 
+    cls->defineProperty("cameraList", _SE(js_cc_Root_cameraList_get), nullptr); 
     
     cls->defineFunction("_initialize", _SE(js_cc_Root__initialize)); 
     cls->defineFunction("destroy", _SE(js_cc_Root_destroy)); 
@@ -20323,6 +20350,42 @@ static bool js_cc_scene_ICameraInfo_trackingType_get(se::State& s)
 }
 SE_BIND_PROP_GET(js_cc_scene_ICameraInfo_trackingType_get) 
 
+static bool js_cc_scene_ICameraInfo_usage_set(se::State& s)
+{
+    CC_UNUSED bool ok = true;
+    const auto& args = s.args();
+    size_t argc = args.size();
+    cc::scene::ICameraInfo *arg1 = (cc::scene::ICameraInfo *) NULL ;
+    int32_t temp2 ;
+    
+    arg1 = SE_THIS_OBJECT<cc::scene::ICameraInfo>(s);
+    SE_PRECONDITION2(arg1, false, "%s: Invalid Native Object", __FUNCTION__); 
+    // %typemap(in) enum SWIGTYPE (int32_t temp2)
+    ok &= sevalue_to_native(args[0], &temp2);
+    SE_PRECONDITION2(ok, false, "ICameraInfo_usage_set,2,SWIGTYPE_cc__scene__CameraUsage");
+    arg1->usage = (cc::scene::CameraUsage)temp2;
+    
+    
+    return true;
+}
+SE_BIND_PROP_SET(js_cc_scene_ICameraInfo_usage_set) 
+
+static bool js_cc_scene_ICameraInfo_usage_get(se::State& s)
+{
+    CC_UNUSED bool ok = true;
+    cc::scene::ICameraInfo *arg1 = (cc::scene::ICameraInfo *) NULL ;
+    int32_t temp ;
+    
+    arg1 = SE_THIS_OBJECT<cc::scene::ICameraInfo>(s);
+    SE_PRECONDITION2(arg1, false, "%s: Invalid Native Object", __FUNCTION__); 
+    // out 4
+    s.rval().setInt32(static_cast<int32_t>(arg1->usage));
+    
+    
+    return true;
+}
+SE_BIND_PROP_GET(js_cc_scene_ICameraInfo_usage_get) 
+
 // js_ctor
 static bool js_new_cc_scene_ICameraInfo(se::State& s) // NOLINT(readability-identifier-naming)
 {
@@ -20414,6 +20477,12 @@ bool sevalue_to_native(const se::Value &from, cc::scene::ICameraInfo * to, se::O
     }
     
     
+    json->getProperty("usage", &field, true);
+    if (!field.isNullOrUndefined()) {
+        ok &= sevalue_to_native(field, &(to->usage), ctx);
+    }
+    
+    
     return ok;
 }
 
@@ -20430,6 +20499,7 @@ bool js_register_cc_scene_ICameraInfo(se::Object* obj) {
     cls->defineProperty("pipeline", _SE(js_cc_scene_ICameraInfo_pipeline_get), _SE(js_cc_scene_ICameraInfo_pipeline_set)); 
     cls->defineProperty("cameraType", _SE(js_cc_scene_ICameraInfo_cameraType_get), _SE(js_cc_scene_ICameraInfo_cameraType_set)); 
     cls->defineProperty("trackingType", _SE(js_cc_scene_ICameraInfo_trackingType_get), _SE(js_cc_scene_ICameraInfo_trackingType_set)); 
+    cls->defineProperty("usage", _SE(js_cc_scene_ICameraInfo_usage_get), _SE(js_cc_scene_ICameraInfo_usage_set)); 
     
     
     
@@ -22259,6 +22329,46 @@ static bool js_cc_scene_Camera_systemWindowId_get(se::State& s)
 }
 SE_BIND_PROP_GET(js_cc_scene_Camera_systemWindowId_get) 
 
+static bool js_cc_scene_Camera_cameraUsage_set(se::State& s)
+{
+    CC_UNUSED bool ok = true;
+    const auto& args = s.args();
+    size_t argc = args.size();
+    cc::scene::Camera *arg1 = (cc::scene::Camera *) NULL ;
+    cc::scene::CameraUsage arg2 ;
+    int32_t temp2 ;
+    
+    arg1 = SE_THIS_OBJECT<cc::scene::Camera>(s);
+    SE_PRECONDITION2(arg1, false, "%s: Invalid Native Object", __FUNCTION__); 
+    // %typemap(in) enum SWIGTYPE (int32_t temp2)
+    ok &= sevalue_to_native(args[0], &temp2);
+    SE_PRECONDITION2(ok, false, "Camera_cameraUsage_set,2,SWIGTYPE_cc__scene__CameraUsage");
+    arg2 = (cc::scene::CameraUsage)temp2;
+    cc_scene_Camera_cameraUsage_set(arg1,arg2);
+    
+    
+    return true;
+}
+SE_BIND_PROP_SET(js_cc_scene_Camera_cameraUsage_set) 
+
+static bool js_cc_scene_Camera_cameraUsage_get(se::State& s)
+{
+    CC_UNUSED bool ok = true;
+    cc::scene::Camera *arg1 = (cc::scene::Camera *) NULL ;
+    cc::scene::CameraUsage result;
+    int32_t temp ;
+    
+    arg1 = SE_THIS_OBJECT<cc::scene::Camera>(s);
+    SE_PRECONDITION2(arg1, false, "%s: Invalid Native Object", __FUNCTION__); 
+    result = (cc::scene::CameraUsage)cc_scene_Camera_cameraUsage_get(arg1);
+    // out 4
+    s.rval().setInt32(static_cast<int32_t>(result));
+    
+    
+    return true;
+}
+SE_BIND_PROP_GET(js_cc_scene_Camera_cameraUsage_get) 
+
 bool js_register_cc_scene_Camera(se::Object* obj) {
     auto* cls = se::Class::create("Camera", obj, nullptr, _SE(js_new_cc_scene_Camera)); 
     
@@ -22299,6 +22409,7 @@ bool js_register_cc_scene_Camera(se::Object* obj) {
     cls->defineProperty("surfaceTransform", _SE(js_cc_scene_Camera_surfaceTransform_get), nullptr); 
     cls->defineProperty("geometryRenderer", _SE(js_cc_scene_Camera_geometryRenderer_get), nullptr); 
     cls->defineProperty("systemWindowId", _SE(js_cc_scene_Camera_systemWindowId_get), nullptr); 
+    cls->defineProperty("cameraUsage", _SE(js_cc_scene_Camera_cameraUsage_get), _SE(js_cc_scene_Camera_cameraUsage_set)); 
     
     cls->defineFunction("initialize", _SE(js_cc_scene_Camera_initialize)); 
     cls->defineFunction("destroy", _SE(js_cc_scene_Camera_destroy)); 
