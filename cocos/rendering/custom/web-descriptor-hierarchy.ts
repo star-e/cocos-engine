@@ -549,6 +549,7 @@ export class WebDescriptorHierarchy {
         }
 
         this.merge(passDB);
+        this.sort(passDB);
 
         const vid = this._layoutGraph.addVertex<LayoutGraphValue.RenderStage>(
             LayoutGraphValue.RenderStage, RenderPassStage.DEFAULT, vName, passDB,

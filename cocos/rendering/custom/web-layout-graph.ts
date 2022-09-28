@@ -316,6 +316,38 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
         layout.capacity += block.capacity;
     }
 
+    public reorderDescriptorBlock (nodeID: number, index: DescriptorBlockIndex, block: DescriptorBlockFlattened): void {
+        const g: LayoutGraphData = this._data;
+        const ppl: PipelineLayoutData = g.getLayout(nodeID);
+        if (block.capacity <= 0) {
+            console.error('empty block');
+            return;
+        }
+        if (block.descriptorNames.length !== block.descriptors.length) {
+            console.error('error descriptor');
+            return;
+        }
+        if (block.uniformBlockNames.length !== block.uniformBlocks.length) {
+            console.error('error uniform');
+            return;
+        }
+        let data: DescriptorSetData | undefined = ppl.descriptorSets.get(index.updateFrequency);
+        if (!data) {
+            data = new DescriptorSetData(new DescriptorSetLayoutData(), null, null);
+            ppl.descriptorSets.set(index.updateFrequency, data);
+        }
+        const layout = data.descriptorSetLayoutData;
+
+        layout.descriptorBlocks.sort((a, b) => a.type - b.type);
+
+        let cap = 0;
+        for (let i = 0; i < layout.descriptorBlocks.length; ++i) {
+            const block = layout.descriptorBlocks[i];
+            block.offset = cap;
+            cap += block.capacity;
+        }
+    }
+
     public addUniformBlock (nodeID: number, index: DescriptorBlockIndex, name: string, uniformBlock: UniformBlock): void {
         const g: LayoutGraphData = this._data;
         const ppl: PipelineLayoutData = g.getLayout(nodeID);
