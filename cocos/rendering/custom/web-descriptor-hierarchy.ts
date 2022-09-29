@@ -403,7 +403,7 @@ export class WebDescriptorHierarchy {
                                             capacityStored++;
                                         }
                                         for (const dd of block.descriptors) {
-                                            if (blockStored.descriptors.get(dd[0]) === undefined && capacityStored < capacityToAdd) {
+                                            if (blockStored.descriptors.get(dd[0]) === undefined /*&& capacityStored < capacityToAdd*/) {
                                                 blockStored.descriptors.set(dd[0], dd[1]);
                                                 capacityStored++;
                                             }
@@ -433,7 +433,7 @@ export class WebDescriptorHierarchy {
                                             capacityStored++;
                                         }
                                         for (const uu of block.uniformBlocks) {
-                                            if (blockStored.uniformBlocks.get(uu[0]) === undefined && capacityStored < capacityToAdd) {
+                                            if (blockStored.uniformBlocks.get(uu[0]) === undefined /*&& capacityStored < capacityToAdd*/) {
                                                 blockStored.uniformBlocks.set(uu[0], uu[1]);
                                                 capacityStored++;
                                             }
