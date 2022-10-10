@@ -12,7 +12,7 @@ import { getUpdateFrequencyName, UpdateFrequency } from './types';
 
 const isArr = (origin: any): boolean => {
     const str = '[object Array]';
-    return Object.prototype.toString.call(origin) == str;
+    return Object.prototype.toString.call(origin) === str;
 };
 
 const deepClone = <T>(origin: T, target?: Record<string, any> | T): T => {
