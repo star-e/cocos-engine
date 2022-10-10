@@ -293,6 +293,8 @@ export class WebDescriptorHierarchy {
                     this.setDescriptor(localSamplerVertTarget, 'cc_jointTexture', Type.SAMPLER2D);
                 } else if (samplerName === 'cc_PositionDisplacements') {
                     this.setDescriptor(localSamplerVertTarget, 'cc_PositionDisplacements', Type.SAMPLER2D);
+                } else if (samplerName === 'cc_realtimeJoint') {
+                    this.setDescriptor(localSamplerVertTarget, 'cc_realtimeJoint', Type.SAMPLER2D);
                 } else if (samplerName === 'cc_NormalDisplacements') {
                     this.setDescriptor(localSamplerVertTarget, 'cc_NormalDisplacements', Type.SAMPLER2D);
                 } else if (samplerName === 'cc_TangentDisplacements') {

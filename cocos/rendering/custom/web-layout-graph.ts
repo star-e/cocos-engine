@@ -664,7 +664,8 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                 const ds = dsData[d];
                                 let flag = ShaderStageFlagBit.VERTEX;
                                 if ((descriptor.name === 'cc_jointTexture' || descriptor.name === 'cc_PositionDisplacements'
-                                        || descriptor.name === 'cc_NormalDisplacements' || descriptor.name === 'cc_TangentDisplacements')) {
+                                        || descriptor.name === 'cc_realtimeJoint' || descriptor.name === 'cc_NormalDisplacements'
+                                        || descriptor.name === 'cc_TangentDisplacements')) {
                                     flag = ShaderStageFlagBit.VERTEX;
                                 } else {
                                     flag = ShaderStageFlagBit.FRAGMENT;
