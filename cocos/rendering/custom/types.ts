@@ -29,10 +29,10 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 /* eslint-disable max-len */
-import { ClearFlagBit, Color, LoadOp, StoreOp } from '../../gfx';
+import { ClearFlagBit, Color, LoadOp, ShaderStageFlagBit, StoreOp, Type, UniformBlock } from '../../gfx';
 import { Light } from '../../render-scene/scene';
 
-export const enum UpdateFrequency {
+export enum UpdateFrequency {
     PER_INSTANCE,
     PER_BATCH,
     PER_PHASE,
@@ -57,7 +57,7 @@ export function getUpdateFrequencyName (e: UpdateFrequency): string {
     }
 }
 
-export const enum ParameterType {
+export enum ParameterType {
     CONSTANTS,
     CBV,
     UAV,
@@ -85,7 +85,7 @@ export function getParameterTypeName (e: ParameterType): string {
     }
 }
 
-export const enum ResourceResidency {
+export enum ResourceResidency {
     MANAGED,
     MEMORYLESS,
     PERSISTENT,
@@ -110,7 +110,7 @@ export function getResourceResidencyName (e: ResourceResidency): string {
     }
 }
 
-export const enum QueueHint {
+export enum QueueHint {
     NONE,
     RENDER_OPAQUE,
     RENDER_CUTOUT,
@@ -132,7 +132,7 @@ export function getQueueHintName (e: QueueHint): string {
     }
 }
 
-export const enum ResourceDimension {
+export enum ResourceDimension {
     BUFFER,
     TEXTURE1D,
     TEXTURE2D,
@@ -154,7 +154,7 @@ export function getResourceDimensionName (e: ResourceDimension): string {
     }
 }
 
-export const enum ResourceFlags {
+export enum ResourceFlags {
     NONE = 0,
     UNIFORM = 0x1,
     INDIRECT = 0x2,
@@ -165,7 +165,7 @@ export const enum ResourceFlags {
     INPUT_ATTACHMENT = 0x40,
 }
 
-export const enum TaskType {
+export enum TaskType {
     SYNC,
     ASYNC,
 }
@@ -181,23 +181,25 @@ export function getTaskTypeName (e: TaskType): string {
     }
 }
 
-export const enum SceneFlags {
+export enum SceneFlags {
     NONE = 0,
-    OPAQUE_OBJECT = 1,
-    CUTOUT_OBJECT = 2,
-    TRANSPARENT_OBJECT = 4,
-    SHADOW_CASTER = 8,
-    UI = 16,
-    DEFAULT_LIGHTING = 32,
-    VOLUMETRIC_LIGHTING = 64,
-    CLUSTERED_LIGHTING = 128,
-    PLANAR_SHADOW = 256,
-    GEOMETRY = 512,
-    PROFILER = 1024,
+    OPAQUE_OBJECT = 0x1,
+    CUTOUT_OBJECT = 0x2,
+    TRANSPARENT_OBJECT = 0x4,
+    SHADOW_CASTER = 0x8,
+    UI = 0x10,
+    DEFAULT_LIGHTING = 0x20,
+    VOLUMETRIC_LIGHTING = 0x40,
+    CLUSTERED_LIGHTING = 0x80,
+    PLANAR_SHADOW = 0x100,
+    GEOMETRY = 0x200,
+    PROFILER = 0x400,
+    DRAW_INSTANCING = 0x800,
+    DRAW_NON_INSTANCING = 0x1000,
     ALL = 0xFFFFFFFF,
 }
 
-export const enum LightingMode {
+export enum LightingMode {
     NONE,
     DEFAULT,
     CLUSTERED,
@@ -216,7 +218,7 @@ export function getLightingModeName (e: LightingMode): string {
     }
 }
 
-export const enum AttachmentType {
+export enum AttachmentType {
     RENDER_TARGET,
     DEPTH_STENCIL,
 }
@@ -232,7 +234,7 @@ export function getAttachmentTypeName (e: AttachmentType): string {
     }
 }
 
-export const enum AccessType {
+export enum AccessType {
     READ,
     READ_WRITE,
     WRITE,
@@ -278,7 +280,7 @@ export class RasterView {
     readonly clearColor: Color;
 }
 
-export const enum ClearValueType {
+export enum ClearValueType {
     FLOAT_TYPE,
     INT_TYPE,
 }
@@ -309,4 +311,141 @@ export class LightInfo {
     }
     /*refcount*/ light: Light | null;
     level: number;
+}
+
+export enum DescriptorTypeOrder {
+    UNIFORM_BUFFER,
+    DYNAMIC_UNIFORM_BUFFER,
+    SAMPLER_TEXTURE,
+    SAMPLER,
+    TEXTURE,
+    STORAGE_BUFFER,
+    DYNAMIC_STORAGE_BUFFER,
+    STORAGE_IMAGE,
+    INPUT_ATTACHMENT,
+}
+
+export function getDescriptorTypeOrderName (e: DescriptorTypeOrder): string {
+    switch (e) {
+    case DescriptorTypeOrder.UNIFORM_BUFFER:
+        return 'UNIFORM_BUFFER';
+    case DescriptorTypeOrder.DYNAMIC_UNIFORM_BUFFER:
+        return 'DYNAMIC_UNIFORM_BUFFER';
+    case DescriptorTypeOrder.SAMPLER_TEXTURE:
+        return 'SAMPLER_TEXTURE';
+    case DescriptorTypeOrder.SAMPLER:
+        return 'SAMPLER';
+    case DescriptorTypeOrder.TEXTURE:
+        return 'TEXTURE';
+    case DescriptorTypeOrder.STORAGE_BUFFER:
+        return 'STORAGE_BUFFER';
+    case DescriptorTypeOrder.DYNAMIC_STORAGE_BUFFER:
+        return 'DYNAMIC_STORAGE_BUFFER';
+    case DescriptorTypeOrder.STORAGE_IMAGE:
+        return 'STORAGE_IMAGE';
+    case DescriptorTypeOrder.INPUT_ATTACHMENT:
+        return 'INPUT_ATTACHMENT';
+    default:
+        return '';
+    }
+}
+
+export class Descriptor {
+    constructor (type: Type = Type.UNKNOWN) {
+        this.type = type;
+    }
+    type: Type;
+    count = 1;
+}
+
+export class DescriptorBlock {
+    readonly descriptors: Map<string, Descriptor> = new Map<string, Descriptor>();
+    readonly uniformBlocks: Map<string, UniformBlock> = new Map<string, UniformBlock>();
+    capacity = 0;
+    count = 0;
+}
+
+export class DescriptorBlockFlattened {
+    readonly descriptorNames: string[] = [];
+    readonly uniformBlockNames: string[] = [];
+    readonly descriptors: Descriptor[] = [];
+    readonly uniformBlocks: UniformBlock[] = [];
+    capacity = 0;
+    count = 0;
+}
+
+export class DescriptorBlockIndex {
+    constructor (updateFrequency: UpdateFrequency = UpdateFrequency.PER_INSTANCE, parameterType: ParameterType = ParameterType.CONSTANTS, descriptorType: DescriptorTypeOrder = DescriptorTypeOrder.UNIFORM_BUFFER, visibility: ShaderStageFlagBit = ShaderStageFlagBit.NONE) {
+        this.updateFrequency = updateFrequency;
+        this.parameterType = parameterType;
+        this.descriptorType = descriptorType;
+        this.visibility = visibility;
+    }
+    updateFrequency: UpdateFrequency;
+    parameterType: ParameterType;
+    descriptorType: DescriptorTypeOrder;
+    visibility: ShaderStageFlagBit;
+}
+
+export class CopyPair {
+    constructor (
+        source = '',
+        target = '',
+        mipLevels = 0xFFFFFFFF,
+        numSlices = 0xFFFFFFFF,
+        sourceMostDetailedMip = 0,
+        sourceFirstSlice = 0,
+        sourcePlaneSlice = 0,
+        targetMostDetailedMip = 0,
+        targetFirstSlice = 0,
+        targetPlaneSlice = 0,
+    ) {
+        this.source = source;
+        this.target = target;
+        this.mipLevels = mipLevels;
+        this.numSlices = numSlices;
+        this.sourceMostDetailedMip = sourceMostDetailedMip;
+        this.sourceFirstSlice = sourceFirstSlice;
+        this.sourcePlaneSlice = sourcePlaneSlice;
+        this.targetMostDetailedMip = targetMostDetailedMip;
+        this.targetFirstSlice = targetFirstSlice;
+        this.targetPlaneSlice = targetPlaneSlice;
+    }
+    source: string;
+    target: string;
+    mipLevels: number;
+    numSlices: number;
+    sourceMostDetailedMip: number;
+    sourceFirstSlice: number;
+    sourcePlaneSlice: number;
+    targetMostDetailedMip: number;
+    targetFirstSlice: number;
+    targetPlaneSlice: number;
+}
+
+export class MovePair {
+    constructor (
+        source = '',
+        target = '',
+        mipLevels = 0xFFFFFFFF,
+        numSlices = 0xFFFFFFFF,
+        targetMostDetailedMip = 0,
+        targetFirstSlice = 0,
+        targetPlaneSlice = 0,
+    ) {
+        this.source = source;
+        this.target = target;
+        this.mipLevels = mipLevels;
+        this.numSlices = numSlices;
+        this.targetMostDetailedMip = targetMostDetailedMip;
+        this.targetFirstSlice = targetFirstSlice;
+        this.targetPlaneSlice = targetPlaneSlice;
+    }
+    source: string;
+    target: string;
+    mipLevels: number;
+    numSlices: number;
+    targetMostDetailedMip: number;
+    targetFirstSlice: number;
+    targetPlaneSlice: number;
 }

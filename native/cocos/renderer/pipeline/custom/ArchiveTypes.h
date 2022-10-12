@@ -29,9 +29,44 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 // clang-format off
-#include "cocos/bindings/auto/jsb_gfx_auto.h"
-#include "cocos/renderer/pipeline/custom/JsbConversion.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphJsb.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
+#pragma once
+#include <string_view>
+#include "cocos/renderer/pipeline/custom/ArchiveFwd.h"
+
+namespace cc {
+
+namespace render {
+
+class OutputArchive {
+public:
+    OutputArchive() noexcept = default;
+    OutputArchive(OutputArchive&& rhs) = delete;
+    OutputArchive(OutputArchive const& rhs) = delete;
+    OutputArchive& operator=(OutputArchive&& rhs) = delete;
+    OutputArchive& operator=(OutputArchive const& rhs) = delete;
+    virtual ~OutputArchive() noexcept = default;
+
+    virtual void writeBool(bool value) = 0;
+    virtual void writeNumber(double value) = 0;
+    virtual void writeString(std::string_view value) = 0;
+};
+
+class InputArchive {
+public:
+    InputArchive() noexcept = default;
+    InputArchive(InputArchive&& rhs) = delete;
+    InputArchive(InputArchive const& rhs) = delete;
+    InputArchive& operator=(InputArchive&& rhs) = delete;
+    InputArchive& operator=(InputArchive const& rhs) = delete;
+    virtual ~InputArchive() noexcept = default;
+
+    virtual bool readBool() = 0;
+    virtual double readNumber() = 0;
+    virtual std::string_view readString() = 0;
+};
+
+} // namespace render
+
+} // namespace cc
 
 // clang-format on

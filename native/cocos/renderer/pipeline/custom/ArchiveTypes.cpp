@@ -29,9 +29,14 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 // clang-format off
-#include "cocos/bindings/auto/jsb_gfx_auto.h"
-#include "cocos/renderer/pipeline/custom/JsbConversion.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphJsb.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
+#include "ArchiveTypes.h"
+
+namespace cc {
+
+namespace render {
+
+} // namespace render
+
+} // namespace cc
 
 // clang-format on

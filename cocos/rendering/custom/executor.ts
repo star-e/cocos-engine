@@ -65,6 +65,7 @@ import { renderProfiler } from '../pipeline-funcs';
 import { PlanarShadowQueue } from '../planar-shadow-queue';
 import { DefaultVisitor, depthFirstSearch, ReferenceGraphView } from './graph';
 import { VectorGraphColorMap } from './effect';
+import { getRenderArea } from './define';
 
 class DeviceResource {
     protected _context: ExecutorContext;
@@ -451,6 +452,7 @@ class DeviceRenderQueue {
 
 class SubmitInfo {
     public instances = new Set<InstancedBuffer>();
+    public renderInstanceQueue : InstancedBuffer[] = [];
     public batches = new Set<BatchedBuffer>();
     public opaqueList: RenderInfo[] = [];
     public transparentList: RenderInfo[] = [];
@@ -725,7 +727,21 @@ class DeviceRenderPass {
         }
         cmdBuff.endRenderPass();
     }
+
+    private _clearInstance () {
+        for (const [cam, info] of this.submitMap) {
+            const it = info.instances.values(); let res = it.next();
+            while (!res.done) {
+                res.value.clear();
+                res = it.next();
+            }
+            info.renderInstanceQueue = [];
+            info.instances.clear();
+        }
+    }
+
     postPass () {
+        this._clearInstance();
         this.submitMap.clear();
         for (const queue of this._deviceQueues) {
             queue.postRecord();
@@ -805,35 +821,35 @@ class DevicePreSceneTask extends WebSceneTask {
             return;
         }
         const sceneFlag = this._graphScene.scene!.flags;
-        for (const ro of this.sceneData.renderObjects) {
-            const subModels = ro.model.subModels;
-            for (const submodel of subModels) {
-                const passes = submodel.passes;
-                for (const p of passes) {
-                    if (p.phase !== this._currentQueue.phaseID) continue;
-                    const batchingScheme = p.batchingScheme;
-                    // If the size of instances is not 0, it has been added
-                    if (batchingScheme === BatchingSchemes.INSTANCING
-                        && !this._submitInfo.instances.size) {
-                        const instancedBuffer = p.getInstancedBuffer();
-                        instancedBuffer.merge(submodel, ro.model.instancedAttributes, passes.indexOf(p));
-                        this._submitInfo.instances.add(instancedBuffer);
-                    } else if (batchingScheme === BatchingSchemes.VB_MERGING
-                        && !this._submitInfo.batches.size) {
-                        const batchedBuffer = p.getBatchedBuffer();
-                        batchedBuffer.merge(submodel, passes.indexOf(p), ro.model);
-                        this._submitInfo.batches.add(batchedBuffer);
-                    } else if ((sceneFlag & SceneFlags.TRANSPARENT_OBJECT)
-                    && (sceneFlag & SceneFlags.OPAQUE_OBJECT || sceneFlag & SceneFlags.OPAQUE_OBJECT)) {
-                        this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p));
-                        this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p), true);
-                    } else if ((sceneFlag & SceneFlags.CUTOUT_OBJECT) || (sceneFlag & SceneFlags.OPAQUE_OBJECT)) {
-                        this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p));
-                    } else if (sceneFlag & SceneFlags.TRANSPARENT_OBJECT) {
-                        this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p), true);
+        // If it is not empty, it means that it has been added and will not be traversed.
+        const isEmpty = !this._submitInfo.opaqueList.length
+                        && !this._submitInfo.transparentList.length
+                        && !this._submitInfo.instances.size
+                        && !this._submitInfo.batches.size;
+        if (isEmpty) {
+            for (const ro of this.sceneData.renderObjects) {
+                const subModels = ro.model.subModels;
+                for (const submodel of subModels) {
+                    const passes = submodel.passes;
+                    for (const p of passes) {
+                        if (p.phase !== this._currentQueue.phaseID) continue;
+                        const batchingScheme = p.batchingScheme;
+                        if (batchingScheme === BatchingSchemes.INSTANCING) {
+                            const instancedBuffer = p.getInstancedBuffer();
+                            instancedBuffer.merge(submodel, ro.model.instancedAttributes, passes.indexOf(p));
+                            this._submitInfo.instances.add(instancedBuffer);
+                        } else if (batchingScheme === BatchingSchemes.VB_MERGING) {
+                            const batchedBuffer = p.getBatchedBuffer();
+                            batchedBuffer.merge(submodel, passes.indexOf(p), ro.model);
+                            this._submitInfo.batches.add(batchedBuffer);
+                        } else {
+                            this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p));
+                            this._insertRenderList(ro, subModels.indexOf(submodel), passes.indexOf(p), true);
+                        }
                     }
                 }
             }
+            this._instancedSort();
         }
         const pipeline = this._currentQueue.devicePass.context.pipeline;
         if (sceneFlag & SceneFlags.DEFAULT_LIGHTING) {
@@ -844,9 +860,29 @@ class DevicePreSceneTask extends WebSceneTask {
             this._submitInfo.planarQueue = new PlanarShadowQueue(pipeline);
             this._submitInfo.planarQueue.gatherShadowPasses(this.camera, this._cmdBuff);
         }
-        this._submitInfo.opaqueList.sort(this._opaqueCompareFn);
-        this._submitInfo.transparentList.sort(this._transparentCompareFn);
+        if (sceneFlag & SceneFlags.OPAQUE_OBJECT) { this._submitInfo.opaqueList.sort(this._opaqueCompareFn); }
+        if (sceneFlag & SceneFlags.TRANSPARENT_OBJECT) { this._submitInfo.transparentList.sort(this._transparentCompareFn); }
     }
+
+    protected _instancedSort () {
+        let it = this._submitInfo!.instances.values();
+        let res = it.next();
+        while (!res.done) {
+            if (!(res.value.pass.blendState.targets[0].blend)) {
+                this._submitInfo!.renderInstanceQueue.push(res.value);
+            }
+            res = it.next();
+        }
+        it = this._submitInfo!.renderInstanceQueue.values();
+        res = it.next();
+        while (!res.done) {
+            if (res.value.pass.blendState.targets[0].blend) {
+                this._submitInfo!.renderInstanceQueue.push(res.value);
+            }
+            res = it.next();
+        }
+    }
+
     protected _insertRenderList (ro: RenderObject, subModelIdx: number, passIdx: number, isTransparent = false) {
         const subModel = ro.model.subModels[subModelIdx];
         const pass = subModel.passes[passIdx];
@@ -1048,7 +1084,10 @@ class DeviceSceneTask extends WebSceneTask {
     }
     protected _recordInstences () {
         const submitMap = this._currentQueue.devicePass.submitMap;
-        const it = submitMap.get(this.camera!)!.instances.values(); let res = it.next();
+        const it = submitMap.get(this.camera!)!.renderInstanceQueue.length === 0
+            ? submitMap.get(this.camera!)!.instances.values()
+            : submitMap.get(this.camera!)!.renderInstanceQueue.values();
+        let res = it.next();
         while (!res.done) {
             const { instances, pass, hasPendingModels } = res.value;
             if (hasPendingModels) {
@@ -1132,47 +1171,6 @@ class DeviceSceneTask extends WebSceneTask {
         const submitMap = this._currentQueue.devicePass.submitMap;
         submitMap.get(this.camera!)?.shadowMap?.recordCommandBuffer(context.device,
             this._renderPass, context.commandBuffer);
-    }
-    protected _generateRenderArea (): Rect {
-        const out = new Rect();
-        const vp = this.camera ? this.camera.viewport : new Rect(0, 0, 1, 1);
-        const texture = this._currentQueue.devicePass.framebuffer.colorTextures[0]!;
-        const w = texture.width;
-        const h = texture.height;
-        out.x = vp.x * w;
-        out.y = vp.y * h;
-        out.width = vp.width * w;
-        out.height = vp.height * h;
-        if (this._isShadowMap() && this.graphScene.scene!.light.light) {
-            const light = this.graphScene.scene!.light.light;
-            const level = this.graphScene.scene!.light.level;
-            switch (light.type) {
-            case LightType.DIRECTIONAL: {
-                const mainLight = light as DirectionalLight;
-                if (mainLight.shadowFixedArea || mainLight.csmLevel === CSMLevel.LEVEL_1) {
-                    out.x = 0;
-                    out.y = 0;
-                    out.width = w;
-                    out.height = h;
-                } else {
-                    out.x = level % 2 * 0.5 * w;
-                    out.y = (1 - Math.floor(level / 2)) * 0.5 * h;
-                    out.width = 0.5 * w;
-                    out.height = 0.5 * h;
-                }
-                break;
-            }
-            case LightType.SPOT: {
-                out.x = 0;
-                out.y = 0;
-                out.width = w;
-                out.height = h;
-                break;
-            }
-            default:
-            }
-        }
-        return out;
     }
     private _isShadowMap () {
         return this.sceneData.shadows.enabled
@@ -1258,10 +1256,14 @@ class DeviceSceneTask extends WebSceneTask {
     }
 
     public submit () {
-        const area = this._generateRenderArea();
         const devicePass = this._currentQueue.devicePass;
         const context = devicePass.context;
         if (!this._currentQueue.devicePass.viewport) {
+            const texture = this._currentQueue.devicePass.framebuffer.colorTextures[0]!;
+            const lightInfo = this.graphScene.scene!.light;
+            const area = this._isShadowMap() && lightInfo.light
+                ? getRenderArea(this.camera!, texture.width, texture.height, lightInfo.light, lightInfo.level)
+                : getRenderArea(this.camera!, texture.width, texture.height);
             this.visitor.setViewport(new Viewport(area.x, area.y, area.width, area.height));
             this.visitor.setScissor(area);
         }
@@ -1275,12 +1277,23 @@ class DeviceSceneTask extends WebSceneTask {
             return;
         }
         const graphSceneData = this.graphScene.scene!;
-        this._recordOpaqueList();
-        this._recordInstences();
+        if (graphSceneData.flags & SceneFlags.OPAQUE_OBJECT
+            || graphSceneData.flags & SceneFlags.CUTOUT_OBJECT) {
+            this._recordOpaqueList();
+        }
+        if (graphSceneData.flags & SceneFlags.DRAW_INSTANCING) {
+            this._recordInstences();
+        }
         this._recordBatches();
-        this._recordAdditiveLights();
-        this._recordPlanarShadows();
-        this._recordTransparentList();
+        if (graphSceneData.flags & SceneFlags.DEFAULT_LIGHTING) {
+            this._recordAdditiveLights();
+        }
+        if (graphSceneData.flags & SceneFlags.PLANAR_SHADOW) {
+            this._recordPlanarShadows();
+        }
+        if (graphSceneData.flags & SceneFlags.TRANSPARENT_OBJECT) {
+            this._recordTransparentList();
+        }
         if (graphSceneData.flags & SceneFlags.GEOMETRY) {
             this.camera!.geometryRenderer?.render(devicePass.renderPass,
                 context.commandBuffer, context.pipeline.pipelineSceneData);

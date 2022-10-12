@@ -51,62 +51,6 @@ namespace cc {
 
 namespace render {
 
-enum class DescriptorTypeOrder {
-    UNIFORM_BUFFER,
-    DYNAMIC_UNIFORM_BUFFER,
-    SAMPLER_TEXTURE,
-    SAMPLER,
-    TEXTURE,
-    STORAGE_BUFFER,
-    DYNAMIC_STORAGE_BUFFER,
-    STORAGE_IMAGE,
-    INPUT_ATTACHMENT,
-};
-
-struct Descriptor {
-    Descriptor() = default;
-    Descriptor(gfx::Type typeIn) noexcept // NOLINT
-    : type(typeIn) {}
-
-    gfx::Type type{gfx::Type::UNKNOWN};
-    uint32_t count{1};
-};
-
-struct DescriptorBlock {
-    ccstd::map<ccstd::string, Descriptor> descriptors;
-    ccstd::map<ccstd::string, gfx::UniformBlock> uniformBlocks;
-    uint32_t capacity{0};
-    uint32_t count{0};
-};
-
-struct DescriptorBlockFlattened {
-    ccstd::vector<ccstd::string> descriptorNames;
-    ccstd::vector<ccstd::string> uniformBlockNames;
-    ccstd::vector<Descriptor> descriptors;
-    ccstd::vector<gfx::UniformBlock> uniformBlocks;
-    uint32_t capacity{0};
-    uint32_t count{0};
-};
-
-struct DescriptorBlockIndex {
-    DescriptorBlockIndex() = default;
-    DescriptorBlockIndex(UpdateFrequency updateFrequencyIn, ParameterType parameterTypeIn, DescriptorTypeOrder descriptorTypeIn, gfx::ShaderStageFlagBit visibilityIn) noexcept
-    : updateFrequency(updateFrequencyIn),
-      parameterType(parameterTypeIn),
-      descriptorType(descriptorTypeIn),
-      visibility(visibilityIn) {}
-
-    UpdateFrequency updateFrequency{UpdateFrequency::PER_INSTANCE};
-    ParameterType parameterType{ParameterType::CONSTANTS};
-    DescriptorTypeOrder descriptorType{DescriptorTypeOrder::UNIFORM_BUFFER};
-    gfx::ShaderStageFlagBit visibility{gfx::ShaderStageFlagBit::NONE};
-};
-
-inline bool operator<(const DescriptorBlockIndex& lhs, const DescriptorBlockIndex& rhs) noexcept {
-    return std::forward_as_tuple(lhs.updateFrequency, lhs.parameterType, lhs.descriptorType, lhs.visibility) <
-           std::forward_as_tuple(rhs.updateFrequency, rhs.parameterType, rhs.descriptorType, rhs.visibility);
-}
-
 struct DescriptorDB {
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
     allocator_type get_allocator() const noexcept { // NOLINT
@@ -453,6 +397,42 @@ struct PipelineLayoutData {
     ccstd::pmr::map<UpdateFrequency, DescriptorSetData> descriptorSets;
 };
 
+struct ShaderBindingData {
+    using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
+    allocator_type get_allocator() const noexcept { // NOLINT
+        return {descriptorBindings.get_allocator().resource()};
+    }
+
+    ShaderBindingData(const allocator_type& alloc) noexcept; // NOLINT
+    ShaderBindingData(ShaderBindingData&& rhs, const allocator_type& alloc);
+    ShaderBindingData(ShaderBindingData const& rhs, const allocator_type& alloc);
+
+    ShaderBindingData(ShaderBindingData&& rhs) noexcept = default;
+    ShaderBindingData(ShaderBindingData const& rhs) = delete;
+    ShaderBindingData& operator=(ShaderBindingData&& rhs) = default;
+    ShaderBindingData& operator=(ShaderBindingData const& rhs) = default;
+
+    PmrFlatMap<NameLocalID, uint32_t> descriptorBindings;
+};
+
+struct ShaderLayoutData {
+    using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
+    allocator_type get_allocator() const noexcept { // NOLINT
+        return {layoutData.get_allocator().resource()};
+    }
+
+    ShaderLayoutData(const allocator_type& alloc) noexcept; // NOLINT
+    ShaderLayoutData(ShaderLayoutData&& rhs, const allocator_type& alloc);
+
+    ShaderLayoutData(ShaderLayoutData&& rhs) noexcept = default;
+    ShaderLayoutData(ShaderLayoutData const& rhs) = delete;
+    ShaderLayoutData& operator=(ShaderLayoutData&& rhs) = default;
+    ShaderLayoutData& operator=(ShaderLayoutData const& rhs) = delete;
+
+    ccstd::pmr::map<UpdateFrequency, DescriptorSetLayoutData> layoutData;
+    ccstd::pmr::map<UpdateFrequency, ShaderBindingData> bindingData;
+};
+
 struct ShaderProgramData {
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
     allocator_type get_allocator() const noexcept { // NOLINT
@@ -677,6 +657,7 @@ struct LayoutGraphData {
     PmrFlatMap<ccstd::pmr::string, NameLocalID> attributeIndex;
     PmrFlatMap<ccstd::pmr::string, NameLocalID> constantIndex;
     PmrFlatMap<ccstd::pmr::string, uint32_t> shaderLayoutIndex;
+    PmrFlatMap<ccstd::pmr::string, ShaderLayoutData> shaderLayoutData;
     // Path
     PmrTransparentMap<ccstd::pmr::string, vertex_descriptor> pathIndex;
 };
