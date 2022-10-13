@@ -6,7 +6,7 @@ import { DescriptorSetInfo, DescriptorSetLayout, DescriptorSetLayoutBinding, Des
 import { VectorGraphColorMap } from './effect';
 import { DefaultVisitor, depthFirstSearch } from './graph';
 // eslint-disable-next-line max-len
-import { LayoutGraphData, PipelineLayoutData, LayoutGraphDataValue, RenderStageData, RenderPhaseData, DescriptorSetLayoutData, DescriptorSetData, DescriptorBlockData, DescriptorData } from './layout-graph';
+import { LayoutGraphData, PipelineLayoutData, LayoutGraphDataValue, RenderStageData, RenderPhaseData, DescriptorSetLayoutData, DescriptorSetData, DescriptorBlockData, DescriptorData, EffectData, TechniqueData, ShaderLayoutData, ShaderBindingData } from './layout-graph';
 import { LayoutGraphBuilder } from './pipeline';
 import { getUpdateFrequencyName, DescriptorBlockIndex, DescriptorTypeOrder,
     Descriptor, getDescriptorTypeOrderName, DescriptorBlockFlattened, UpdateFrequency } from './types';
@@ -458,9 +458,27 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
             parent = 'default';
         }
 
+        let effectData: EffectData | undefined = this._data.effects.get(effect.name);
+        if (effectData === undefined) {
+            effectData = new EffectData();
+            this._data.effects.set(effect.name, effectData);
+        }
+
         for (let i = 0; i < effect.techniques.length; ++i) {
             const tech = effect.techniques[i];
+            const techName = tech.name ? tech.name : i.toString();
+
+            let techData: TechniqueData | undefined = effectData.techniques.get(techName);
+            if (techData === undefined) {
+                techData = new TechniqueData();
+                effectData.techniques.set(techName, techData);
+            }
+
+            techData.passes.splice(0, techData.passes.length);
             for (let j = 0; j < tech.passes.length; ++j) {
+                const shaderData: ShaderLayoutData = new ShaderLayoutData();
+                techData.passes.push(shaderData);
+
                 const pass = tech.passes[j];
                 const passPhase = pass.phase;
                 let phaseName = '';
@@ -495,6 +513,10 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                     if (dss) {
                         const dsData = dss.descriptorSetLayoutData.descriptorBlocks;
 
+                        const bindingData = new ShaderBindingData();
+                        shaderData.layoutData.set(UpdateFrequency.PER_BATCH, dss.descriptorSetLayoutData);
+                        shaderData.bindingData.set(UpdateFrequency.PER_BATCH, bindingData);
+
                         for (let t = 0; t < shader.samplerTextures.length; ++t) {
                             const samplerTexInfo: EffectAsset.ISamplerTextureInfo = shader.samplerTextures[t];
                             const flag = samplerTexInfo.stageFlags;
@@ -516,6 +538,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                         samplerTexInfo.binding = ds.offset + stored;
                                     } else {
                                         samplerTexInfo.binding = ds.offset;
+                                    }
+
+                                    const shaderKey = this._data.attributeIndex.get(samplerTexInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, samplerTexInfo.binding);
                                     }
                                     break;
                                 }
@@ -544,6 +571,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                     } else {
                                         samplerInfo.binding = ds.offset;
                                     }
+
+                                    const shaderKey = this._data.attributeIndex.get(samplerInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, samplerInfo.binding);
+                                    }
                                     break;
                                 }
                             }
@@ -570,6 +602,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                         texInfo.binding = ds.offset + stored;
                                     } else {
                                         texInfo.binding = ds.offset;
+                                    }
+
+                                    const shaderKey = this._data.attributeIndex.get(texInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, texInfo.binding);
                                     }
                                     break;
                                 }
@@ -598,6 +635,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                     } else {
                                         bufferInfo.binding = ds.offset;
                                     }
+
+                                    const shaderKey = this._data.attributeIndex.get(bufferInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, bufferInfo.binding);
+                                    }
                                     break;
                                 }
                             }
@@ -625,6 +667,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                     } else {
                                         imageInfo.binding = ds.offset;
                                     }
+
+                                    const shaderKey = this._data.attributeIndex.get(imageInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, imageInfo.binding);
+                                    }
                                     break;
                                 }
                             }
@@ -651,6 +698,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                         subpassInfo.binding = ds.offset + stored;
                                     } else {
                                         subpassInfo.binding = ds.offset;
+                                    }
+
+                                    const shaderKey = this._data.attributeIndex.get(subpassInfo.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, subpassInfo.binding);
                                     }
                                     break;
                                 }
@@ -687,6 +739,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                     } else {
                                         descriptor.binding = ds.offset;
                                     }
+
+                                    const shaderKey = this._data.attributeIndex.get(descriptor.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, descriptor.binding);
+                                    }
                                 }
                             }
                         }
@@ -713,6 +770,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                     } else {
                                         descriptor.binding = ds.offset;
                                     }
+
+                                    const shaderKey = this._data.attributeIndex.get(descriptor.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, descriptor.binding);
+                                    }
                                 }
                             }
                         }
@@ -724,6 +786,10 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
 
                     if (pss) {
                         const dsData = pss.descriptorSetLayoutData.descriptorBlocks;
+
+                        const bindingData = new ShaderBindingData();
+                        shaderData.layoutData.set(UpdateFrequency.PER_PASS, pss.descriptorSetLayoutData);
+                        shaderData.bindingData.set(UpdateFrequency.PER_PASS, bindingData);
 
                         for (let g = 0; g < shader.builtins.globals.samplerTextures.length; ++g) {
                             const descriptor = shader.builtins.globals.samplerTextures[g];
@@ -746,6 +812,11 @@ export class WebLayoutGraphBuilder implements LayoutGraphBuilder  {
                                         descriptor.binding = ds.offset + stored;
                                     } else {
                                         descriptor.binding = ds.offset;
+                                    }
+
+                                    const shaderKey = this._data.attributeIndex.get(descriptor.name);
+                                    if (shaderKey) {
+                                        bindingData.descriptorBindings.set(shaderKey, descriptor.binding);
                                     }
                                 }
                             }
