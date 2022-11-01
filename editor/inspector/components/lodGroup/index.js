@@ -240,22 +240,34 @@ exports.ready = function() {
                     }
                     const preValue = LODs[index].value.screenUsagePercentage.value;
                     const nextValue = LODs[index + 1] ? LODs[index + 1].value.screenUsagePercentage.value : 0;
-                    Editor.Message.request('scene', 'lod:insert-lod', that.dump.value.uuid.value, index + 1, (preValue + nextValue) / 2, null);
+                    Editor.Message.request('scene', 'lod-insert', that.dump.value.uuid.value, index + 1, (preValue + nextValue) / 2, null);
                 } else if (operator === 'delete') {
                     if (LODs.length === 1) {
                         console.warn('At least one LOD, Can\'t delete any more');
                         return;
                     }
-                    Editor.Message.request('scene', 'lod:delete-lod', that.dump.value.uuid.value, index);
+                    Editor.Message.request('scene', 'lod-erase', that.dump.value.uuid.value, index);
                 }
             },
             calculateRange(range, index) {
                 const that = this;
                 const LODs = that.dump.value.LODs.value;
                 if (range === 'min') {
-                    return LODs[index + 1] ? LODs[index + 1].value.screenUsagePercentage.value * 100 : 0;
+                    const min = LODs[index + 1] ? LODs[index + 1].value.screenUsagePercentage.value : 0;
+                    // If value < min, set the value to min, avoid affecting other lod
+                    if (LODs[index].value.screenUsagePercentage.value < min) {
+                        LODs[index].value.screenUsagePercentage.value = min;
+                        that.updateDump(LODs[index].value.screenUsagePercentage);
+                    }
+                    return min * 100;
                 } else if (range === 'max') {
-                    return LODs[index - 1] ? LODs[index - 1].value.screenUsagePercentage.value * 100 : 100;
+                    const max = LODs[index - 1] ? LODs[index - 1].value.screenUsagePercentage.values : 1;
+                    // If value > max, set the value to max, avoid affecting other lod
+                    if (LODs[index].value.screenUsagePercentage.value > max) {
+                        LODs[index].value.screenUsagePercentage.value = max;
+                        that.updateDump(LODs[index].value.screenUsagePercentage);
+                    }
+                    return max * 100;
                 }
                 return null;
             },
