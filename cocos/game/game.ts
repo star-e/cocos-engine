@@ -37,6 +37,7 @@ import { deviceManager } from '../gfx';
 import { SplashScreen } from './splash-screen';
 import { RenderPipeline } from '../rendering';
 import { Layers, Node } from '../scene-graph';
+import { EffectSettings, effectSettings } from '../core/effect-settings';
 import { garbageCollectionManager } from '../core/data/garbage-collection';
 import { builtinResMgr } from '../asset/asset-manager/builtin-res-mgr';
 import { Director, director } from './director';
@@ -59,6 +60,14 @@ export interface IGameConfig {
      * The path of settings.json
      */
     settingsPath?: string;
+
+    /**
+     * @zh
+     * 引擎内 Effect 配置文件路径
+     * @en
+     * The path of effectSettings.json
+     */
+    effectSettingsPath?: string;
 
     /**
      * @zh
@@ -697,6 +706,12 @@ export class Game extends EventTarget {
                 this._initEvents();
             })
             .then(() => settings.init(config.settingsPath, config.overrideSettings))
+            .then(() => effectSettings.init(config.effectSettingsPath))
+            .then(() => {
+                // 查询配置，后续应该要注册到某个管理器
+                const setting = effectSettings.querySettings('a', 'b');
+                // debugger;
+            })
             .then(() => {
                 if (DEBUG) {
                     console.timeEnd('Init Base');

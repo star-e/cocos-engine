@@ -36,6 +36,7 @@ export * from './types';
 export * from './pipeline';
 export * from './archive';
 export * from './binary-archive';
+export * from './layout-graph';
 
 export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
