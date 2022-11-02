@@ -76,24 +76,20 @@ export class EffectSettings {
         if (!path) return Promise.resolve();
         return new Promise((resolve, reject) => {
             if (!HTML5 && !path.startsWith('http')) {
-                const result = fsUtils.readArrayBufferSync(path);
-                if (result instanceof Error) {
-                    reject(result);
-                } else {
-                    // 看接口这里应该也是返回一个 arraybuffer，但未测试
-                    debugger;
-                    // this._settings = result;
+                fsUtils.readArrayBuffer(path, (err: Error, arrayBuffer: ArrayBuffer) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    this._data = arrayBuffer;
                     resolve();
-                }
+                });
             } else {
                 const xhr = new XMLHttpRequest();
                 xhr.open('GET', path);
                 xhr.responseType = 'arraybuffer';
                 xhr.onload = () => {
-                    // response 返回的是一个 arrayBuffer
-                    xhr.response;
-                    debugger;
-                    // this._settings = JSON.parse(xhr.response);
+                    this._data = xhr.response;
                     resolve();
                 };
                 xhr.onerror = () => {
@@ -123,11 +119,6 @@ export class EffectSettings {
      * ```
      */
     overrideSettings<T = any> (category: Category | string, name: string, value: T) {
-        debugger;
-        // if (!(category in this._override)) {
-        //     this._override[category] = {};
-        // }
-        // this._override[category][name] = value;
     }
 
     /**
@@ -147,24 +138,14 @@ export class EffectSettings {
      * ```
      */
     querySettings<T = any> (category: Category | string, name: string): T | null {
-        debugger;
-        // if (category in this._override) {
-        //     const categorySettings = this._override[category];
-        //     if (categorySettings && name in categorySettings) {
-        //         return categorySettings[name] as T;
-        //     }
-        // }
-        // if (category in this._settings) {
-        //     const categorySettings = this._settings[category];
-        //     if (categorySettings && name in categorySettings) {
-        //         return categorySettings[name] as T;
-        //     }
-        // }
         return null;
     }
 
-    private _settings: Record<string, any> = {};
-    private _override: Record<string, any> = {};
+    queryBuffer (): ArrayBuffer | null {
+        return this._data;
+    }
+
+    private _data: ArrayBuffer | null = null;
 }
 
 export declare namespace Settings {

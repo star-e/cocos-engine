@@ -37,7 +37,7 @@ import { deviceManager } from '../gfx';
 import { SplashScreen } from './splash-screen';
 import { RenderPipeline } from '../rendering';
 import { Layers, Node } from '../scene-graph';
-import { EffectSettings, effectSettings } from '../core/effect-settings';
+import { effectSettings } from '../core/effect-settings';
 import { garbageCollectionManager } from '../core/data/garbage-collection';
 import { builtinResMgr } from '../asset/asset-manager/builtin-res-mgr';
 import { Director, director } from './director';
@@ -709,11 +709,6 @@ export class Game extends EventTarget {
             })
             .then(() => settings.init(config.settingsPath, config.overrideSettings))
             .then(() => effectSettings.init(config.effectSettingsPath))
-            .then(() => {
-                // 查询配置，后续应该要注册到某个管理器
-                const setting = effectSettings.querySettings('a', 'b');
-                // debugger;
-            })
             .then(() => {
                 if (DEBUG) {
                     console.timeEnd('Init Base');
