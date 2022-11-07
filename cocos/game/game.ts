@@ -24,27 +24,26 @@
  THE SOFTWARE.
 */
 
-import { DEBUG, EDITOR, NATIVE, PREVIEW, TEST, WEBGPU } from 'internal:constants';
+import { DEBUG, EDITOR, NATIVE, PREVIEW, TEST } from 'internal:constants';
 import { systemInfo } from 'pal/system-info';
 import { findCanvas, loadJsFile } from 'pal/env';
 import { Pacer } from 'pal/pacer';
 import { ConfigOrientation } from 'pal/screen-adapter';
 import assetManager, { IAssetManagerOptions } from '../asset/asset-manager/asset-manager';
-import { EventTarget, AsyncDelegate, sys, macro, VERSION, cclegacy, screen, Settings, settings, assert } from '../core';
+import { EventTarget, AsyncDelegate, sys, macro, VERSION, cclegacy, screen, Settings, settings, assert,
+    garbageCollectionManager, DebugMode, warn, log, _resetDebugSetting } from '../core';
 import { input } from '../input';
-import * as debug from '../core/platform/debug';
 import { deviceManager } from '../gfx';
 import { SplashScreen } from './splash-screen';
 import { RenderPipeline } from '../rendering';
 import { Layers, Node } from '../scene-graph';
-import { effectSettings } from '../core/effect-settings';
-import { garbageCollectionManager } from '../core/data/garbage-collection';
 import { builtinResMgr } from '../asset/asset-manager/builtin-res-mgr';
 import { Director, director } from './director';
 import { bindingMappingInfo } from '../rendering/define';
 import { IBundleOptions } from '../asset/asset-manager/shared';
 import { ICustomJointTextureLayout } from '../3d/skeletal-animation/skeletal-animation-utils';
 import { IPhysicsConfig } from '../physics/framework/physics-config';
+import { effectSettings } from '../core/effect-settings';
 
 /**
  * @zh
@@ -75,7 +74,7 @@ export interface IGameConfig {
      * @en
      * Set debug mode, only valid in non-browser environment.
      */
-    debugMode?: debug.DebugMode;
+    debugMode?: DebugMode;
 
     /**
      * @zh
@@ -700,8 +699,8 @@ export class Game extends EventTarget {
                 if (DEBUG) {
                     console.time('Init Base');
                 }
-                const debugMode = config.debugMode || debug.DebugMode.NONE;
-                debug._resetDebugSetting(debugMode);
+                const debugMode = config.debugMode || DebugMode.NONE;
+                _resetDebugSetting(debugMode);
             })
             .then(() => sys.init())
             .then(() => {
@@ -773,7 +772,7 @@ export class Game extends EventTarget {
                 return this.onPostSubsystemInitDelegate.dispatch();
             })
             .then(() => {
-                debug.log(`Cocos Creator v${VERSION}`);
+                log(`Cocos Creator v${VERSION}`);
                 this.emit(Game.EVENT_ENGINE_INITED);
                 this._engineInited = true;
             })
@@ -1048,8 +1047,8 @@ export class Game extends EventTarget {
         }).then((asset) => {
             this._setRenderPipeline(asset);
         }).catch((reason) => {
-            debug.warn(reason);
-            debug.warn(`Failed load render pipeline: ${renderPipeline}, engine failed to initialize, will fallback to default pipeline`);
+            warn(reason);
+            warn(`Failed load render pipeline: ${renderPipeline}, engine failed to initialize, will fallback to default pipeline`);
             this._setRenderPipeline();
         });
     }
@@ -1068,7 +1067,7 @@ export class Game extends EventTarget {
             try {
                 this.emit(event);
             } catch (e) {
-                debug.warn(e);
+                warn(e);
             }
         } else {
             this.emit(event);

@@ -1,12 +1,10 @@
 import { ClearFlagBit, Color, Format, LoadOp, Rect, StoreOp, Viewport } from '../../gfx';
 import { Camera, CSMLevel, DirectionalLight, Light, LightType, ShadowType, SKYBOX_FLAG, SpotLight } from '../../render-scene/scene';
-import { intersect, Sphere } from '../../core/geometry';
 import { supportsR32FloatTexture } from '../define';
 import { Pipeline } from './pipeline';
 import { AccessType, AttachmentType, ComputeView, LightInfo, QueueHint, RasterView, ResourceResidency, SceneFlags } from './types';
-import { Vec4 } from '../../core/math';
+import { Vec4, macro, geometry } from '../../core';
 import { Material } from '../../asset/assets';
-import { macro } from '../../core/platform';
 import { SRGBToLinear } from '../pipeline-funcs';
 
 // Anti-aliasing type, other types will be gradually added in the future
@@ -19,7 +17,7 @@ export function validPunctualLightsCulling (pipeline: Pipeline, camera: Camera) 
     const sceneData = pipeline.pipelineSceneData;
     const validPunctualLights = sceneData.validPunctualLights;
     validPunctualLights.length = 0;
-    const _sphere = Sphere.create(0, 0, 0, 1);
+    const _sphere = geometry.Sphere.create(0, 0, 0, 1);
     const { spotLights } = camera.scene!;
     for (let i = 0; i < spotLights.length; i++) {
         const light = spotLights[i];
@@ -27,8 +25,8 @@ export function validPunctualLightsCulling (pipeline: Pipeline, camera: Camera) 
             continue;
         }
 
-        Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
-        if (intersect.sphereFrustum(_sphere, camera.frustum)) {
+        geometry.Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
+        if (geometry.intersect.sphereFrustum(_sphere, camera.frustum)) {
             validPunctualLights.push(light);
         }
     }
@@ -39,8 +37,8 @@ export function validPunctualLightsCulling (pipeline: Pipeline, camera: Camera) 
         if (light.baked) {
             continue;
         }
-        Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
-        if (intersect.sphereFrustum(_sphere, camera.frustum)) {
+        geometry.Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
+        if (geometry.intersect.sphereFrustum(_sphere, camera.frustum)) {
             validPunctualLights.push(light);
         }
     }
@@ -760,6 +758,8 @@ export function buildNativeForwardPass (camera: Camera, ppl: Pipeline) {
         ppl.addDepthStencil(forwardPassDSName, Format.DEPTH_STENCIL, width, height, ResourceResidency.MANAGED);
     }
 
+    ppl.updateRenderWindow(forwardPassRTName, camera.window);
+
     // Passes
     const forwardPass = ppl.addRasterPass(width, height, 'default');
     forwardPass.name = `CameraForwardPass${cameraID}`;
@@ -801,6 +801,79 @@ export function buildNativeForwardPass (camera: Camera, ppl: Pipeline) {
         .addSceneOfCamera(camera, new LightInfo(),
             SceneFlags.UI
             | SceneFlags.PROFILER);
+}
 
-    ppl.presentAll();
+export function buildNativeDeferredPipeline (camera: Camera, ppl: Pipeline) {
+    const cameraID = getCameraUniqueID(camera);
+    const area = getRenderArea(camera, camera.window.width, camera.window.height);
+    const width = area.width;
+    const height = area.height;
+    if (!ppl.containsResource('Albedo')) {
+        // GBuffers
+        ppl.addRenderTarget('Albedo', Format.RGBA16F, width, height, ResourceResidency.MANAGED);
+        ppl.addRenderTarget('Normal', Format.RGBA16F, width, height, ResourceResidency.MANAGED);
+        ppl.addRenderTarget('Emissive', Format.RGBA16F, width, height, ResourceResidency.MANAGED);
+        ppl.addDepthStencil('DepthStencil', Format.DEPTH_STENCIL, width, height, ResourceResidency.MANAGED);
+        // Lighting
+        ppl.addRenderTexture('Color', Format.RGBA8, width, height, camera.window);
+    }
+    if (!lightingInfo) {
+        lightingInfo = new LightingInfo();
+    }
+    // GeometryPass
+    {
+        const gBufferPass = ppl.addRasterPass(width, height, 'default');
+        gBufferPass.name = 'GeometryPass';
+        gBufferPass.setViewport(new Viewport(area.x, area.y, area.width, area.height));
+
+        gBufferPass.addRasterView('Albedo', new RasterView('_',
+            AccessType.WRITE, AttachmentType.RENDER_TARGET,
+            LoadOp.CLEAR, StoreOp.STORE, ClearFlagBit.COLOR));
+        gBufferPass.addRasterView('Normal', new RasterView('_',
+            AccessType.WRITE, AttachmentType.RENDER_TARGET,
+            LoadOp.CLEAR, StoreOp.STORE, ClearFlagBit.COLOR));
+        gBufferPass.addRasterView('Emissive', new RasterView('_',
+            AccessType.WRITE, AttachmentType.RENDER_TARGET,
+            LoadOp.CLEAR, StoreOp.STORE, ClearFlagBit.COLOR));
+        gBufferPass.addRasterView('DepthStencil', new RasterView('_',
+            AccessType.WRITE, AttachmentType.DEPTH_STENCIL,
+            LoadOp.CLEAR, StoreOp.STORE,
+            ClearFlagBit.DEPTH_STENCIL,
+            new Color(1, 0, 0, 0)));
+        gBufferPass
+            .addQueue(QueueHint.RENDER_OPAQUE)
+            .addSceneOfCamera(camera, new LightInfo(), SceneFlags.OPAQUE_OBJECT | SceneFlags.CUTOUT_OBJECT);
+    }
+    // LightingPass
+    {
+        const lightingPass = ppl.addRasterPass(width, height, 'default');
+        lightingPass.name = 'LightingPass';
+        lightingPass.setViewport(new Viewport(area.x, area.y, width, height));
+
+        const lightingClearColor = new Color(0, 0, 0, 0);
+        if (camera.clearFlag & ClearFlagBit.COLOR) {
+            lightingClearColor.x = camera.clearColor.x;
+            lightingClearColor.y = camera.clearColor.y;
+            lightingClearColor.z = camera.clearColor.z;
+        }
+        lightingClearColor.w = 1;
+        lightingPass.addRasterView('Color', new RasterView('_',
+            AccessType.WRITE, AttachmentType.RENDER_TARGET,
+            LoadOp.CLEAR, StoreOp.STORE,
+            camera.clearFlag,
+            lightingClearColor));
+
+        lightingPass.addComputeView('Albedo', new ComputeView('gbuffer_albedoMap'));
+        lightingPass.addComputeView('Normal', new ComputeView('gbuffer_normalMap'));
+        lightingPass.addComputeView('Emissive', new ComputeView('gbuffer_emissiveMap'));
+        lightingPass.addComputeView('DepthStencil', new ComputeView('depth_stencil'));
+
+        lightingPass.addQueue(QueueHint.RENDER_TRANSPARENT).addCameraQuad(
+            camera, lightingInfo.deferredLightingMaterial, 0,
+            SceneFlags.VOLUMETRIC_LIGHTING,
+        );
+        lightingPass.addQueue(QueueHint.RENDER_TRANSPARENT).addSceneOfCamera(camera,
+            new LightInfo(),
+            SceneFlags.TRANSPARENT_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.GEOMETRY);
+    }
 }
