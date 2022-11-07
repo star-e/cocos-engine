@@ -23,6 +23,7 @@
  THE SOFTWARE.
  */
 
+import { EDITOR } from 'internal:constants';
 import { Pipeline, PipelineBuilder } from './pipeline';
 import { WebPipeline } from './web-pipeline';
 import { macro } from '../../core/platform/macro';
@@ -32,6 +33,7 @@ import { effectSettings } from '../../core/effect-settings';
 import { BinaryInputArchive } from './binary-archive';
 import { loadLayoutGraphData } from './layout-graph';
 import { WebLayoutGraphBuilder } from './web-layout-graph';
+import { buildDeferredLayout, buildForwardLayout } from './effect';
 
 let _pipeline: WebPipeline | null = null;
 
@@ -45,9 +47,17 @@ export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
     const pplName = macro.CUSTOM_PIPELINE_NAME;
     ppl.setCustomPipelineName(pplName);
-    const layoutBuffer = effectSettings.queryBuffer();
-    const readBinaryData = new BinaryInputArchive(layoutBuffer!);
-    loadLayoutGraphData(readBinaryData, (ppl.layoutGraphBuilder as WebLayoutGraphBuilder).data);
+    if (EDITOR) {
+        if (pplName === 'Deferred') {
+            buildDeferredLayout(ppl);
+        } else {
+            buildForwardLayout(ppl);
+        }
+    } else {
+        const layoutBuffer = effectSettings.queryBuffer();
+        const readBinaryData = new BinaryInputArchive(layoutBuffer!);
+        loadLayoutGraphData(readBinaryData, (ppl.layoutGraphBuilder as WebLayoutGraphBuilder).data);
+    }
     _pipeline = ppl;
     return ppl;
 }

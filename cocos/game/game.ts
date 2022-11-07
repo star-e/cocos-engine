@@ -710,6 +710,9 @@ export class Game extends EventTarget {
             .then(() => settings.init(config.settingsPath, config.overrideSettings))
             .then(() => effectSettings.init(config.effectSettingsPath))
             .then(() => {
+                effectSettings.applyBindings();
+            })
+            .then(() => {
                 if (DEBUG) {
                     console.timeEnd('Init Base');
                 }
