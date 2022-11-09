@@ -31,7 +31,7 @@ import { DeferredPipelineBuilder, ForwardPipelineBuilder } from './builtin-pipel
 import { CustomPipelineBuilder, NativePipelineBuilder } from './custom-pipeline';
 import { effectSettings } from '../../core/effect-settings';
 import { BinaryInputArchive } from './binary-archive';
-import { loadLayoutGraphData } from './layout-graph';
+import { loadLayoutGraphData, LayoutGraphData } from './layout-graph';
 import { WebLayoutGraphBuilder } from './web-layout-graph';
 import { buildDeferredLayout, buildForwardLayout } from './effect';
 
@@ -42,6 +42,8 @@ export * from './pipeline';
 export * from './archive';
 export * from './binary-archive';
 export * from './layout-graph';
+
+export const defaultLayoutGraph = new LayoutGraphData();
 
 export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
