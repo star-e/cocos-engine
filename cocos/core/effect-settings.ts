@@ -103,7 +103,8 @@ export class EffectSettings {
     }
 
     applyBindings () {
-        const readBinaryData = new BinaryInputArchive(this._data!);
+        if (!this._data) { return; }
+        const readBinaryData = new BinaryInputArchive(this._data);
         const lgData = new LayoutGraphData();
         loadLayoutGraphData(readBinaryData, lgData);
         console.log(lgData);

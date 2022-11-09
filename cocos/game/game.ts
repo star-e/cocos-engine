@@ -707,10 +707,6 @@ export class Game extends EventTarget {
                 this._initEvents();
             })
             .then(() => settings.init(config.settingsPath, config.overrideSettings))
-            .then(() => effectSettings.init(config.effectSettingsPath))
-            .then(() => {
-                effectSettings.applyBindings();
-            })
             .then(() => {
                 if (DEBUG) {
                     console.timeEnd('Init Base');
@@ -763,6 +759,10 @@ export class Game extends EventTarget {
                 }
                 director.init();
                 return builtinResMgr.loadBuiltinAssets();
+            })
+            .then(() => effectSettings.init(config.effectSettingsPath))
+            .then(() => {
+                effectSettings.applyBindings();
             })
             .then(() => {
                 if (DEBUG) {

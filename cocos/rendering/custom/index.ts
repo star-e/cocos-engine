@@ -23,7 +23,7 @@
  THE SOFTWARE.
  */
 
-import { EDITOR } from 'internal:constants';
+import { EDITOR, PREVIEW } from 'internal:constants';
 import { Pipeline, PipelineBuilder } from './pipeline';
 import { WebPipeline } from './web-pipeline';
 import { macro } from '../../core/platform/macro';
@@ -47,7 +47,7 @@ export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
     const pplName = macro.CUSTOM_PIPELINE_NAME;
     ppl.setCustomPipelineName(pplName);
-    if (EDITOR) {
+    if (EDITOR || PREVIEW) {
         if (pplName === 'Deferred') {
             buildDeferredLayout(ppl);
         } else {
