@@ -753,16 +753,16 @@ export class Game extends EventTarget {
                 this.emit(Game.EVENT_PRE_SUBSYSTEM_INIT);
                 return this.onPreSubsystemInitDelegate.dispatch();
             })
+            .then(() => effectSettings.init(config.effectSettingsPath))
+            .then(() => {
+                effectSettings.applyBindings();
+            })
             .then(() => {
                 if (DEBUG) {
                     console.time('Init SubSystem');
                 }
                 director.init();
                 return builtinResMgr.loadBuiltinAssets();
-            })
-            .then(() => effectSettings.init(config.effectSettingsPath))
-            .then(() => {
-                effectSettings.applyBindings();
             })
             .then(() => {
                 if (DEBUG) {
