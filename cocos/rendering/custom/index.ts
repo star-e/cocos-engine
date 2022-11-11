@@ -43,8 +43,6 @@ export * from './archive';
 export * from './binary-archive';
 export * from './layout-graph';
 
-export const defaultLayoutGraph = new LayoutGraphData();
-
 export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
     const pplName = macro.CUSTOM_PIPELINE_NAME;
