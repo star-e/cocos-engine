@@ -24,7 +24,7 @@
 */
 
 import { ccclass, serializable, editable, editorOnly } from 'cc.decorator';
-import { EDITOR } from 'internal:constants';
+import { EDITOR, PREVIEW } from 'internal:constants';
 import { Root } from '../../root';
 import { BlendState, DepthStencilState, RasterizerState,
     DynamicStateFlags, PrimitiveMode, ShaderStageFlags, Type, Uniform, MemoryAccess, Format, deviceManager, ShaderInfo } from '../../gfx';
@@ -33,7 +33,6 @@ import { MacroRecord } from '../../render-scene/core/pass-utils';
 import { programLib } from '../../render-scene/core/program-lib';
 import { Asset } from './asset';
 import { cclegacy, warnID } from '../../core';
-import { defaultLayoutGraph, UpdateFrequency } from '../../rendering/custom';
 
 export declare namespace EffectAsset {
     export interface IPropertyInfo {
@@ -284,21 +283,21 @@ export class EffectAsset extends Asset {
     public hideInEditor = false;
 
     protected _applyBinding (descId, srcBlock, dstBlock) {
-        if (defaultLayoutGraph.attributeIndex.get(srcBlock.name) === descId) {
+        if (cclegacy.rendering.defaultLayoutGraph.attributeIndex.get(srcBlock.name) === descId) {
             srcBlock.stageFlags = dstBlock.visibility;
             srcBlock.binding = dstBlock.offset;
         }
     }
 
     protected _replaceStageShaderInfo (asset: EffectAsset, stageName: string) {
-        const stageID = defaultLayoutGraph.locateChild(defaultLayoutGraph.nullVertex(), stageName);
-        const stageData = defaultLayoutGraph.getRenderStage(stageID);
-        const stageLayout = defaultLayoutGraph.getLayout(stageID);
-        const layoutData = stageLayout.descriptorSets.get(UpdateFrequency.PER_PASS);
+        const stageID = cclegacy.rendering.defaultLayoutGraph.locateChild(cclegacy.rendering.defaultLayoutGraph.nullVertex(), stageName);
+        const stageData = cclegacy.rendering.defaultLayoutGraph.getRenderStage(stageID);
+        const stageLayout = cclegacy.rendering.defaultLayoutGraph.getLayout(stageID);
+        const layoutData = stageLayout.descriptorSets.get(cclegacy.rendering.UpdateFrequency.PER_PASS);
     }
 
     protected _replacePerBatchOrInstanceShaderInfo (asset: EffectAsset, stageName: string) {
-        const stageID = defaultLayoutGraph.locateChild(defaultLayoutGraph.nullVertex(), stageName);
+        const stageID = cclegacy.rendering.defaultLayoutGraph.locateChild(cclegacy.rendering.defaultLayoutGraph.nullVertex(), stageName);
         let phaseName;
         for (let i = 0; i < asset.techniques.length; ++i) {
             const tech = asset.techniques[i];
@@ -315,15 +314,17 @@ export class EffectAsset extends Asset {
                 } else {
                     phaseName = passPhase;
                 }
-                const phaseID = defaultLayoutGraph.locateChild(stageID, phaseName);
-                const phaseData = defaultLayoutGraph.getRenderPhase(phaseID);
+                const phaseID = cclegacy.rendering.defaultLayoutGraph.locateChild(stageID, phaseName);
+                if (!phaseID && phaseID !== 0) { continue; }
+                const phaseData = cclegacy.rendering.defaultLayoutGraph.getRenderPhase(phaseID);
                 const shaderID = phaseData.shaderIndex.get(pass.program);
                 const shader = asset.shaders.find((val) => val.name === pass.program)!;
                 if (shaderID) {
                     const shaderData = phaseData.shaderPrograms[shaderID];
                     for (const pair of shaderData.layout.descriptorSets) {
                         const updateFrequency = pair[0];
-                        if (updateFrequency === UpdateFrequency.PER_BATCH || updateFrequency === UpdateFrequency.PER_INSTANCE) { continue; }
+                        if (updateFrequency === cclegacy.rendering.UpdateFrequency.PER_BATCH
+                            || updateFrequency === cclegacy.rendering.UpdateFrequency.PER_INSTANCE) { continue; }
                         const descData = pair[1];
                         for (const descBlock of descData.descriptorSetLayoutData.descriptorBlocks) {
                             for (let j = 0; j < descBlock.descriptors.length; ++j) {
@@ -369,7 +370,7 @@ export class EffectAsset extends Asset {
      * @zh 通过 [[CCLoader]] 加载完成时的回调，将自动注册 effect 资源。
      */
     public onLoaded () {
-        if (cclegacy.rendering) { this._replaceShaderInfo(this); }
+        if (cclegacy.rendering && !EDITOR && !PREVIEW) { this._replaceShaderInfo(this); }
         programLib.register(this);
         EffectAsset.register(this);
         if (!EDITOR || cclegacy.GAME_VIEW) { cclegacy.game.once(cclegacy.Game.EVENT_RENDERER_INITED, this._precompile, this); }
