@@ -315,7 +315,7 @@ export class EffectAsset extends Asset {
                     phaseName = passPhase;
                 }
                 const phaseID = cclegacy.rendering.defaultLayoutGraph.locateChild(stageID, phaseName);
-                if (!phaseID && phaseID !== 0) { continue; }
+                if (phaseID === 0xFFFFFFFF) { continue; }
                 const phaseData = cclegacy.rendering.defaultLayoutGraph.getRenderPhase(phaseID);
                 const shaderID = phaseData.shaderIndex.get(pass.program);
                 const shader = asset.shaders.find((val) => val.name === pass.program)!;
