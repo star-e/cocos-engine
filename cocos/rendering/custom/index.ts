@@ -49,17 +49,9 @@ export function createCustomPipeline (): Pipeline {
     const ppl = new WebPipeline();
     const pplName = macro.CUSTOM_PIPELINE_NAME;
     ppl.setCustomPipelineName(pplName);
-    if (EDITOR || PREVIEW) {
-        if (pplName === 'Deferred') {
-            buildDeferredLayout(ppl);
-        } else {
-            buildForwardLayout(ppl);
-        }
-    } else {
-        const layoutBuffer = effectSettings.queryBuffer();
-        const readBinaryData = new BinaryInputArchive(layoutBuffer!);
-        loadLayoutGraphData(readBinaryData, (ppl.layoutGraphBuilder as WebLayoutGraphBuilder).data);
-    }
+    const layoutBuffer = effectSettings.queryBuffer();
+    const readBinaryData = new BinaryInputArchive(layoutBuffer!);
+    loadLayoutGraphData(readBinaryData, (ppl.layoutGraphBuilder as WebLayoutGraphBuilder).data);
     _pipeline = ppl;
     return ppl;
 }
