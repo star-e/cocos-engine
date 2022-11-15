@@ -103,7 +103,7 @@ export class EffectSettings {
     }
 
     applyBindings () {
-        if (!this._data) { return; }
+        if (!this._data || !legacyCC.rendering) { return; }
         const readBinaryData = new BinaryInputArchive(this._data);
         loadLayoutGraphData(readBinaryData, legacyCC.rendering.defaultLayoutGraph);
         console.log(legacyCC.rendering.defaultLayoutGraph);
