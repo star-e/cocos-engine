@@ -1029,14 +1029,16 @@ class DevicePreSceneTask extends WebSceneTask {
         const device = context.root.device;
         for (const [key, value] of constants) {
             let buffer = context.pipeline.descriptorSet.getBuffer(key);
+            let haveBuff = true;
             if (!buffer) {
                 buffer = device.createBuffer(new BufferInfo(BufferUsageBit.UNIFORM | BufferUsageBit.TRANSFER_DST,
                     MemoryUsageBit.HOST | MemoryUsageBit.DEVICE,
                     value.length * 4,
                     value.length * 4));
+                haveBuff = false;
             }
             buffer.update(new Float32Array(value));
-            this._bindDescriptor(context, key, buffer);
+            if (!haveBuff) this._bindDescriptor(context, key, buffer);
         }
         for (const [key, value] of textures) {
             this._bindDescriptor(context, key, value);
