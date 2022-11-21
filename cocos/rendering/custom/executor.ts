@@ -769,14 +769,38 @@ class DeviceRenderPass {
     resetResource (id: number, pass: RasterPass) {
         this._rasterInfo.applyInfo(id, pass);
         this._deviceQueues.length = 0;
+        let framebuffer: Framebuffer | null = null;
+        const colTextures: Texture[] = [];
+        let depTexture = this._framebuffer.depthStencilTexture;
         for (const [resName, rasterV] of this._rasterInfo.pass.rasterViews) {
-            const deviceTex = this.context.deviceTextures.get(resName);
+            const deviceTex = this.context.deviceTextures.get(resName)!;
             const resGraph = this.context.resourceGraph;
             const resId = resGraph.vertex(resName);
             const resFbo = resGraph._vertices[resId]._object;
-            if (deviceTex!.framebuffer && resFbo instanceof Framebuffer && deviceTex!.framebuffer !== resFbo) {
-                this._framebuffer = deviceTex!.framebuffer = resFbo;
+            const resDesc = resGraph.getDesc(resId);
+            if (deviceTex.framebuffer && resFbo instanceof Framebuffer && deviceTex.framebuffer !== resFbo) {
+                framebuffer = this._framebuffer = deviceTex.framebuffer = resFbo;
+            } else if (deviceTex.texture
+                && (deviceTex.texture.width !== resDesc.width || deviceTex.texture.height !== resDesc.height)) {
+                deviceTex.texture.resize(resDesc.width, resDesc.height);
+                switch (rasterV.attachmentType) {
+                case AttachmentType.RENDER_TARGET:
+                    colTextures.push(deviceTex.texture);
+                    break;
+                case AttachmentType.DEPTH_STENCIL:
+                    depTexture = deviceTex.texture;
+                    break;
+                default:
+                }
             }
+        }
+        if (!framebuffer && colTextures.length) {
+            this._framebuffer.destroy();
+            this._framebuffer = this.context.device.createFramebuffer(new FramebufferInfo(
+                this._renderPass,
+                colTextures,
+                depTexture,
+            ));
         }
     }
 }
