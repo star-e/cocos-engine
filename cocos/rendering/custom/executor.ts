@@ -738,12 +738,8 @@ class DeviceRenderPass {
             :  new Rect(0, 0, tex.width, tex.height);
         cmdBuff.beginRenderPass(this.renderPass, this.framebuffer, renderArea,
             this.clearColor, this.clearDepth, this.clearStencil);
-        const stageId = this.context.layoutGraph.locateChild(this.context.layoutGraph.nullVertex(), 'default');
-        assert(stageId !== 0xFFFFFFFF);
-        const layout = this.context.layoutGraph.getLayout(stageId);
-        const layoutData = layout.descriptorSets.get(UpdateFrequency.PER_PASS);
         cmdBuff.bindDescriptorSet(SetIndex.GLOBAL,
-            layoutData!.descriptorSet!);
+            this._context.pipeline.descriptorSet);
         for (const queue of this._deviceQueues) {
             queue.record();
         }
