@@ -29,7 +29,7 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 /* eslint-disable max-len */
-import { getPhaseID, InstancedBuffer, PipelineStateManager } from '..';
+import { InstancedBuffer, PipelineStateManager } from '..';
 import { assert } from '../../core';
 import intersect from '../../core/geometry/intersect';
 import { Sphere } from '../../core/geometry/sphere';
@@ -68,6 +68,7 @@ import { VectorGraphColorMap } from './effect';
 import { getRenderArea } from './define';
 import { RenderReflectionProbeQueue } from '../render-reflection-probe-queue';
 import { ReflectionProbeManager } from '../reflection-probe-manager';
+import { getPassID, getPhaseID } from '.';
 
 class DeviceResource {
     protected _context: ExecutorContext;
@@ -389,7 +390,7 @@ class DeviceRenderQueue {
     private _postSceneTasks: DevicePostSceneTask[] = [];
     private _devicePass: DeviceRenderPass;
     private _hint: QueueHint =  QueueHint.NONE;
-    private _phaseID = getPhaseID('default');
+    private _phaseID: number;
     private _renderPhase: RenderPhaseData | null = null;
     protected _transversal: DeviceSceneTransversal | null = null;
     get phaseID (): number { return this._phaseID; }
@@ -402,6 +403,7 @@ class DeviceRenderQueue {
     get queueId () { return this._queueId; }
     constructor (devicePass: DeviceRenderPass) {
         this._devicePass = devicePass;
+        this._phaseID = getPhaseID(devicePass.passID, 'default');
         this._sceneVisitor = new WebSceneVisitor(this._devicePass.context.commandBuffer,
             this._devicePass.context.pipeline.pipelineSceneData);
     }
@@ -534,6 +536,7 @@ class DeviceRenderPass {
     protected _deviceQueues: DeviceRenderQueue[] = [];
     protected _clearDepth = 1;
     protected _clearStencil = 0;
+    protected _passID: number;
     protected _context: ExecutorContext;
     protected _viewport: Viewport | null = null;
     private _rasterInfo: RasterPassInfo;
@@ -543,6 +546,7 @@ class DeviceRenderPass {
         this._context = context;
         this._rasterInfo = passInfo;
         const device = context.device;
+        this._passID = getPassID(this._context.renderGraph.getLayout(passInfo.id));
         const depthStencilAttachment = new DepthStencilAttachment();
         depthStencilAttachment.format = Format.DEPTH_STENCIL;
         depthStencilAttachment.depthLoadOp = LoadOp.DISCARD;
@@ -636,6 +640,7 @@ class DeviceRenderPass {
             swapchain ? [swapchain.colorTexture] : colorTexs,
             swapchain ? swapchain.depthStencilTexture : depthTex));
     }
+    get passID (): number { return this._passID; }
     get renderLayout () { return this._layout; }
     get context () { return this._context; }
     get renderPass () { return this._renderPass; }
@@ -905,7 +910,7 @@ class DevicePreSceneTask extends WebSceneTask {
                 for (const subModel of subModels) {
                     const passes = subModel.passes;
                     for (const p of passes) {
-                        if (p._phaseID !== this._currentQueue.phaseID) continue;
+                        if (p.phaseID !== this._currentQueue.phaseID) continue;
                         const batchingScheme = p.batchingScheme;
                         if (batchingScheme === BatchingSchemes.INSTANCING) {
                             const instancedBuffer = p.getInstancedBuffer();
