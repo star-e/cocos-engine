@@ -455,7 +455,7 @@ class DeviceRenderQueue {
 
 class SubmitInfo {
     public instances = new Set<InstancedBuffer>();
-    public renderInstanceQueue : InstancedBuffer[] = [];
+    public renderInstanceQueue: InstancedBuffer[] = [];
     public batches = new Set<BatchedBuffer>();
     public opaqueList: RenderInfo[] = [];
     public transparentList: RenderInfo[] = [];
@@ -669,7 +669,7 @@ class DeviceRenderPass {
         const layoutData = layout.descriptorSets.get(UpdateFrequency.PER_PASS)!;
         return layoutData;
     }
-    genQuadVertexData (surfaceTransform: SurfaceTransform, renderArea: Rect) : Float32Array {
+    genQuadVertexData (surfaceTransform: SurfaceTransform, renderArea: Rect): Float32Array {
         const vbData = new Float32Array(4 * 4);
 
         const minX = renderArea.x / this._context.width;
@@ -905,7 +905,7 @@ class DevicePreSceneTask extends WebSceneTask {
                 for (const subModel of subModels) {
                     const passes = subModel.passes;
                     for (const p of passes) {
-                        if (p.phase !== this._currentQueue.phaseID) continue;
+                        if (p._phaseID !== this._currentQueue.phaseID) continue;
                         const batchingScheme = p.batchingScheme;
                         if (batchingScheme === BatchingSchemes.INSTANCING) {
                             const instancedBuffer = p.getInstancedBuffer();

@@ -36,6 +36,7 @@ import { RenderWindow } from '../render-scene/core/render-window';
 import { builtinResMgr } from '../asset/asset-manager/builtin-res-mgr';
 import { Texture2D } from '../asset/assets';
 import { DebugViewCompositeType } from './debug-view';
+import { legacyCC } from '../core/global-exports';
 
 const _matShadowView = new Mat4();
 const _matShadowProj = new Mat4();
@@ -432,6 +433,9 @@ export class PipelineUBO {
         this._device = device;
         this._pipeline = pipeline;
         const ds = this._pipeline.descriptorSet;
+        if (legacyCC.rendering.enableEffectImport) {
+            return;
+        }
         this._initCombineSignY();
 
         const globalUBO = device.createBuffer(new BufferInfo(
