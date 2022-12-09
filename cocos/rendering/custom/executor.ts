@@ -966,8 +966,9 @@ class DevicePreSceneTask extends WebSceneTask {
         const pass = subModel.passes[passIdx];
         const shader = subModel.shaders[passIdx];
         const currTransparent = pass.blendState.targets[0].blend;
-        const phases = getPhaseID('default') | getPhaseID('planarShadow');
-        if (currTransparent !== isTransparent || !(pass.phase & (isTransparent ? phases : this._currentQueue.phaseID))) {
+        const passId = this._currentQueue.devicePass.passID;
+        const phase = getPhaseID(passId, 'default') | getPhaseID(passId, 'planarShadow');
+        if (currTransparent !== isTransparent || !(pass.phaseID & (isTransparent ? phase : this._currentQueue.phaseID))) {
             return;
         }
         const hash = (0 << 30) | pass.priority << 16 | subModel.priority << 8 | passIdx;
@@ -1227,7 +1228,7 @@ class DeviceSceneTask extends WebSceneTask {
             const count = batch.shaders.length;
             for (let j = 0; j < count; j++) {
                 const pass = batch.passes[j];
-                if (pass.phase !== this._currentQueue.phaseID) continue;
+                if (pass.phaseID !== this._currentQueue.phaseID) continue;
                 const shader = batch.shaders[j];
                 const inputAssembler: any = batch.inputAssembler!;
                 const pso = PipelineStateManager.getOrCreatePipelineState(deviceManager.gfxDevice, pass, shader, this._renderPass, inputAssembler);
