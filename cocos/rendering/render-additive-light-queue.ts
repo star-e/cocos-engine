@@ -26,7 +26,7 @@
 import { BatchingSchemes, Pass } from '../render-scene/core/pass';
 import { Model } from '../render-scene/scene/model';
 import { PipelineStateManager } from './pipeline-state-manager';
-import { Vec3, nextPow2, Mat4, Color, Pool, geometry } from '../core';
+import { Vec3, nextPow2, Mat4, Color, Pool, geometry, cclegacy } from '../core';
 import { Device, RenderPass, Buffer, BufferUsageBit, MemoryUsageBit,
     BufferInfo, BufferViewInfo, CommandBuffer } from '../gfx';
 import { RenderBatchedQueue } from './render-batched-queue';
@@ -42,6 +42,7 @@ import { Camera, ShadowType } from '../render-scene/scene';
 import { GlobalDSManager } from './global-descriptor-set-manager';
 import { PipelineUBO } from './pipeline-ubo';
 import { PipelineRuntime } from './custom/pipeline';
+import { getDescBindingFromName } from './custom/define';
 
 interface IAdditiveLightPass {
     subModel: SubModel;
@@ -67,16 +68,23 @@ function cullSpotLight (light: SpotLight, model: Model) {
         && (!geometry.intersect.aabbWithAABB(model.worldBounds, light.aabb) || !geometry.intersect.aabbFrustum(model.worldBounds, light.frustum)));
 }
 
-const _phaseID = getPhaseID('forward-add');
+const phaseName = 'forward-add';
+let _phaseID = getPhaseID(phaseName);
 const _lightPassIndices: number[] = [];
 function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[]) {
+    if (cclegacy.rendering) {
+        _phaseID = cclegacy.rendering.getPhaseID(cclegacy.rendering.getPassID('default'), phaseName);
+    }
     lightPassIndices.length = 0;
     let hasValidLightPass = false;
     for (let j = 0; j < subModels.length; j++) {
         const { passes } = subModels[j];
         let lightPassIndex = -1;
         for (let k = 0; k < passes.length; k++) {
-            if (passes[k].phase === _phaseID) {
+            if ((!cclegacy.rendering && passes[k].phase === _phaseID)
+            || (cclegacy.rendering && cclegacy.rendering.getPhaseID(
+                cclegacy.rendering.getPassID('default'), passes[k].phase,
+            ) === _phaseID)) {
                 lightPassIndex = k;
                 hasValidLightPass = true;
                 break;
@@ -155,7 +163,8 @@ export class RenderAdditiveLightQueue {
             const key = keys[i];
             const descriptorSet = descriptorSetMap.get(key)!;
             if (descriptorSet) {
-                descriptorSet.getBuffer(UBOShadow.BINDING).destroy();
+                const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+                descriptorSet.getBuffer(binding).destroy();
                 descriptorSet.getTexture(UNIFORM_SHADOWMAP_BINDING).destroy();
                 descriptorSet.getTexture(UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING).destroy();
                 descriptorSet.destroy();
@@ -195,6 +204,7 @@ export class RenderAdditiveLightQueue {
                 if (isTransparent) {
                     continue;
                 }
+                const binding = cclegacy.rendering ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
                 subModel.descriptorSet.bindBuffer(UBOForwardLight.BINDING, this._firstLightBufferView);
                 subModel.descriptorSet.update();
 
@@ -255,7 +265,7 @@ export class RenderAdditiveLightQueue {
     }
 
     // light culling
-    protected _lightCulling (model:Model, validPunctualLights: Light[]) {
+    protected _lightCulling (model: Model, validPunctualLights: Light[]) {
         let isCulled = false;
         for (let l = 0; l < validPunctualLights.length; l++) {
             const light = validPunctualLights[l];
@@ -332,8 +342,8 @@ export class RenderAdditiveLightQueue {
             const light = validPunctualLights[i];
             const descriptorSet = globalDSManager.getOrCreateDescriptorSet(light);
             if (!descriptorSet) { continue; }
-            let matShadowProj : Mat4;
-            let matShadowInvProj : Mat4;
+            let matShadowProj: Mat4;
+            let matShadowInvProj: Mat4;
             switch (light.type) {
             case LightType.SPHERE: {
                 // planar PROJ
@@ -422,8 +432,8 @@ export class RenderAdditiveLightQueue {
             default:
             }
             descriptorSet.update();
-
-            cmdBuff.updateBuffer(descriptorSet.getBuffer(UBOShadow.BINDING)!, this._shadowUBO);
+            const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+            cmdBuff.updateBuffer(descriptorSet.getBuffer(binding)!, this._shadowUBO);
         }
     }
 

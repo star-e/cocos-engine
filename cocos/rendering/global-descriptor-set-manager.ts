@@ -23,9 +23,11 @@
  THE SOFTWARE.
  */
 
+import { cclegacy } from '../core';
 import { Device, BufferUsageBit, MemoryUsageBit, BufferInfo, Filter, Address, Sampler, DescriptorSet,
     DescriptorSetInfo, Buffer, Texture, DescriptorSetLayoutInfo, DescriptorSetLayout, SamplerInfo } from '../gfx';
 import { Light } from '../render-scene/scene';
+import { getDescBindingFromName } from './custom/define';
 import { UBOShadow, globalDescriptorSetLayout, PipelineGlobalBindings } from './define';
 
 const _samplerLinearInfo = new SamplerInfo(
@@ -194,7 +196,8 @@ export class GlobalDSManager {
                 UBOShadow.SIZE,
                 UBOShadow.SIZE,
             ));
-            descriptorSet.bindBuffer(UBOShadow.BINDING, shadowUBO);
+            const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+            descriptorSet.bindBuffer(binding, shadowUBO);
 
             descriptorSet.update();
         }

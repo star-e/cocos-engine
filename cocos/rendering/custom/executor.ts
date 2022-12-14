@@ -30,7 +30,7 @@
  */
 /* eslint-disable max-len */
 import { InstancedBuffer, PipelineStateManager } from '..';
-import { assert } from '../../core';
+import { assert, cclegacy } from '../../core';
 import intersect from '../../core/geometry/intersect';
 import { Sphere } from '../../core/geometry/sphere';
 import { AccessFlagBit, Attribute, Buffer, BufferInfo, BufferUsageBit, BufferViewInfo, Color, ColorAttachment, CommandBuffer, DepthStencilAttachment, DescriptorSet, DescriptorSetInfo, Device, deviceManager, Format, Framebuffer,
@@ -40,10 +40,8 @@ import { legacyCC } from '../../core/global-exports';
 import { Vec3 } from '../../core/math/vec3';
 import { Vec4 } from '../../core/math/vec4';
 import { BatchingSchemes } from '../../render-scene';
-import { DirectionalLight } from '../../render-scene/scene';
 import { Camera } from '../../render-scene/scene/camera';
-import { LightType } from '../../render-scene/scene/light';
-import { CSMLevel, ShadowType } from '../../render-scene/scene/shadows';
+import { ShadowType } from '../../render-scene/scene/shadows';
 import { Root } from '../../root';
 import { BatchedBuffer } from '../batched-buffer';
 import { SetIndex, UBODeferredLight, UBOForwardLight, UBOLocal } from '../define';
@@ -65,10 +63,9 @@ import { renderProfiler } from '../pipeline-funcs';
 import { PlanarShadowQueue } from '../planar-shadow-queue';
 import { DefaultVisitor, depthFirstSearch, ReferenceGraphView } from './graph';
 import { VectorGraphColorMap } from './effect';
-import { getRenderArea } from './define';
+import { getDescBindingFromName, getRenderArea, updateGlobalDescBinding } from './define';
 import { RenderReflectionProbeQueue } from '../render-reflection-probe-queue';
 import { ReflectionProbeManager } from '../reflection-probe-manager';
-import { getPassID, getPhaseID } from '.';
 
 class DeviceResource {
     protected _context: ExecutorContext;
@@ -372,7 +369,8 @@ class BlitDesc {
 
             const deferredLitsBufView = device.createBuffer(new BufferViewInfo(this._lightVolumeBuffer, 0, totalSize));
             this._lightBufferData = new Float32Array(totalSize / Float32Array.BYTES_PER_ELEMENT);
-            this._stageDesc.bindBuffer(UBOForwardLight.BINDING, deferredLitsBufView);
+            const binding = cclegacy.rendering ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
+            this._stageDesc.bindBuffer(binding, deferredLitsBufView);
         }
         const _localUBO = device.createBuffer(new BufferInfo(
             BufferUsageBit.UNIFORM | BufferUsageBit.TRANSFER_DST,
@@ -403,7 +401,7 @@ class DeviceRenderQueue {
     get queueId () { return this._queueId; }
     constructor (devicePass: DeviceRenderPass) {
         this._devicePass = devicePass;
-        this._phaseID = getPhaseID(devicePass.passID, 'default');
+        this._phaseID = cclegacy.rendering.getPhaseID(devicePass.passID, 'default');
         this._sceneVisitor = new WebSceneVisitor(this._devicePass.context.commandBuffer,
             this._devicePass.context.pipeline.pipelineSceneData);
     }
@@ -546,7 +544,7 @@ class DeviceRenderPass {
         this._context = context;
         this._rasterInfo = passInfo;
         const device = context.device;
-        this._passID = getPassID(this._context.renderGraph.getLayout(passInfo.id));
+        this._passID = cclegacy.rendering.getPassID(this._context.renderGraph.getLayout(passInfo.id));
         const depthStencilAttachment = new DepthStencilAttachment();
         depthStencilAttachment.format = Format.DEPTH_STENCIL;
         depthStencilAttachment.depthLoadOp = LoadOp.DISCARD;
@@ -967,7 +965,7 @@ class DevicePreSceneTask extends WebSceneTask {
         const shader = subModel.shaders[passIdx];
         const currTransparent = pass.blendState.targets[0].blend;
         const passId = this._currentQueue.devicePass.passID;
-        const phase = getPhaseID(passId, 'default') | getPhaseID(passId, 'planarShadow');
+        const phase = cclegacy.rendering.getPhaseID(passId, 'default') | cclegacy.rendering.getPhaseID(passId, 'planarShadow');
         if (currTransparent !== isTransparent || !(pass.phaseID & (isTransparent ? phase : this._currentQueue.phaseID))) {
             return;
         }
@@ -1028,57 +1026,8 @@ class DevicePreSceneTask extends WebSceneTask {
             && this.graphScene.scene!.flags & SceneFlags.SHADOW_CASTER;
     }
 
-    private _bindDescValue (desc: DescriptorSet, binding: number, value) {
-        if (value instanceof Buffer) {
-            desc.bindBuffer(binding, value);
-        } else if (value instanceof Texture) {
-            desc.bindTexture(binding, value);
-        } else if (value instanceof Sampler) {
-            desc.bindSampler(binding, value);
-        }
-    }
-
-    private _bindGlobalDesc (context: ExecutorContext, binding: number, value) {
-        const layoutData = this._currentQueue.devicePass.getGlobalDescData(context)!;
-        this._bindDescValue(layoutData.descriptorSet!, binding, value);
-    }
-
-    private _bindDescriptor (context: ExecutorContext, descId: number, value) {
-        const layoutData = this._currentQueue.devicePass.getGlobalDescData(context)!;
-        // find descriptor binding
-        for (const block of layoutData.descriptorSetLayoutData.descriptorBlocks) {
-            for (let i = 0; i !== block.descriptors.length; ++i) {
-                if (descId === block.descriptors[i].descriptorID) {
-                    this._bindGlobalDesc(context, block.offset + i, value);
-                }
-            }
-        }
-    }
-
     protected _updateGlobal (context: ExecutorContext, data: RenderData) {
-        const constants = data.constants;
-        const samplers = data.samplers;
-        const textures = data.textures;
-        const device = context.root.device;
-        for (const [key, value] of constants) {
-            let buffer = context.pipeline.descriptorSet.getBuffer(key);
-            let haveBuff = true;
-            if (!buffer) {
-                buffer = device.createBuffer(new BufferInfo(BufferUsageBit.UNIFORM | BufferUsageBit.TRANSFER_DST,
-                    MemoryUsageBit.HOST | MemoryUsageBit.DEVICE,
-                    value.length * 4,
-                    value.length * 4));
-                haveBuff = false;
-            }
-            buffer.update(new Float32Array(value));
-            if (!haveBuff) this._bindDescriptor(context, key, buffer);
-        }
-        for (const [key, value] of textures) {
-            this._bindDescriptor(context, key, value);
-        }
-        for (const [key, value] of samplers) {
-            this._bindDescriptor(context, key, value);
-        }
+        updateGlobalDescBinding(context.pipeline, data);
         context.pipeline.descriptorSet.update();
     }
 
