@@ -33,17 +33,19 @@ import { RenderInstancedQueue } from './render-instanced-queue';
 import { RenderBatchedQueue } from './render-batched-queue';
 import { ShadowType } from '../render-scene/scene/shadows';
 import { Light, LightType } from '../render-scene/scene/light';
-import { geometry } from '../core';
+import { cclegacy, geometry } from '../core';
 import { Model } from '../render-scene/scene/model';
 import { Camera, DirectionalLight, SpotLight } from '../render-scene/scene';
 import { shadowCulling } from './scene-culling';
 import { PipelineRuntime } from './custom/pipeline';
 
-const _phaseID = getPhaseID('shadow-caster');
-function getShadowPassIndex (subModel: SubModel) : number {
+let _phaseID = getPhaseID('shadow-caster');
+function getShadowPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
+    const r = cclegacy.rendering;
+    if (r) _phaseID = r.getPhaseID(r.getPassID('default'), 'shadow-caster');
     for (let k = 0; k < passes.length; k++) {
-        if (passes[k].phase === _phaseID) {
+        if ((!r && passes[k].phase === _phaseID) || (r && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }

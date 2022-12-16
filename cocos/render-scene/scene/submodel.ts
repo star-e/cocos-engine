@@ -196,7 +196,7 @@ export class SubModel {
      * @en Get or set instance matrix id, access by sub model
      * @zh 获取或者设置硬件实例化中的矩阵索引，通过子模型访问
      */
-    set instancedWorldMatrixIndex (val : number) {
+    set instancedWorldMatrixIndex (val: number) {
         this._instancedWorldMatrixIndex = val;
     }
     get instancedWorldMatrixIndex () {
@@ -207,7 +207,7 @@ export class SubModel {
      * @en Get or set instance SH id, access by sub model
      * @zh 获取或者设置硬件实例化中的球谐索引，通过子模型访问
      */
-    set instancedSHIndex (val : number) {
+    set instancedSHIndex (val: number) {
         this._instancedSHIndex = val;
     }
     get instancedSHIndex () {
@@ -260,9 +260,10 @@ export class SubModel {
         }
 
         this.priority = RenderPriority.DEFAULT;
-
+        const r = cclegacy.rendering;
         // initialize resources for reflection material
-        if (passes[0].phase === getPhaseID('reflection')) {
+        if ((!r && passes[0].phase === getPhaseID('reflection'))
+        || (r && passes[0].phaseID === r.getPhaseID(r.getPassID('default'), 'reflection'))) {
             let texWidth = root.mainWindow!.width;
             let texHeight = root.mainWindow!.height;
             const minSize = 512;

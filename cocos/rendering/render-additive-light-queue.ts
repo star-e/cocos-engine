@@ -72,8 +72,9 @@ const phaseName = 'forward-add';
 let _phaseID = getPhaseID(phaseName);
 const _lightPassIndices: number[] = [];
 function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[]) {
-    if (cclegacy.rendering) {
-        _phaseID = cclegacy.rendering.getPhaseID(cclegacy.rendering.getPassID('default'), phaseName);
+    const r = cclegacy.rendering;
+    if (r) {
+        _phaseID = r.getPhaseID(r.getPassID('default'), phaseName);
     }
     lightPassIndices.length = 0;
     let hasValidLightPass = false;
@@ -81,10 +82,8 @@ function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[])
         const { passes } = subModels[j];
         let lightPassIndex = -1;
         for (let k = 0; k < passes.length; k++) {
-            if ((!cclegacy.rendering && passes[k].phase === _phaseID)
-            || (cclegacy.rendering && cclegacy.rendering.getPhaseID(
-                cclegacy.rendering.getPassID('default'), passes[k].phase,
-            ) === _phaseID)) {
+            if ((!r && passes[k].phase === _phaseID)
+            || (r && passes[k].phaseID === _phaseID)) {
                 lightPassIndex = k;
                 hasValidLightPass = true;
                 break;

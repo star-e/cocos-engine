@@ -35,7 +35,7 @@ import { PipelineRuntime } from './custom/pipeline';
 import { IMacroPatch, RenderScene } from '../render-scene';
 import { RenderInstancedQueue } from './render-instanced-queue';
 import { RenderBatchedQueue } from './render-batched-queue';
-import { geometry } from '../core';
+import { cclegacy, geometry } from '../core';
 import { Layers } from '../scene-graph/layers';
 
 // eslint-disable-next-line max-len
@@ -43,12 +43,14 @@ const REFLECTION_PROBE_DEFAULT_MASK = Layers.makeMaskExclude([Layers.BitMask.UI_
     Layers.BitMask.SCENE_GIZMO, Layers.BitMask.PROFILER]);
 
 const CC_USE_RGBE_OUTPUT = 'CC_USE_RGBE_OUTPUT';
-const _phaseID = getPhaseID('default');
-const _phaseReflectMapID = getPhaseID('reflect-map');
+let _phaseID = getPhaseID('default');
+let _phaseReflectMapID = getPhaseID('reflect-map');
 function getPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
+    const r = cclegacy.rendering;
+    if (r) _phaseID = r.getPhaseID(r.getPassID('default'), 'default');
     for (let k = 0; k < passes.length; k++) {
-        if (passes[k].phase === _phaseID) {
+        if ((!r && passes[k].phase === _phaseID) || (r && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }
@@ -57,8 +59,10 @@ function getPassIndex (subModel: SubModel): number {
 
 function getReflectMapPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
+    const r = cclegacy.rendering;
+    if (r) _phaseReflectMapID = r.getPhaseID(r.getPassID('default'), 'reflect-map');
     for (let k = 0; k < passes.length; k++) {
-        if (passes[k].phase === _phaseReflectMapID) {
+        if ((!r && passes[k].phase === _phaseReflectMapID) || (r && passes[k].phaseID === _phaseReflectMapID)) {
             return k;
         }
     }
@@ -74,7 +78,7 @@ export class RenderReflectionProbeQueue {
     private _subModelsArray: SubModel[] = [];
     private _passArray: Pass[] = [];
     private _shaderArray: Shader[] = [];
-    private _rgbeSubModelsArray:SubModel[]=[]
+    private _rgbeSubModelsArray: SubModel[]=[]
     private _instancedQueue: RenderInstancedQueue;
     private _batchedQueue: RenderBatchedQueue;
 
@@ -83,7 +87,7 @@ export class RenderReflectionProbeQueue {
         this._instancedQueue = new RenderInstancedQueue();
         this._batchedQueue = new RenderBatchedQueue();
     }
-    public gatherRenderObjects (probe: ReflectionProbe, scene:RenderScene, cmdBuff: CommandBuffer) {
+    public gatherRenderObjects (probe: ReflectionProbe, scene: RenderScene, cmdBuff: CommandBuffer) {
         this.clear();
         const sceneData = this._pipeline.pipelineSceneData;
         const skybox = sceneData.skybox;
