@@ -1,5 +1,5 @@
 /****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2021-2023 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos.com
 
@@ -24,44 +24,14 @@
 ****************************************************************************/
 
 #pragma once
-
-#include "boost/mp11/algorithm.hpp"
-#include "cocos/base/std/variant.h"
-
-#include <type_traits>
-#include <utility>
+#include "cocos/renderer/core/ProgramLib.h"
 
 namespace cc {
 
-// https://stackoverflow.com/questions/50510122/stdvariant-with-overloaded-lambdas-alternative-with-msvc
+namespace render {
 
-template <class... Ts>
-struct Overloaded {}; // NOLINT
+void populateMacros(IProgramInfo& tmpl);
 
-template <class T0>
-struct Overloaded<T0> : T0 {
-    using T0::operator();
-    Overloaded(T0 t0) // NOLINT
-    : T0(std::move(t0)) {}
-};
-
-template <class T0, class T1, class... Ts>
-struct Overloaded<T0, T1, Ts...> : T0, Overloaded<T1, Ts...> {
-    using T0::operator();
-    using Overloaded<T1, Ts...>::operator();
-    Overloaded(T0 t0, T1 t1, Ts... ts)
-    : T0(std::move(t0)), Overloaded<T1, Ts...>(std::move(t1), std::move(ts)...) {}
-};
-
-template <class... Ts>
-Overloaded<Ts...> overload(Ts... ts) {
-    return {std::move(ts)...};
-}
-
-template <typename V>
-auto variantFromIndex(size_t index) -> V { // NOLINT
-    return boost::mp11::mp_with_index<boost::mp11::mp_size<V>>(index,
-                                                               [](auto i) { return V(ccstd::in_place_index<i>); });
-}
+} // namespace render
 
 } // namespace cc

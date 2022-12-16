@@ -1,7 +1,7 @@
-/****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+/*
+ Copyright (c) 2022 Xiamen Yaji Software Co., Ltd.
 
- http://www.cocos.com
+ https://www.cocos.com/
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated engine source code (the "Software"), a limited,
@@ -21,17 +21,11 @@
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
-****************************************************************************/
-
-/**
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
- * The following section is auto-generated.
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
-// clang-format off
-#include "cocos/bindings/auto/jsb_gfx_auto.h"
-#include "cocos/renderer/pipeline/custom/JsbConversion.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphJsb.h"
-#include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
 
-// clang-format on
+declare var nr:any;
+
+import { legacyCC } from '../core/global-exports';
+export const RenderStage = nr.RenderStage;
+// Do not delete, for the class detection of editor
+legacyCC.RenderStage = RenderStage;

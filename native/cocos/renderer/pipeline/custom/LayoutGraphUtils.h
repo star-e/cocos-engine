@@ -23,13 +23,29 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-/**
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
- * The following section is auto-generated.
- * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
- */
-// clang-format off
 #pragma once
-#include "cocos/renderer/pipeline/custom/RenderCommonFwd.h"
+#include <boost/container/pmr/memory_resource.hpp>
+#include "cocos/core/assets/EffectAsset.h"
+#include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
+#include "cocos/renderer/pipeline/custom/RenderCommonTypes.h"
 
-// clang-format on
+namespace cc {
+
+namespace render {
+
+gfx::DescriptorType getGfxDescriptorType(DescriptorTypeOrder type);
+
+NameLocalID getOrCreateDescriptorID(LayoutGraphData& lg, std::string_view name);
+
+void makeDescriptorSetLayoutData(
+    const LayoutGraphData& lg, UpdateFrequency rate, uint32_t set,
+    const IDescriptorInfo& descriptors, DescriptorSetLayoutData& data,
+    boost::container::pmr::memory_resource* scratch);
+
+void initializeDescriptorSetLayoutInfo(
+    const DescriptorSetLayoutData& layoutData,
+    gfx::DescriptorSetLayoutInfo& info);
+
+} // namespace render
+
+} // namespace cc

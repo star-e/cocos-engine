@@ -24,57 +24,23 @@
 ****************************************************************************/
 
 #pragma once
-#include <memory>
-#include "boost/container/pmr/global_resource.hpp"
-#include "boost/container/pmr/polymorphic_allocator.hpp"
-#include "boost/container/pmr/unsynchronized_pool_resource.hpp"
+#include <utility>
+#include "cocos/base/Macros.h"
 
 namespace cc {
 
-namespace render {
+namespace gsl {
 
-template <class T>
-struct PmrDeallocator {
-    void operator()(T* ptr) noexcept {
-        mAllocator.deallocate(ptr, 1);
-    }
-    boost::container::pmr::polymorphic_allocator<T> mAllocator;
-};
-
-template <class T, class... Args>
-[[nodiscard]] T*
-newPmr(boost::container::pmr::memory_resource* mr, Args&&... args) {
-    boost::container::pmr::polymorphic_allocator<T> alloc(mr);
-
-    std::unique_ptr<T, PmrDeallocator<T>> ptr{
-        alloc.allocate(1), PmrDeallocator<T>{alloc}};
-
-    // construct, might throw
-    alloc.construct(ptr.get(), std::forward<Args>(args)...);
-
-    return ptr.release();
+// narrow_cast(): a searchable way to do narrowing casts of values
+template <class T, class U>
+constexpr T narrow_cast(U &&u) noexcept { // NOLINT
+    return static_cast<T>(std::forward<U>(u));
 }
 
-struct PmrDeleter {
-    template <class T>
-    void operator()(T* ptr) const noexcept {
-        if (ptr) {
-            boost::container::pmr::polymorphic_allocator<T> alloc(ptr->get_allocator());
-            ptr->~T();
-            alloc.deallocate(ptr, 1);
-        }
-    }
-};
+#define CC_EXPECTS(cond) CC_ASSERT(cond) // NOLINT
 
-template <class T>
-using PmrUniquePtr = std::unique_ptr<T, PmrDeleter>;
+#define CC_ENSURES(cond) CC_ASSERT(cond) // NOLINT
 
-template <class T, class... Args>
-PmrUniquePtr<T>
-allocatePmrUniquePtr(const boost::container::pmr::polymorphic_allocator<std::byte>& alloc, Args&&... args) {
-    return PmrUniquePtr<T>(newPmr<T>(alloc.resource(), std::forward<Args>(args)...));
-}
-
-} // namespace render
+} // namespace gsl
 
 } // namespace cc

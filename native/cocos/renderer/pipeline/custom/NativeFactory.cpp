@@ -23,24 +23,53 @@
  THE SOFTWARE.
 ****************************************************************************/
 
-#pragma once
-#include <cocos/base/Macros.h>
-#include <utility>
+#include <sstream>
+#include "BinaryArchive.h"
+#include "LayoutGraphSerialization.h"
+#include "NativePipelineTypes.h"
+#include "RenderInterfaceTypes.h"
+#include "details/GslUtils.h"
+#include "pipeline/custom/LayoutGraphTypes.h"
+#include "pipeline/custom/details/Pmr.h"
 
 namespace cc {
 
-namespace gsl {
+namespace render {
 
-// narrow_cast(): a searchable way to do narrowing casts of values
-template <class T, class U>
-constexpr T narrow_cast(U &&u) noexcept { // NOLINT
-    return static_cast<T>(std::forward<U>(u));
+namespace {
+
+NativeRenderingModule* sRenderingModule = nullptr;
+
+} // namespace
+
+RenderingModule* Factory::init(gfx::Device* deviceIn, const ccstd::vector<unsigned char>& bufferIn) {
+    std::ignore = deviceIn;
+
+    std::shared_ptr<NativeProgramLibrary> ptr(
+        allocatePmrUniquePtr<NativeProgramLibrary>(
+            boost::container::pmr::get_default_resource()));
+    {
+        std::string buffer(bufferIn.begin(), bufferIn.end());
+        std::istringstream iss(buffer, std::ios::binary);
+        BinaryInputArchive ar(iss, boost::container::pmr::get_default_resource());
+        load(ar, ptr->layoutGraph);
+    }
+
+    sRenderingModule = ccnew NativeRenderingModule(std::move(ptr));
+    return sRenderingModule;
 }
 
-#define CC_EXPECTS(cond) CC_ASSERT(cond) // NOLINT
+void Factory::destroy(RenderingModule* renderingModule) noexcept {
+    auto* ptr = dynamic_cast<NativeRenderingModule*>(renderingModule);
+    if (ptr) {
+        ptr->programLibrary.reset();
+    }
+}
 
-#define CC_ENSURES(cond) CC_ASSERT(cond) // NOLINT
+Pipeline* Factory::createPipeline() {
+    return ccnew NativePipeline(boost::container::pmr::get_default_resource());
+}
 
-} // namespace gsl
+} // namespace render
 
 } // namespace cc
