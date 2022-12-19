@@ -73,7 +73,7 @@ let _phaseID = getPhaseID(phaseName);
 const _lightPassIndices: number[] = [];
 function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[]) {
     const r = cclegacy.rendering;
-    if (r) {
+    if (r && r.enableEffectImport) {
         _phaseID = r.getPhaseID(r.getPassID('default'), phaseName);
     }
     lightPassIndices.length = 0;
@@ -82,8 +82,8 @@ function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[])
         const { passes } = subModels[j];
         let lightPassIndex = -1;
         for (let k = 0; k < passes.length; k++) {
-            if ((!r && passes[k].phase === _phaseID)
-            || (r && passes[k].phaseID === _phaseID)) {
+            if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID)
+            || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
                 lightPassIndex = k;
                 hasValidLightPass = true;
                 break;

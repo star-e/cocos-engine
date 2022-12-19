@@ -43,9 +43,10 @@ let _phaseID = getPhaseID('shadow-caster');
 function getShadowPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r) _phaseID = r.getPhaseID(r.getPassID('default'), 'shadow-caster');
+    if (r && r.enableEffectImport) _phaseID = r.getPhaseID(r.getPassID('default'), 'shadow-caster');
     for (let k = 0; k < passes.length; k++) {
-        if ((!r && passes[k].phase === _phaseID) || (r && passes[k].phaseID === _phaseID)) {
+        if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID)
+        || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }

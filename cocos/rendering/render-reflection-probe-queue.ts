@@ -48,9 +48,9 @@ let _phaseReflectMapID = getPhaseID('reflect-map');
 function getPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r) _phaseID = r.getPhaseID(r.getPassID('default'), 'default');
+    if (r && r.enableEffectImport) _phaseID = r.getPhaseID(r.getPassID('default'), 'default');
     for (let k = 0; k < passes.length; k++) {
-        if ((!r && passes[k].phase === _phaseID) || (r && passes[k].phaseID === _phaseID)) {
+        if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID) || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }
@@ -60,9 +60,10 @@ function getPassIndex (subModel: SubModel): number {
 function getReflectMapPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r) _phaseReflectMapID = r.getPhaseID(r.getPassID('default'), 'reflect-map');
+    if (r && r.enableEffectImport) _phaseReflectMapID = r.getPhaseID(r.getPassID('default'), 'reflect-map');
     for (let k = 0; k < passes.length; k++) {
-        if ((!r && passes[k].phase === _phaseReflectMapID) || (r && passes[k].phaseID === _phaseReflectMapID)) {
+        if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseReflectMapID)
+        || (r && r.enableEffectImport && passes[k].phaseID === _phaseReflectMapID)) {
             return k;
         }
     }

@@ -262,8 +262,8 @@ export class SubModel {
         this.priority = RenderPriority.DEFAULT;
         const r = cclegacy.rendering;
         // initialize resources for reflection material
-        if ((!r && passes[0].phase === getPhaseID('reflection'))
-        || (r && passes[0].phaseID === r.getPhaseID(r.getPassID('default'), 'reflection'))) {
+        if (((!r || !r.enableEffectImport) && passes[0].phase === getPhaseID('reflection'))
+        || (r && r.enableEffectImport && passes[0].phaseID === r.getPhaseID(r.getPassID('default'), 'reflection'))) {
             let texWidth = root.mainWindow!.width;
             let texHeight = root.mainWindow!.height;
             const minSize = 512;

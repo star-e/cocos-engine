@@ -29,7 +29,7 @@
  * ========================= !DO NOT CHANGE THE FOLLOWING SECTION MANUALLY! =========================
  */
 /* eslint-disable max-len */
-import { InstancedBuffer, PipelineStateManager } from '..';
+import { getPhaseID, InstancedBuffer, PipelineStateManager } from '..';
 import { assert, cclegacy } from '../../core';
 import intersect from '../../core/geometry/intersect';
 import { Sphere } from '../../core/geometry/sphere';
@@ -388,7 +388,7 @@ class DeviceRenderQueue {
     private _postSceneTasks: DevicePostSceneTask[] = [];
     private _devicePass: DeviceRenderPass;
     private _hint: QueueHint =  QueueHint.NONE;
-    private _phaseID: number;
+    private _phaseID: number = getPhaseID('default');
     private _renderPhase: RenderPhaseData | null = null;
     protected _transversal: DeviceSceneTransversal | null = null;
     get phaseID (): number { return this._phaseID; }
@@ -401,7 +401,8 @@ class DeviceRenderQueue {
     get queueId () { return this._queueId; }
     constructor (devicePass: DeviceRenderPass) {
         this._devicePass = devicePass;
-        this._phaseID = cclegacy.rendering.getPhaseID(devicePass.passID, 'default');
+        const r = cclegacy.rendering;
+        if (r && r.enableEffectImport) this._phaseID = cclegacy.rendering.getPhaseID(devicePass.passID, 'default');
         this._sceneVisitor = new WebSceneVisitor(this._devicePass.context.commandBuffer,
             this._devicePass.context.pipeline.pipelineSceneData);
     }
@@ -902,13 +903,14 @@ class DevicePreSceneTask extends WebSceneTask {
                         && !this._submitInfo.transparentList.length
                         && !this._submitInfo.instances.size
                         && !this._submitInfo.batches.size;
+        const r = cclegacy.rendering;
         if (isEmpty) {
             for (const ro of this.sceneData.renderObjects) {
                 const subModels = ro.model.subModels;
                 for (const subModel of subModels) {
                     const passes = subModel.passes;
                     for (const p of passes) {
-                        if (p.phaseID !== this._currentQueue.phaseID) continue;
+                        if (((r && r.enableEffectImport) ? p.phaseID : p.phase) !== this._currentQueue.phaseID) continue;
                         const batchingScheme = p.batchingScheme;
                         if (batchingScheme === BatchingSchemes.INSTANCING) {
                             const instancedBuffer = p.getInstancedBuffer();
@@ -965,7 +967,9 @@ class DevicePreSceneTask extends WebSceneTask {
         const shader = subModel.shaders[passIdx];
         const currTransparent = pass.blendState.targets[0].blend;
         const passId = this._currentQueue.devicePass.passID;
-        const phase = cclegacy.rendering.getPhaseID(passId, 'default') | cclegacy.rendering.getPhaseID(passId, 'planarShadow');
+        const r = cclegacy.rendering;
+        const phase = r && r.enableEffectImport ? cclegacy.rendering.getPhaseID(passId, 'default') | cclegacy.rendering.getPhaseID(passId, 'planarShadow')
+            : getPhaseID('default') | getPhaseID('planarShadow');
         if (currTransparent !== isTransparent || !(pass.phaseID & (isTransparent ? phase : this._currentQueue.phaseID))) {
             return;
         }
@@ -1175,9 +1179,10 @@ class DeviceSceneTask extends WebSceneTask {
             if (!visible) continue;
             // shaders.length always equals actual used passes.length
             const count = batch.shaders.length;
+            const r = cclegacy.rendering;
             for (let j = 0; j < count; j++) {
                 const pass = batch.passes[j];
-                if (pass.phaseID !== this._currentQueue.phaseID) continue;
+                if (((r && r.enableEffectImport) ? pass.phaseID : pass.phase) !== this._currentQueue.phaseID) continue;
                 const shader = batch.shaders[j];
                 const inputAssembler: any = batch.inputAssembler!;
                 const pso = PipelineStateManager.getOrCreatePipelineState(deviceManager.gfxDevice, pass, shader, this._renderPass, inputAssembler);

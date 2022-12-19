@@ -36,7 +36,7 @@ export class UIPhase {
     private declare _pipeline: RenderPipeline;
     constructor () {
         const r = cclegacy.rendering;
-        if (r) this._phaseID = r.getPhaseID(r.getPassID('default'), 'default');
+        if (r && r.enableEffectImport) this._phaseID = r.getPhaseID(r.getPassID('default'), 'default');
     }
 
     public activate (pipeline: RenderPipeline) {
