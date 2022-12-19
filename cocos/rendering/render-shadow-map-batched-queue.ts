@@ -24,7 +24,7 @@
  */
 
 import { SubModel } from '../render-scene/scene/submodel';
-import { SetIndex } from './define';
+import { isEnableEffect, SetIndex } from './define';
 import { Device, RenderPass, Shader, CommandBuffer } from '../gfx';
 import { getPhaseID } from './pass-phase';
 import { PipelineStateManager } from './pipeline-state-manager';
@@ -43,10 +43,10 @@ let _phaseID = getPhaseID('shadow-caster');
 function getShadowPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r && r.enableEffectImport) _phaseID = r.getPhaseID(r.getPassID('default'), 'shadow-caster');
+    if (isEnableEffect()) _phaseID = r.getPhaseID(r.getPassID('default'), 'shadow-caster');
     for (let k = 0; k < passes.length; k++) {
         if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID)
-        || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
+        || (isEnableEffect() && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }

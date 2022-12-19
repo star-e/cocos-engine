@@ -25,7 +25,7 @@
 
 import { RenderPass } from '../gfx';
 import { PipelineStateManager } from './pipeline-state-manager';
-import { SetIndex } from './define';
+import { isEnableEffect, SetIndex } from './define';
 import { Camera } from '../render-scene/scene/camera';
 import { RenderPipeline } from './render-pipeline';
 import { getPhaseID } from './pass-phase';
@@ -36,7 +36,7 @@ export class UIPhase {
     private declare _pipeline: RenderPipeline;
     constructor () {
         const r = cclegacy.rendering;
-        if (r && r.enableEffectImport) this._phaseID = r.getPhaseID(r.getPassID('default'), 'default');
+        if (isEnableEffect()) this._phaseID = r.getPhaseID(r.getPassID('default'), 'default');
     }
 
     public activate (pipeline: RenderPipeline) {

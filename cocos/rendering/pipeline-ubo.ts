@@ -24,7 +24,7 @@
  */
 
 import { UBOGlobal, UBOShadow, UBOCamera, UNIFORM_SHADOWMAP_BINDING,
-    supportsR32FloatTexture, UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING, UBOCSM } from './define';
+    supportsR32FloatTexture, UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING, UBOCSM, isEnableEffect } from './define';
 import { Device, BufferInfo, BufferUsageBit, MemoryUsageBit, DescriptorSet } from '../gfx';
 import { Camera } from '../render-scene/scene/camera';
 import { Mat4, Vec3, Vec4, Color, toRadian, cclegacy } from '../core';
@@ -434,7 +434,7 @@ export class PipelineUBO {
         this._device = device;
         this._pipeline = pipeline;
         const ds = this._pipeline.descriptorSet;
-        if (legacyCC.rendering && legacyCC.rendering.enableEffectImport) {
+        if (isEnableEffect()) {
             return;
         }
         this._initCombineSignY();
@@ -460,7 +460,7 @@ export class PipelineUBO {
             UBOShadow.SIZE,
             UBOShadow.SIZE,
         ));
-        const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+        const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
         ds.bindBuffer(binding, shadowUBO);
         const csmUBO = device.createBuffer(new BufferInfo(
             BufferUsageBit.UNIFORM | BufferUsageBit.TRANSFER_DST,
@@ -468,7 +468,7 @@ export class PipelineUBO {
             UBOCSM.SIZE,
             UBOCSM.SIZE,
         ));
-        const csmBinding = cclegacy.rendering ? getDescBindingFromName('CCCSM') : UBOCSM.BINDING;
+        const csmBinding = isEnableEffect() ? getDescBindingFromName('CCCSM') : UBOCSM.BINDING;
         ds.bindBuffer(csmBinding, csmUBO);
     }
 
@@ -513,9 +513,9 @@ export class PipelineUBO {
         }
         PipelineUBO.updateShadowUBOView(this._pipeline, this._shadowUBO, this._csmUBO, camera);
         ds.update();
-        const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+        const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
         cmdBuffer[0].updateBuffer(ds.getBuffer(binding), this._shadowUBO);
-        const csmBinding = cclegacy.rendering ? getDescBindingFromName('CCCSM') : UBOCSM.BINDING;
+        const csmBinding = isEnableEffect() ? getDescBindingFromName('CCCSM') : UBOCSM.BINDING;
         cmdBuffer[0].updateBuffer(ds.getBuffer(csmBinding), this._csmUBO);
     }
 
@@ -524,7 +524,7 @@ export class PipelineUBO {
         globalDS.bindTexture(UNIFORM_SHADOWMAP_BINDING, builtinResMgr.get<Texture2D>('default-texture').getGFXTexture()!);
         globalDS.bindTexture(UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING, builtinResMgr.get<Texture2D>('default-texture').getGFXTexture()!);
         globalDS.update();
-        const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+        const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
         this._pipeline.commandBuffers[0].updateBuffer(globalDS.getBuffer(binding), this._shadowUBO);
     }
 

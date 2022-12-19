@@ -28,7 +28,7 @@ import { Device, BufferUsageBit, MemoryUsageBit, BufferInfo, Filter, Address, Sa
     DescriptorSetInfo, Buffer, Texture, DescriptorSetLayoutInfo, DescriptorSetLayout, SamplerInfo } from '../gfx';
 import { Light } from '../render-scene/scene';
 import { getDescBindingFromName } from './custom/define';
-import { UBOShadow, globalDescriptorSetLayout, PipelineGlobalBindings } from './define';
+import { UBOShadow, globalDescriptorSetLayout, PipelineGlobalBindings, isEnableEffect } from './define';
 
 const _samplerLinearInfo = new SamplerInfo(
     Filter.LINEAR,
@@ -196,7 +196,7 @@ export class GlobalDSManager {
                 UBOShadow.SIZE,
                 UBOShadow.SIZE,
             ));
-            const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+            const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
             descriptorSet.bindBuffer(binding, shadowUBO);
 
             descriptorSet.update();

@@ -24,10 +24,12 @@
  */
 
 import { RenderingSubMesh } from '../../asset/assets/rendering-sub-mesh';
-import { RenderPriority, UNIFORM_REFLECTION_TEXTURE_BINDING, UNIFORM_REFLECTION_STORAGE_BINDING, INST_MAT_WORLD, INST_SH, UBOSH } from '../../rendering/define';
+import { RenderPriority, UNIFORM_REFLECTION_TEXTURE_BINDING, UNIFORM_REFLECTION_STORAGE_BINDING,
+    INST_MAT_WORLD, INST_SH, UBOSH, isEnableEffect } from '../../rendering/define';
 import { BatchingSchemes, IMacroPatch, Pass } from '../core/pass';
 import { DescriptorSet, DescriptorSetInfo, Device, InputAssembler, Texture, TextureType, TextureUsageBit, TextureInfo,
-    Format, Sampler, Filter, Address, Shader, SamplerInfo, deviceManager, Attribute, Feature, FormatInfos, getTypedArrayConstructor } from '../../gfx';
+    Format, Sampler, Filter, Address, Shader, SamplerInfo, deviceManager,
+    Attribute, Feature, FormatInfos, getTypedArrayConstructor } from '../../gfx';
 import { errorID, Mat4, cclegacy } from '../../core';
 import { getPhaseID } from '../../rendering/pass-phase';
 import { Root } from '../../root';
@@ -263,7 +265,7 @@ export class SubModel {
         const r = cclegacy.rendering;
         // initialize resources for reflection material
         if (((!r || !r.enableEffectImport) && passes[0].phase === getPhaseID('reflection'))
-        || (r && r.enableEffectImport && passes[0].phaseID === r.getPhaseID(r.getPassID('default'), 'reflection'))) {
+        || (isEnableEffect() && passes[0].phaseID === r.getPhaseID(r.getPassID('default'), 'reflection'))) {
             let texWidth = root.mainWindow!.width;
             let texHeight = root.mainWindow!.height;
             const minSize = 512;

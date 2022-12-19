@@ -24,7 +24,7 @@
  */
 
 import { SubModel } from '../render-scene/scene/submodel';
-import { SetIndex } from './define';
+import { isEnableEffect, SetIndex } from './define';
 import { Device, RenderPass, Shader, CommandBuffer } from '../gfx';
 import { getPhaseID } from './pass-phase';
 import { PipelineStateManager } from './pipeline-state-manager';
@@ -48,9 +48,9 @@ let _phaseReflectMapID = getPhaseID('reflect-map');
 function getPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r && r.enableEffectImport) _phaseID = r.getPhaseID(r.getPassID('default'), 'default');
+    if (isEnableEffect()) _phaseID = r.getPhaseID(r.getPassID('default'), 'default');
     for (let k = 0; k < passes.length; k++) {
-        if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID) || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
+        if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID) || (isEnableEffect() && passes[k].phaseID === _phaseID)) {
             return k;
         }
     }
@@ -60,10 +60,10 @@ function getPassIndex (subModel: SubModel): number {
 function getReflectMapPassIndex (subModel: SubModel): number {
     const passes = subModel.passes;
     const r = cclegacy.rendering;
-    if (r && r.enableEffectImport) _phaseReflectMapID = r.getPhaseID(r.getPassID('default'), 'reflect-map');
+    if (isEnableEffect()) _phaseReflectMapID = r.getPhaseID(r.getPassID('default'), 'reflect-map');
     for (let k = 0; k < passes.length; k++) {
         if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseReflectMapID)
-        || (r && r.enableEffectImport && passes[k].phaseID === _phaseReflectMapID)) {
+        || (isEnableEffect() && passes[k].phaseID === _phaseReflectMapID)) {
             return k;
         }
     }

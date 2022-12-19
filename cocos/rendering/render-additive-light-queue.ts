@@ -37,7 +37,7 @@ import { SubModel } from '../render-scene/scene/submodel';
 import { getPhaseID } from './pass-phase';
 import { Light, LightType } from '../render-scene/scene/light';
 import { SetIndex, UBOForwardLight, UBOShadow, UNIFORM_SHADOWMAP_BINDING,
-    UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING, supportsR32FloatTexture } from './define';
+    UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING, supportsR32FloatTexture, isEnableEffect } from './define';
 import { Camera, ShadowType } from '../render-scene/scene';
 import { GlobalDSManager } from './global-descriptor-set-manager';
 import { PipelineUBO } from './pipeline-ubo';
@@ -73,7 +73,7 @@ let _phaseID = getPhaseID(phaseName);
 const _lightPassIndices: number[] = [];
 function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[]) {
     const r = cclegacy.rendering;
-    if (r && r.enableEffectImport) {
+    if (isEnableEffect()) {
         _phaseID = r.getPhaseID(r.getPassID('default'), phaseName);
     }
     lightPassIndices.length = 0;
@@ -83,7 +83,7 @@ function getLightPassIndices (subModels: SubModel[], lightPassIndices: number[])
         let lightPassIndex = -1;
         for (let k = 0; k < passes.length; k++) {
             if (((!r || !r.enableEffectImport) && passes[k].phase === _phaseID)
-            || (r && r.enableEffectImport && passes[k].phaseID === _phaseID)) {
+            || (isEnableEffect() && passes[k].phaseID === _phaseID)) {
                 lightPassIndex = k;
                 hasValidLightPass = true;
                 break;
@@ -162,7 +162,7 @@ export class RenderAdditiveLightQueue {
             const key = keys[i];
             const descriptorSet = descriptorSetMap.get(key)!;
             if (descriptorSet) {
-                const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+                const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
                 descriptorSet.getBuffer(binding).destroy();
                 descriptorSet.getTexture(UNIFORM_SHADOWMAP_BINDING).destroy();
                 descriptorSet.getTexture(UNIFORM_SPOT_SHADOW_MAP_TEXTURE_BINDING).destroy();
@@ -203,7 +203,7 @@ export class RenderAdditiveLightQueue {
                 if (isTransparent) {
                     continue;
                 }
-                const binding = cclegacy.rendering ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
+                const binding = isEnableEffect() ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
                 subModel.descriptorSet.bindBuffer(UBOForwardLight.BINDING, this._firstLightBufferView);
                 subModel.descriptorSet.update();
 
@@ -431,7 +431,7 @@ export class RenderAdditiveLightQueue {
             default:
             }
             descriptorSet.update();
-            const binding = cclegacy.rendering ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
+            const binding = isEnableEffect() ? getDescBindingFromName('CCShadow') : UBOShadow.BINDING;
             cmdBuff.updateBuffer(descriptorSet.getBuffer(binding)!, this._shadowUBO);
         }
     }

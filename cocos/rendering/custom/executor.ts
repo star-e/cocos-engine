@@ -44,7 +44,7 @@ import { Camera } from '../../render-scene/scene/camera';
 import { ShadowType } from '../../render-scene/scene/shadows';
 import { Root } from '../../root';
 import { BatchedBuffer } from '../batched-buffer';
-import { SetIndex, UBODeferredLight, UBOForwardLight, UBOLocal } from '../define';
+import { isEnableEffect, SetIndex, UBODeferredLight, UBOForwardLight, UBOLocal } from '../define';
 import { PipelineSceneData } from '../pipeline-scene-data';
 import { PipelineInputAssemblerData } from '../render-pipeline';
 import { LayoutGraphData, PipelineLayoutData, RenderPhaseData, RenderStageData } from './layout-graph';
@@ -369,8 +369,8 @@ class BlitDesc {
 
             const deferredLitsBufView = device.createBuffer(new BufferViewInfo(this._lightVolumeBuffer, 0, totalSize));
             this._lightBufferData = new Float32Array(totalSize / Float32Array.BYTES_PER_ELEMENT);
-            const binding = cclegacy.rendering ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
-            this._stageDesc.bindBuffer(binding, deferredLitsBufView);
+            const binding = isEnableEffect() ? getDescBindingFromName('CCForwardLight') : UBOForwardLight.BINDING;
+            this._stageDesc.bindBuffer(UBOForwardLight.BINDING, deferredLitsBufView);
         }
         const _localUBO = device.createBuffer(new BufferInfo(
             BufferUsageBit.UNIFORM | BufferUsageBit.TRANSFER_DST,
@@ -401,8 +401,7 @@ class DeviceRenderQueue {
     get queueId () { return this._queueId; }
     constructor (devicePass: DeviceRenderPass) {
         this._devicePass = devicePass;
-        const r = cclegacy.rendering;
-        if (r && r.enableEffectImport) this._phaseID = cclegacy.rendering.getPhaseID(devicePass.passID, 'default');
+        if (isEnableEffect()) this._phaseID = cclegacy.rendering.getPhaseID(devicePass.passID, 'default');
         this._sceneVisitor = new WebSceneVisitor(this._devicePass.context.commandBuffer,
             this._devicePass.context.pipeline.pipelineSceneData);
     }
@@ -903,14 +902,13 @@ class DevicePreSceneTask extends WebSceneTask {
                         && !this._submitInfo.transparentList.length
                         && !this._submitInfo.instances.size
                         && !this._submitInfo.batches.size;
-        const r = cclegacy.rendering;
         if (isEmpty) {
             for (const ro of this.sceneData.renderObjects) {
                 const subModels = ro.model.subModels;
                 for (const subModel of subModels) {
                     const passes = subModel.passes;
                     for (const p of passes) {
-                        if (((r && r.enableEffectImport) ? p.phaseID : p.phase) !== this._currentQueue.phaseID) continue;
+                        if (((isEnableEffect()) ? p.phaseID : p.phase) !== this._currentQueue.phaseID) continue;
                         const batchingScheme = p.batchingScheme;
                         if (batchingScheme === BatchingSchemes.INSTANCING) {
                             const instancedBuffer = p.getInstancedBuffer();
@@ -967,8 +965,7 @@ class DevicePreSceneTask extends WebSceneTask {
         const shader = subModel.shaders[passIdx];
         const currTransparent = pass.blendState.targets[0].blend;
         const passId = this._currentQueue.devicePass.passID;
-        const r = cclegacy.rendering;
-        const phase = r && r.enableEffectImport ? cclegacy.rendering.getPhaseID(passId, 'default') | cclegacy.rendering.getPhaseID(passId, 'planarShadow')
+        const phase = isEnableEffect() ? cclegacy.rendering.getPhaseID(passId, 'default') | cclegacy.rendering.getPhaseID(passId, 'planarShadow')
             : getPhaseID('default') | getPhaseID('planarShadow');
         if (currTransparent !== isTransparent || !(pass.phaseID & (isTransparent ? phase : this._currentQueue.phaseID))) {
             return;
@@ -1179,10 +1176,9 @@ class DeviceSceneTask extends WebSceneTask {
             if (!visible) continue;
             // shaders.length always equals actual used passes.length
             const count = batch.shaders.length;
-            const r = cclegacy.rendering;
             for (let j = 0; j < count; j++) {
                 const pass = batch.passes[j];
-                if (((r && r.enableEffectImport) ? pass.phaseID : pass.phase) !== this._currentQueue.phaseID) continue;
+                if (((isEnableEffect()) ? pass.phaseID : pass.phase) !== this._currentQueue.phaseID) continue;
                 const shader = batch.shaders[j];
                 const inputAssembler: any = batch.inputAssembler!;
                 const pso = PipelineStateManager.getOrCreatePipelineState(deviceManager.gfxDevice, pass, shader, this._renderPass, inputAssembler);
