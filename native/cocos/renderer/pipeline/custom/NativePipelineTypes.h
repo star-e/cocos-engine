@@ -1,18 +1,17 @@
 /****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2021-2023 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos.com
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated engine source code (the "Software"), a limited,
- worldwide, royalty-free, non-assignable, revocable and non-exclusive license
- to use Cocos Creator solely to develop games on your target platforms. You shall
- not use Cocos Creator software for developing other software or tools that's
- used for developing games. You are not granted to publish, distribute,
- sublicense, and/or sell copies of Cocos Creator.
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ of the Software, and to permit persons to whom the Software is furnished to do so,
+ subject to the following conditions:
 
- The software or tools in this License Agreement are licensed, not sold.
- Xiamen Yaji Software Co., Ltd. reserves all rights not expressly granted to you.
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
 
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -132,6 +131,7 @@ public:
     void addComputeView(const ccstd::string &name, const ComputeView &view) override;
     RasterQueueBuilder *addQueue(QueueHint hint) override;
     void setViewport(const gfx::Viewport &viewport) override;
+    void setVersion(const ccstd::string &name, uint64_t version) override;
 
     RenderGraph* renderGraph{nullptr};
     const LayoutGraphData* layoutGraph{nullptr};
@@ -503,6 +503,18 @@ public:
     RenderGraph renderGraph;
 };
 
+class NativeProgramProxy final : public ProgramProxy {
+public:
+    NativeProgramProxy() = default;
+    NativeProgramProxy(IntrusivePtr<gfx::Shader> shaderIn) // NOLINT
+    : shader(std::move(shaderIn)) {}
+
+    const ccstd::string &getName() const noexcept override;
+    gfx::Shader *getShader() const noexcept override;
+
+    IntrusivePtr<gfx::Shader> shader;
+};
+
 class NativeProgramLibrary final : public ProgramLibrary {
 public:
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
@@ -514,10 +526,10 @@ public:
 
     void addEffect(EffectAsset *effectAsset) override;
     void precompileEffect(gfx::Device *device, EffectAsset *effectAsset) override;
-    ccstd::pmr::string getKey(uint32_t phaseID, const ccstd::pmr::string &programName, const MacroRecord &defines) const override;
-    const gfx::PipelineLayout &getPipelineLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const override;
-    const gfx::DescriptorSetLayout &getMaterialDescriptorSetLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const override;
-    const gfx::DescriptorSetLayout &getLocalDescriptorSetLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const override;
+    ccstd::string getKey(uint32_t phaseID, const ccstd::pmr::string &programName, const MacroRecord &defines) const override;
+    const gfx::PipelineLayout &getPipelineLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) override;
+    const gfx::DescriptorSetLayout &getMaterialDescriptorSetLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) override;
+    const gfx::DescriptorSetLayout &getLocalDescriptorSetLayout(gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) override;
     const IProgramInfo &getProgramInfo(uint32_t phaseID, const ccstd::pmr::string &programName) const override;
     const gfx::ShaderInfo &getShaderInfo(uint32_t phaseID, const ccstd::pmr::string &programName) const override;
     ProgramProxy *getProgramVariant(gfx::Device *device, uint32_t phaseID, const ccstd::string &name, const MacroRecord &defines, const ccstd::pmr::string *key) const override;
@@ -527,11 +539,16 @@ public:
     uint32_t getDescriptorNameID(const ccstd::pmr::string &name) override;
     const ccstd::pmr::string &getDescriptorName(uint32_t nameID) override;
 
+    void init(gfx::Device* device);
+    void destroy();
+
     LayoutGraphData layoutGraph;
     PmrFlatMap<uint32_t, ProgramGroup> phases;
     boost::container::pmr::unsynchronized_pool_resource unsycPool;
     bool mergeHighFrequency{false};
     bool fixedLocal{true};
+    IntrusivePtr<gfx::DescriptorSetLayout> emptyDescriptorSetLayout;
+    IntrusivePtr<gfx::PipelineLayout> emptyPipelineLayout;
 };
 
 class NativeRenderingModule final : public RenderingModule {

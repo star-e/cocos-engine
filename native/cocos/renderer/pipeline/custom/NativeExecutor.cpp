@@ -1,3 +1,27 @@
+/****************************************************************************
+ Copyright (c) 2022-2023 Xiamen Yaji Software Co., Ltd.
+
+ https://www.cocos.com/
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ of the Software, and to permit persons to whom the Software is furnished to do so,
+ subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ THE SOFTWARE.
+****************************************************************************/
+
 #include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/filtered_graph.hpp>
 #include <variant>
@@ -10,7 +34,6 @@
 #include "cocos/renderer/gfx-base/GFXDef-common.h"
 #include "cocos/renderer/gfx-base/GFXDevice.h"
 #include "cocos/renderer/pipeline/InstancedBuffer.h"
-#include "cocos/renderer/pipeline/LODModelsUtil.h"
 #include "cocos/scene/Model.h"
 #include "cocos/scene/Octree.h"
 #include "cocos/scene/Pass.h"
@@ -840,7 +863,7 @@ void octreeCulling(
         if (!model.isEnabled()) {
             continue;
         }
-        if (pipeline::LODModelsCachedUtils::isLODModelCulled(&model)) {
+        if (scene->isCulledByLod(&camera, &model)) {
             continue;
         }
         if (any(queue.sceneFlags & SceneFlags::SHADOW_CASTER) && model.isCastShadow()) {
@@ -859,7 +882,7 @@ void octreeCulling(
     for (const auto& pModel : models) {
         const auto& model = *pModel;
         CC_EXPECTS(!isPointInstance(model));
-        if (pipeline::LODModelsCachedUtils::isLODModelCulled(&model)) {
+        if (scene->isCulledByLod(&camera, &model)) {
             continue;
         }
         addRenderObject(camera, model, queue);
@@ -878,7 +901,7 @@ void frustumCulling(
             continue;
         }
         // filter model by view visibility
-        if (pipeline::LODModelsCachedUtils::isLODModelCulled(&model)) {
+        if (scene->isCulledByLod(&camera, &model)) {
             continue;
         }
         const auto visibility = camera.getVisibility();
@@ -949,13 +972,11 @@ void buildRenderQueues(
             if (!camera->isCullingEnabled()) {
                 continue;
             }
-            pipeline::LODModelsCachedUtils::updateCachedLODModels(scene, camera);
             if (octree && octree->isEnabled()) {
                 octreeCulling(octree, scene, skyBox, *camera, queue);
             } else {
                 frustumCulling(scene, *camera, queue);
             }
-            pipeline::LODModelsCachedUtils::clearCachedLODModels();
 
             queue.sort();
 

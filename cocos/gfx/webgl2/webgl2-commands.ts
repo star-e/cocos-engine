@@ -1,18 +1,17 @@
 /*
- Copyright (c) 2020 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2020-2023 Xiamen Yaji Software Co., Ltd.
 
  https://www.cocos.com/
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated engine source code (the "Software"), a limited,
- worldwide, royalty-free, non-assignable, revocable and non-exclusive license
- to use Cocos Creator solely to develop games on your target platforms. You shall
- not use Cocos Creator software for developing other software or tools that's
- used for developing games. You are not granted to publish, distribute,
- sublicense, and/or sell copies of Cocos Creator.
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ of the Software, and to permit persons to whom the Software is furnished to do so,
+ subject to the following conditions:
 
- The software or tools in this License Agreement are licensed, not sold.
- Xiamen Yaji Software Co., Ltd. reserves all rights not expressly granted to you.
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
 
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -21,7 +20,7 @@
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
- */
+*/
 
 import {
     BufferUsageBit, ColorMask, CullMode, DynamicStateFlagBit, Filter, Format, TextureType, Type, FormatInfo,
@@ -47,7 +46,7 @@ import {
     IWebGL2GPUUniformSamplerTexture,
     IWebGL2GPURenderPass,
 } from './webgl2-gpu-objects';
-import { CachedArray, error, errorID, debug } from '../../core';
+import { CachedArray, error, errorID, debug, cclegacy } from '../../core';
 
 const WebGLWraps: GLenum[] = [
     0x2901, // WebGLRenderingContext.REPEAT
@@ -1615,6 +1614,8 @@ export function WebGL2CmdFuncCreateShader (device: WebGL2Device, gpuShader: IWeb
 
     gpuShader.glProgram = glProgram;
 
+    const enableEffectImport = !!(cclegacy.rendering && cclegacy.rendering.enableEffectImport);
+
     // link program
     for (let k = 0; k < gpuShader.gpuStages.length; k++) {
         const gpuStage = gpuShader.gpuStages[k];
@@ -1705,7 +1706,10 @@ export function WebGL2CmdFuncCreateShader (device: WebGL2Device, gpuShader: IWeb
                 // blockIdx = gl.getUniformBlockIndex(gpuShader.glProgram, blockName);
                 blockIdx = b;
                 blockSize = gl.getActiveUniformBlockParameter(gpuShader.glProgram, blockIdx, gl.UNIFORM_BLOCK_DATA_SIZE);
-                const glBinding = block.binding + (device.bindingMappings.blockOffsets[block.set] || 0);
+
+                const glBinding = enableEffectImport
+                    ? block.flattened
+                    : block.binding + (device.bindingMappings.blockOffsets[block.set] || 0);
 
                 gl.uniformBlockBinding(gpuShader.glProgram, blockIdx, glBinding);
 
@@ -1754,27 +1758,42 @@ export function WebGL2CmdFuncCreateShader (device: WebGL2Device, gpuShader: IWeb
     const glActiveSamplerLocations: WebGLUniformLocation[] = [];
     const texUnitCacheMap = device.stateCache.texUnitCacheMap;
 
-    let flexibleSetBaseOffset = 0;
-    for (let i = 0; i < gpuShader.blocks.length; ++i) {
-        if (gpuShader.blocks[i].set === device.bindingMappings.flexibleSet) {
-            flexibleSetBaseOffset++;
+    if (!enableEffectImport) {
+        let flexibleSetBaseOffset = 0;
+        for (let i = 0; i < gpuShader.blocks.length; ++i) {
+            if (gpuShader.blocks[i].set === device.bindingMappings.flexibleSet) {
+                flexibleSetBaseOffset++;
+            }
         }
-    }
 
-    let arrayOffset = 0;
-    for (let i = 0; i < gpuShader.samplerTextures.length; ++i) {
-        const sampler = gpuShader.samplerTextures[i];
-        const glLoc = gl.getUniformLocation(gpuShader.glProgram, sampler.name);
-        // wEcHAT just returns { id: -1 } for non-existing names /eyerolling
-        if (glLoc && (glLoc as any).id !== -1) {
-            glActiveSamplers.push(gpuShader.glSamplerTextures[i]);
-            glActiveSamplerLocations.push(glLoc);
+        let arrayOffset = 0;
+        for (let i = 0; i < gpuShader.samplerTextures.length; ++i) {
+            const sampler = gpuShader.samplerTextures[i];
+            const glLoc = gl.getUniformLocation(gpuShader.glProgram, sampler.name);
+            // wEcHAT just returns { id: -1 } for non-existing names /eyerolling
+            if (glLoc && (glLoc as any).id !== -1) {
+                glActiveSamplers.push(gpuShader.glSamplerTextures[i]);
+                glActiveSamplerLocations.push(glLoc);
+            }
+            if (texUnitCacheMap[sampler.name] === undefined) {
+                let binding = sampler.binding + device.bindingMappings.samplerTextureOffsets[sampler.set] + arrayOffset;
+                if (sampler.set === device.bindingMappings.flexibleSet) { binding -= flexibleSetBaseOffset; }
+                texUnitCacheMap[sampler.name] = binding % device.capabilities.maxTextureUnits;
+                arrayOffset += sampler.count - 1;
+            }
         }
-        if (texUnitCacheMap[sampler.name] === undefined) {
-            let binding = sampler.binding + device.bindingMappings.samplerTextureOffsets[sampler.set] + arrayOffset;
-            if (sampler.set === device.bindingMappings.flexibleSet) { binding -= flexibleSetBaseOffset; }
-            texUnitCacheMap[sampler.name] = binding % device.capabilities.maxTextureUnits;
-            arrayOffset += sampler.count - 1;
+    } else {
+        for (let i = 0; i < gpuShader.samplerTextures.length; ++i) {
+            const sampler = gpuShader.samplerTextures[i];
+            const glLoc = gl.getUniformLocation(gpuShader.glProgram, sampler.name);
+            // wEcHAT just returns { id: -1 } for non-existing names /eyerolling
+            if (glLoc && (glLoc as any).id !== -1) {
+                glActiveSamplers.push(gpuShader.glSamplerTextures[i]);
+                glActiveSamplerLocations.push(glLoc);
+            }
+            if (texUnitCacheMap[sampler.name] === undefined) {
+                texUnitCacheMap[sampler.name] = sampler.flattened % device.capabilities.maxTextureUnits;
+            }
         }
     }
 

@@ -1,18 +1,17 @@
 /****************************************************************************
- Copyright (c) 2021-2022 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2021-2023 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos.com
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated engine source code (the "Software"), a limited,
- worldwide, royalty-free, non-assignable, revocable and non-exclusive license
- to use Cocos Creator solely to develop games on your target platforms. You shall
- not use Cocos Creator software for developing other software or tools that's
- used for developing games. You are not granted to publish, distribute,
- sublicense, and/or sell copies of Cocos Creator.
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ of the Software, and to permit persons to whom the Software is furnished to do so,
+ subject to the following conditions:
 
- The software or tools in this License Agreement are licensed, not sold.
- Xiamen Yaji Software Co., Ltd. reserves all rights not expressly granted to you.
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
 
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -340,6 +339,58 @@ function populateLocalShaderInfo (
     }
 }
 
+function setFlattenedBinding (setOffsets: number[],
+    descriptors: UniformBlock[]
+    | UniformSamplerTexture[]
+    | UniformSampler[]
+    | UniformTexture[]
+    | UniformStorageBuffer[]
+    | UniformStorageImage[]
+    | UniformInputAttachment[]) {
+    for (const d of descriptors) {
+        d.flattened = setOffsets[d.set] + d.binding;
+    }
+}
+
+function getIDescriptorSetLayoutInfoCapacity (info: IDescriptorSetLayoutInfo): number {
+    let capacity = 0;
+    for (const binding of info.bindings) {
+        capacity += binding.count;
+    }
+    return capacity;
+}
+
+function calculateFlattenedBinding (
+    descriptorSets: (DescriptorSetLayoutData | null)[],
+    fixedInstanceDescriptorSetLayout: IDescriptorSetLayoutInfo | null,
+    shaderInfo: ShaderInfo,
+) {
+    const passCapacity = descriptorSets[UpdateFrequency.PER_PASS]?.capacity || 0;
+    const phaseCapacity = descriptorSets[UpdateFrequency.PER_PHASE]?.capacity || 0;
+    // const batchCapacity = descriptorSets[UpdateFrequency.PER_BATCH]?.capacity || 0; // dynamic size
+    const instanceCapacity = fixedInstanceDescriptorSetLayout
+        ? getIDescriptorSetLayoutInfoCapacity(fixedInstanceDescriptorSetLayout)
+        : (descriptorSets[UpdateFrequency.PER_INSTANCE]?.capacity || 0);
+
+    const passOffset = 0;
+    const phaseOffset = passOffset + passCapacity;
+    const instanceOffset = phaseOffset + phaseCapacity;
+    const batchOffset = instanceOffset + instanceCapacity;
+
+    const offsets = new Array(4);
+    offsets[_setIndex[UpdateFrequency.PER_PASS]] = passOffset;
+    offsets[_setIndex[UpdateFrequency.PER_PHASE]] = phaseOffset;
+    offsets[_setIndex[UpdateFrequency.PER_BATCH]] = batchOffset;
+    offsets[_setIndex[UpdateFrequency.PER_INSTANCE]] = instanceOffset;
+
+    setFlattenedBinding(offsets, shaderInfo.blocks);
+    setFlattenedBinding(offsets, shaderInfo.samplerTextures);
+    setFlattenedBinding(offsets, shaderInfo.samplers);
+    setFlattenedBinding(offsets, shaderInfo.textures);
+    setFlattenedBinding(offsets, shaderInfo.buffers);
+    setFlattenedBinding(offsets, shaderInfo.images);
+}
+
 // make gfx.ShaderInfo
 function makeShaderInfo (
     lg: LayoutGraphData,
@@ -349,11 +400,14 @@ function makeShaderInfo (
     programData: ShaderProgramData | null,
     fixedLocal: boolean,
 ): [ShaderInfo, Array<number>] {
+    const descriptorSets: Array<DescriptorSetLayoutData | null> = [null, null, null, null];
+    let fixedInstanceDescriptorSetLayout: IDescriptorSetLayoutInfo | null = null;
     const shaderInfo = new ShaderInfo();
     const blockSizes = new Array<number>();
     { // pass
         const passLayout = passLayouts.descriptorSets.get(UpdateFrequency.PER_PASS);
         if (passLayout) {
+            descriptorSets[UpdateFrequency.PER_PASS] = passLayout.descriptorSetLayoutData;
             populateMergedShaderInfo(lg.valueNames, passLayout.descriptorSetLayoutData,
                 _setIndex[UpdateFrequency.PER_PASS], shaderInfo, blockSizes);
         }
@@ -361,6 +415,7 @@ function makeShaderInfo (
     { // phase
         const phaseLayout = phaseLayouts.descriptorSets.get(UpdateFrequency.PER_PHASE);
         if (phaseLayout) {
+            descriptorSets[UpdateFrequency.PER_PHASE] = phaseLayout.descriptorSetLayoutData;
             populateMergedShaderInfo(lg.valueNames, phaseLayout.descriptorSetLayoutData,
                 _setIndex[UpdateFrequency.PER_PHASE], shaderInfo, blockSizes);
         }
@@ -370,12 +425,14 @@ function makeShaderInfo (
         if (programData) {
             const perBatch = programData.layout.descriptorSets.get(UpdateFrequency.PER_BATCH);
             if (perBatch) {
+                descriptorSets[UpdateFrequency.PER_BATCH] = perBatch.descriptorSetLayoutData;
                 populateMergedShaderInfo(lg.valueNames, perBatch.descriptorSetLayoutData,
                     _setIndex[UpdateFrequency.PER_BATCH], shaderInfo, blockSizes);
             }
         } else {
             const batchLayout = phaseLayouts.descriptorSets.get(UpdateFrequency.PER_BATCH);
             if (batchLayout) {
+                descriptorSets[UpdateFrequency.PER_BATCH] = batchLayout.descriptorSetLayoutData;
                 populateGroupedShaderInfo(batchLayout.descriptorSetLayoutData,
                     batchInfo, _setIndex[UpdateFrequency.PER_BATCH],
                     shaderInfo, blockSizes);
@@ -386,10 +443,12 @@ function makeShaderInfo (
         const instanceInfo = srcShaderInfo.descriptors[UpdateFrequency.PER_INSTANCE];
         if (programData) {
             if (fixedLocal) {
+                fixedInstanceDescriptorSetLayout = localDescriptorSetLayout;
                 populateLocalShaderInfo(instanceInfo, localDescriptorSetLayout, shaderInfo, blockSizes);
             } else {
                 const perInstance = programData.layout.descriptorSets.get(UpdateFrequency.PER_INSTANCE);
                 if (perInstance) {
+                    descriptorSets[UpdateFrequency.PER_INSTANCE] = perInstance.descriptorSetLayoutData;
                     populateMergedShaderInfo(lg.valueNames, perInstance.descriptorSetLayoutData,
                         _setIndex[UpdateFrequency.PER_INSTANCE], shaderInfo, blockSizes);
                 }
@@ -397,12 +456,14 @@ function makeShaderInfo (
         } else {
             const instanceLayout = phaseLayouts.descriptorSets.get(UpdateFrequency.PER_INSTANCE);
             if (instanceLayout) {
+                descriptorSets[UpdateFrequency.PER_INSTANCE] = instanceLayout.descriptorSetLayoutData;
                 populateGroupedShaderInfo(instanceLayout.descriptorSetLayoutData,
                     instanceInfo, _setIndex[UpdateFrequency.PER_INSTANCE],
                     shaderInfo, blockSizes);
             }
         }
     }
+    calculateFlattenedBinding(descriptorSets, fixedInstanceDescriptorSetLayout, shaderInfo);
     shaderInfo.stages.push(new ShaderStage(ShaderStageFlagBit.VERTEX, ''));
     shaderInfo.stages.push(new ShaderStage(ShaderStageFlagBit.FRAGMENT, ''));
     return [shaderInfo, blockSizes];

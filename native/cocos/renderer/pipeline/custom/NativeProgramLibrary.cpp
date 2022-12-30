@@ -33,14 +33,26 @@
 #include "ProgramUtils.h"
 #include "cocos/base/Log.h"
 #include "cocos/core/assets/EffectAsset.h"
+#include "cocos/renderer/core/ProgramUtils.h"
 #include "cocos/renderer/gfx-base/GFXDef-common.h"
 #include "cocos/renderer/pipeline/Define.h"
 #include "cocos/renderer/pipeline/custom/LayoutGraphGraphs.h"
 #include "cocos/renderer/pipeline/custom/LayoutGraphTypes.h"
+#include "gfx-base/GFXDescriptorSetLayout.h"
+#include "pipeline/custom/PrivateTypes.h"
+#include "pipeline/custom/details/GslUtils.h"
 
 namespace cc {
 
 namespace render {
+
+const ccstd::string &NativeProgramProxy::getName() const noexcept {
+    return shader->getName();
+}
+
+gfx::Shader *NativeProgramProxy::getShader() const noexcept {
+    return shader;
+}
 
 namespace {
 
@@ -240,83 +252,307 @@ void populateMergedShaderInfo(
     gfx::ShaderInfo &shaderInfo, ccstd::pmr::vector<uint32_t> &blockSizes) {
     for (const auto &descriptorBlock : layout.descriptorBlocks) {
         auto binding = descriptorBlock.offset;
-        // switch (descriptorBlock.type) {
-        //     case DescriptorTypeOrder::UNIFORM_BUFFER:
-        //         for (const auto &block : descriptorBlock.descriptors) {
-        //             auto iter = layout.uniformBlocks.find(block.descriptorID);
+        switch (descriptorBlock.type) {
+            case DescriptorTypeOrder::UNIFORM_BUFFER:
+                for (const auto &block : descriptorBlock.descriptors) {
+                    auto iter = layout.uniformBlocks.find(block.descriptorID);
 
-        //             if (iter == layout.uniformBlocks.end()) {
-        //                 CC_LOG_ERROR("Failed to find uniform block in layout");
-        //                 continue;
-        //             }
-        //             const auto &uniformBlock = iter->second;
+                    if (iter == layout.uniformBlocks.end()) {
+                        CC_LOG_ERROR("Failed to find uniform block in layout");
+                        continue;
+                    }
+                    const auto &uniformBlock = iter->second;
+                    blockSizes.emplace_back(getSize(uniformBlock.members));
+                    shaderInfo.blocks.emplace_back(
+                        gfx::UniformBlock{
+                            set,
+                            binding,
+                            ccstd::string(valueNames.at(block.descriptorID.value)),
+                            uniformBlock.members,
+                            1,
+                        } // count is always 1 for UniformBlock
+                    );
+                    ++binding;
+                }
+                if (binding != descriptorBlock.offset + descriptorBlock.capacity) {
+                    CC_LOG_ERROR("Uniform buffer binding mismatch for set");
+                }
+                break;
+            case DescriptorTypeOrder::DYNAMIC_UNIFORM_BUFFER:
+                // not implemented yet
+                break;
+            case DescriptorTypeOrder::SAMPLER_TEXTURE:
+                for (const auto &tex : descriptorBlock.descriptors) {
+                    shaderInfo.samplerTextures.emplace_back(gfx::UniformSamplerTexture{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(tex.descriptorID.value)),
+                        tex.type,
+                        tex.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::SAMPLER:
+                for (const auto &sampler : descriptorBlock.descriptors) {
+                    shaderInfo.samplers.emplace_back(gfx::UniformSampler{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(sampler.descriptorID.value)),
+                        sampler.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::TEXTURE:
+                for (const auto &texture : descriptorBlock.descriptors) {
+                    shaderInfo.textures.emplace_back(gfx::UniformTexture{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(texture.descriptorID.value)),
+                        texture.type,
+                        texture.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::STORAGE_BUFFER:
+                for (const auto &buffer : descriptorBlock.descriptors) {
+                    shaderInfo.buffers.emplace_back(gfx::UniformStorageBuffer{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(buffer.descriptorID.value)),
+                        1,
+                        gfx::MemoryAccessBit::READ_WRITE, /*buffer.memoryAccess*/
+                    });
+                    // effect compiler guarantees buffer count = 1
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::DYNAMIC_STORAGE_BUFFER:
+                // not implemented yet
+                break;
+            case DescriptorTypeOrder::STORAGE_IMAGE:
+                for (const auto &image : descriptorBlock.descriptors) {
+                    shaderInfo.images.emplace_back(gfx::UniformStorageImage{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(image.descriptorID.value)),
+                        image.type,
+                        image.count,
+                        gfx::MemoryAccessBit::READ_WRITE, /*image.memoryAccess*/
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::INPUT_ATTACHMENT:
+                for (const auto &subpassInput : descriptorBlock.descriptors) {
+                    shaderInfo.subpassInputs.emplace_back(gfx::UniformInputAttachment{
+                        set,
+                        binding,
+                        ccstd::string(valueNames.at(subpassInput.descriptorID.value)),
+                        subpassInput.count,
+                    });
+                    ++binding;
+                }
+                break;
+            default:
+                CC_LOG_ERROR("Unknown descriptor type");
+        }
+    }
+}
 
-        //             blockSizes.emplace_back(getSize(uniformBlock.members));
-        //             shaderInfo.blocks.push(
-        //                 new UniformBlock(set, binding, valueNames[block.descriptorID],
-        //                                  uniformBlock.members.map((m) = > new Uniform(m.name, m.type, m.count)),
-        //                                  1), // count is always 1 for UniformBlock
-        //             );
-        //             ++binding;
-        //         }
-        //         if (binding != = descriptorBlock.offset + descriptorBlock.capacity) {
-        //         console.error(`Uniform buffer binding mismatch for set ${
-        //                 set}`);
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::DYNAMIC_UNIFORM_BUFFER:
-        //         // not implemented yet
-        //         break;
-        //     case DescriptorTypeOrder::SAMPLER_TEXTURE:
-        //         for (const auto &tex : descriptorBlock.descriptors) {
-        //         shaderInfo.samplerTextures.push(new UniformSamplerTexture(
-        //             set, binding, valueNames[tex.descriptorID], tex.type, tex.count, ));
-        //         ++binding;
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::SAMPLER:
-        //         for (const auto &sampler : descriptorBlock.descriptors) {
-        //         shaderInfo.samplers.push(new UniformSampler(
-        //             set, binding, valueNames[sampler.descriptorID], sampler.count, ));
-        //         ++binding;
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::TEXTURE:
-        //         for (const auto &texture : descriptorBlock.descriptors) {
-        //         shaderInfo.textures.push(new UniformTexture(
-        //             set, binding, valueNames[texture.descriptorID], texture.type, texture.count, ));
-        //         ++binding;
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::STORAGE_BUFFER:
-        //         for (const auto &buffer : descriptorBlock.descriptors) {
-        //         shaderInfo.buffers.push(new UniformStorageBuffer(
-        //             set, binding, valueNames[buffer.descriptorID], 1,
-        //             MemoryAccessBit.READ_WRITE /*buffer.memoryAccess*/,
-        //             )); // effect compiler guarantees buffer count = 1
-        //         ++binding;
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::DYNAMIC_STORAGE_BUFFER:
-        //         // not implemented yet
-        //         break;
-        //     case DescriptorTypeOrder::STORAGE_IMAGE:
-        //         for (const auto &image : descriptorBlock.descriptors) {
-        //         shaderInfo.images.push(new UniformStorageImage(
-        //             set, binding, valueNames[image.descriptorID], image.type, image.count,
-        //             MemoryAccessBit.READ_WRITE /*image.memoryAccess*/, ));
-        //         ++binding;
-        //         }
-        //         break;
-        //     case DescriptorTypeOrder::INPUT_ATTACHMENT:
-        //         for (const auto &subpassInput : descriptorBlock.descriptors) {
-        //         shaderInfo.subpassInputs.push(new UniformInputAttachment(
-        //             set, binding, valueNames[subpassInput.descriptorID], subpassInput.count, ));
-        //         ++binding;
-        //         }
-        //         break;
-        //     default:
-        // }
+// add descriptor to size-reserved descriptor set
+void populateGroupedShaderInfo(
+    const DescriptorSetLayoutData &layout,
+    const IDescriptorInfo &descriptorInfo, uint32_t set,
+    gfx::ShaderInfo &shaderInfo,
+    ccstd::pmr::vector<uint32_t> &blockSizes) {
+    for (const auto &descriptorBlock : layout.descriptorBlocks) {
+        const auto visibility = descriptorBlock.visibility;
+        auto binding = descriptorBlock.offset;
+
+        switch (descriptorBlock.type) {
+            case DescriptorTypeOrder::UNIFORM_BUFFER:
+                for (const auto &block : descriptorInfo.blocks) {
+                    if (block.stageFlags != visibility) {
+                        continue;
+                    }
+                    blockSizes.emplace_back(getSize(block.members));
+                    shaderInfo.blocks.emplace_back(
+                        gfx::UniformBlock{
+                            set,
+                            binding,
+                            block.name,
+                            block.members,
+                            1,
+                        } // count is always 1 for UniformBlock
+                    );
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::DYNAMIC_UNIFORM_BUFFER:
+                // not implemented yet
+                break;
+            case DescriptorTypeOrder::SAMPLER_TEXTURE:
+                for (const auto &tex : descriptorInfo.samplerTextures) {
+                    if (tex.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.samplerTextures.emplace_back(gfx::UniformSamplerTexture{
+                        set,
+                        binding,
+                        tex.name,
+                        tex.type,
+                        tex.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::SAMPLER:
+                for (const auto &sampler : descriptorInfo.samplers) {
+                    if (sampler.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.samplers.emplace_back(gfx::UniformSampler{
+                        set,
+                        binding,
+                        sampler.name,
+                        sampler.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::TEXTURE:
+                for (const auto &texture : descriptorInfo.textures) {
+                    if (texture.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.textures.emplace_back(gfx::UniformTexture{
+                        set,
+                        binding,
+                        texture.name,
+                        texture.type,
+                        texture.count,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::STORAGE_BUFFER:
+                for (const auto &buffer : descriptorInfo.buffers) {
+                    if (buffer.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.buffers.emplace_back(gfx::UniformStorageBuffer{
+                        set,
+                        binding,
+                        buffer.name,
+                        1,
+                        buffer.memoryAccess,
+                    }); // effect compiler guarantees buffer count = 1
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::DYNAMIC_STORAGE_BUFFER:
+                // not implemented yet
+                break;
+            case DescriptorTypeOrder::STORAGE_IMAGE:
+                for (const auto &image : descriptorInfo.images) {
+                    if (image.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.images.emplace_back(gfx::UniformStorageImage{
+                        set,
+                        binding,
+                        image.name,
+                        image.type,
+                        image.count,
+                        image.memoryAccess,
+                    });
+                    ++binding;
+                }
+                break;
+            case DescriptorTypeOrder::INPUT_ATTACHMENT:
+                for (const auto &subpassInput : descriptorInfo.subpassInputs) {
+                    if (subpassInput.stageFlags != visibility) {
+                        continue;
+                    }
+                    shaderInfo.subpassInputs.emplace_back(gfx::UniformInputAttachment{
+                        set,
+                        subpassInput.binding,
+                        subpassInput.name,
+                        subpassInput.count,
+                    });
+                    ++binding;
+                }
+                break;
+            default:
+                CC_LOG_ERROR("Unknown descriptor type");
+        }
+    }
+}
+
+// add fixed local descriptors to gfx.ShaderInfo
+void populateLocalShaderInfo(
+    const IDescriptorInfo &target,
+    const pipeline::DescriptorSetLayoutInfos &source,
+    gfx::ShaderInfo &shaderInfo, ccstd::pmr::vector<uint32_t> &blockSizes) {
+    const auto set = setIndex(UpdateFrequency::PER_INSTANCE);
+    for (const auto &block : target.blocks) {
+        auto blockIter = source.blocks.find(block.name);
+        if (blockIter == source.blocks.end()) {
+            continue;
+        }
+        const auto &info = blockIter->second;
+
+        const gfx::DescriptorSetLayoutBinding *pBinding = nullptr;
+        for (const auto &b : source.bindings) {
+            if (b.binding == info.binding) {
+                pBinding = &b;
+            }
+        }
+        if (!pBinding || !(pBinding->descriptorType & gfx::DESCRIPTOR_BUFFER_TYPE)) {
+            CC_LOG_ERROR("builtin UBO not available !");
+            continue;
+        }
+
+        const auto &binding = *pBinding;
+        blockSizes.emplace_back(getSize(block.members));
+        shaderInfo.blocks.emplace_back(
+            gfx::UniformBlock{
+                set,
+                binding.binding,
+                block.name,
+                block.members,
+                1,
+            }); // effect compiler guarantees block count = 1
+    }
+    for (const auto &samplerTexture : target.samplerTextures) {
+        auto iter = source.samplers.find(samplerTexture.name);
+        if (iter == source.samplers.end()) {
+            CC_LOG_ERROR("builtin sampler not available !");
+            continue;
+        }
+        const auto &info = iter->second;
+
+        const gfx::DescriptorSetLayoutBinding *pBinding = nullptr;
+        for (const auto &b : source.bindings) {
+            if (b.binding == info.binding) {
+                pBinding = &b;
+            }
+        }
+        if (!pBinding || !(pBinding->descriptorType & gfx::DESCRIPTOR_SAMPLER_TYPE)) {
+            CC_LOG_ERROR("builtin sampler not available !");
+            continue;
+        }
+        const auto &binding = *pBinding;
+        shaderInfo.samplerTextures.emplace_back(gfx::UniformSamplerTexture{
+            set,
+            binding.binding,
+            samplerTexture.name,
+            samplerTexture.type,
+            samplerTexture.count,
+        });
     }
 }
 
@@ -327,15 +563,228 @@ void makeShaderInfo(
     const IShaderInfo &srcShaderInfo,
     const ShaderProgramData *programData,
     bool fixedLocal,
-    gfx::ShaderInfo &shaderInfo, ccstd::pmr::vector<uint32_t> &blockSizes) {
+    gfx::ShaderInfo &shaderInfo,
+    ccstd::pmr::vector<uint32_t> &blockSizes) {
     { // pass
         auto iter = passLayouts.descriptorSets.find(UpdateFrequency::PER_PASS);
         if (iter != passLayouts.descriptorSets.end()) {
+            populateMergedShaderInfo(
+                lg.valueNames, iter->second.descriptorSetLayoutData,
+                setIndex(UpdateFrequency::PER_PASS),
+                shaderInfo, blockSizes);
+        }
+    }
+    { // phase
+        auto iter = phaseLayouts.descriptorSets.find(UpdateFrequency::PER_PHASE);
+        if (iter != passLayouts.descriptorSets.end()) {
+            populateMergedShaderInfo(
+                lg.valueNames, iter->second.descriptorSetLayoutData,
+                setIndex(UpdateFrequency::PER_PHASE),
+                shaderInfo, blockSizes);
+        }
+    }
+    { // batch
+        const auto &batchInfo = srcShaderInfo.descriptors.at(
+            static_cast<uint32_t>(UpdateFrequency::PER_BATCH));
+        if (programData) {
+            auto iter = programData->layout.descriptorSets.find(UpdateFrequency::PER_BATCH);
+            if (iter != programData->layout.descriptorSets.end()) {
+                populateMergedShaderInfo(
+                    lg.valueNames, iter->second.descriptorSetLayoutData,
+                    setIndex(UpdateFrequency::PER_BATCH),
+                    shaderInfo, blockSizes);
+            }
+        } else {
+            auto iter = phaseLayouts.descriptorSets.find(UpdateFrequency::PER_BATCH);
+            if (iter != phaseLayouts.descriptorSets.end()) {
+                populateGroupedShaderInfo(
+                    iter->second.descriptorSetLayoutData,
+                    batchInfo, setIndex(UpdateFrequency::PER_BATCH),
+                    shaderInfo, blockSizes);
+            }
+        }
+    }
+    { // instance
+        const auto &instanceInfo = srcShaderInfo.descriptors.at(
+            static_cast<uint32_t>(UpdateFrequency::PER_INSTANCE));
+        if (programData) {
+            if (fixedLocal) {
+                populateLocalShaderInfo(
+                    instanceInfo,
+                    pipeline::localDescriptorSetLayout, shaderInfo, blockSizes);
+            } else {
+                auto iter = programData->layout.descriptorSets.find(
+                    UpdateFrequency::PER_INSTANCE);
+                if (iter != programData->layout.descriptorSets.end()) {
+                    populateMergedShaderInfo(
+                        lg.valueNames, iter->second.descriptorSetLayoutData,
+                        setIndex(UpdateFrequency::PER_INSTANCE),
+                        shaderInfo, blockSizes);
+                }
+            }
+        } else {
+            auto iter = phaseLayouts.descriptorSets.find(UpdateFrequency::PER_INSTANCE);
+            if (iter != phaseLayouts.descriptorSets.end()) {
+                populateGroupedShaderInfo(
+                    iter->second.descriptorSetLayoutData,
+                    instanceInfo, setIndex(UpdateFrequency::PER_INSTANCE),
+                    shaderInfo, blockSizes);
+            }
         }
     }
 }
 
+// overwrite IProgramInfo using gfx.ShaderInfo
+void overwriteProgramBlockInfo(const gfx::ShaderInfo &shaderInfo, IProgramInfo &programInfo) {
+    const auto set = setIndex(UpdateFrequency::PER_BATCH);
+    for (auto &block : programInfo.blocks) {
+        auto found = false;
+        for (const auto &src : shaderInfo.blocks) {
+            if (src.set != set) {
+                continue;
+            }
+            if (src.name == block.name) {
+                block.binding = src.binding;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            CC_LOG_ERROR("block not found in shaderInfo");
+        }
+    }
+}
+
+gfx::DescriptorSetLayout *getDescriptorSetLayout(
+    const LayoutGraphData &lg,
+    uint32_t passID, uint32_t phaseID, UpdateFrequency rate) { // NOLINT(bugprone-easily-swappable-parameters)
+    if (rate < UpdateFrequency::PER_PASS) {
+        const auto &phaseData = get(LayoutGraphData::Layout, lg, phaseID);
+        auto iter = phaseData.descriptorSets.find(rate);
+        if (iter != phaseData.descriptorSets.end()) {
+            const auto &data = iter->second;
+            if (!data.descriptorSetLayout) {
+                CC_LOG_ERROR("descriptor set layout not initialized");
+                return nullptr;
+            }
+            return data.descriptorSetLayout;
+        }
+        return nullptr;
+    }
+
+    CC_EXPECTS(rate == UpdateFrequency::PER_PASS);
+    CC_EXPECTS(passID == parent(phaseID, lg));
+
+    const auto &passData = get(LayoutGraphData::Layout, lg, passID);
+    auto iter = passData.descriptorSets.find(rate);
+    if (iter != passData.descriptorSets.end()) {
+        const auto &data = iter->second;
+        if (!data.descriptorSetLayout) {
+            CC_LOG_ERROR("descriptor set layout not initialized");
+            return nullptr;
+        }
+        return data.descriptorSetLayout;
+    }
+    return nullptr;
+}
+
+gfx::DescriptorSetLayout *getProgramDescriptorSetLayout(
+    gfx::Device *device,
+    LayoutGraphData &lg, uint32_t phaseID,
+    const ccstd::pmr::string &programName, UpdateFrequency rate) {
+    CC_EXPECTS(rate < UpdateFrequency::PER_PHASE);
+    auto &phase = get(RenderPhaseTag{}, phaseID, lg);
+    const auto iter = phase.shaderIndex.find(programName);
+    if (iter == phase.shaderIndex.end()) {
+        return nullptr;
+    }
+    const auto programID = iter->second;
+    auto &programData = phase.shaderPrograms.at(programID);
+
+    auto iter2 = programData.layout.descriptorSets.find(rate);
+    if (iter2 == programData.layout.descriptorSets.end()) {
+        return nullptr;
+    }
+    auto &layout = iter2->second;
+    if (layout.descriptorSetLayout) {
+        return layout.descriptorSetLayout;
+    }
+    layout.descriptorSetLayout = device->createDescriptorSetLayout(layout.descriptorSetLayoutInfo);
+    return layout.descriptorSetLayout;
+}
+
+// get descriptor set from LayoutGraphData (not from ProgramData)
+const gfx::DescriptorSetLayout &getOrCreateDescriptorSetLayout(
+    const NativeProgramLibrary &lib,
+    const LayoutGraphData &lg,
+    uint32_t passID, uint32_t phaseID, UpdateFrequency rate) { // NOLINT(bugprone-easily-swappable-parameters)
+    if (rate < UpdateFrequency::PER_PASS) {
+        const auto &phaseData = get(LayoutGraphData::Layout, lg, phaseID);
+        auto iter = phaseData.descriptorSets.find(rate);
+        if (iter != phaseData.descriptorSets.end()) {
+            const auto &data = iter->second;
+            if (!data.descriptorSetLayout) {
+                CC_LOG_ERROR("descriptor set layout not initialized");
+                return *lib.emptyDescriptorSetLayout;
+            }
+            return *data.descriptorSetLayout;
+        }
+        return *lib.emptyDescriptorSetLayout;
+    }
+
+    CC_EXPECTS(rate == UpdateFrequency::PER_PASS);
+    CC_EXPECTS(passID == parent(phaseID, lg));
+
+    const auto &passData = get(LayoutGraphData::Layout, lg, passID);
+    const auto iter = passData.descriptorSets.find(rate);
+    if (iter != passData.descriptorSets.end()) {
+        const auto &data = iter->second;
+        if (!data.descriptorSetLayout) {
+            CC_LOG_ERROR("descriptor set layout not initialized");
+            return *lib.emptyDescriptorSetLayout;
+        }
+        return *data.descriptorSetLayout;
+    }
+    return *lib.emptyDescriptorSetLayout;
+}
+
+// get or create PerProgram gfx.DescriptorSetLayout
+const gfx::DescriptorSetLayout &getOrCreateProgramDescriptorSetLayout(
+    const NativeProgramLibrary &lib,
+    gfx::Device *device,
+    LayoutGraphData &lg, uint32_t phaseID,
+    const ccstd::pmr::string &programName, UpdateFrequency rate) {
+    CC_EXPECTS(rate < UpdateFrequency::PER_PHASE);
+    auto &phase = get(RenderPhaseTag{}, phaseID, lg);
+    const auto iter = phase.shaderIndex.find(programName);
+    if (iter == phase.shaderIndex.end()) {
+        return *lib.emptyDescriptorSetLayout;
+    }
+    const auto programID = iter->second;
+    auto &programData = phase.shaderPrograms.at(programID);
+    const auto iter2 = programData.layout.descriptorSets.find(rate);
+    if (iter2 == programData.layout.descriptorSets.end()) {
+        return *lib.emptyDescriptorSetLayout;
+    }
+    auto &layout = iter2->second;
+    if (layout.descriptorSetLayout) {
+        return *layout.descriptorSetLayout;
+    }
+    layout.descriptorSetLayout = device->createDescriptorSetLayout(layout.descriptorSetLayoutInfo);
+    return *layout.descriptorSetLayout;
+}
+
 } // namespace
+
+void NativeProgramLibrary::init(gfx::Device *device) {
+    emptyDescriptorSetLayout = device->createDescriptorSetLayout({});
+    emptyPipelineLayout = device->createPipelineLayout({});
+}
+
+void NativeProgramLibrary::destroy() {
+    emptyDescriptorSetLayout.reset();
+    emptyPipelineLayout.reset();
+}
 
 void NativeProgramLibrary::addEffect(EffectAsset *effectAssetIn) {
     auto &lg = layoutGraph;
@@ -363,7 +812,8 @@ void NativeProgramLibrary::addEffect(EffectAsset *effectAssetIn) {
                                             std::forward_as_tuple())
                            .first;
             }
-            const auto &phasePrograms = iter->second.programInfos;
+            auto &phasePrograms = iter->second.programInfos;
+            auto alloc = phasePrograms.get_allocator();
 
             // build program
             auto programInfo = makeProgramInfo(effect._name, srcShaderInfo);
@@ -376,63 +826,184 @@ void NativeProgramLibrary::addEffect(EffectAsset *effectAssetIn) {
             }
 
             // shaderInfo and blockSizes
+            gfx::ShaderInfo shaderInfo;
+            ccstd::pmr::vector<uint32_t> blockSizes(alloc);
+            makeShaderInfo(lg, passLayout, phaseLayout, srcShaderInfo, programData,
+                           fixedLocal, shaderInfo, blockSizes);
+
+            // overwrite programInfo
+            overwriteProgramBlockInfo(shaderInfo, programInfo);
+
+            // handle map
+            auto handleMap = genHandles(shaderInfo);
+
+            // attributes
+            ccstd::pmr::vector<gfx::Attribute> attributes(alloc);
+            for (const auto &attr : programInfo.attributes) {
+                attributes.emplace_back(gfx::Attribute{
+                    attr.name,
+                    attr.format,
+                    attr.isNormalized,
+                    0,
+                    attr.isInstanced,
+                    attr.location,
+                });
+            }
+
+            // create programInfo
+            auto res = phasePrograms.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(srcShaderInfo.name),
+                std::forward_as_tuple(
+                    std::move(programInfo),
+                    std::move(shaderInfo),
+                    std::move(attributes),
+                    std::move(blockSizes),
+                    std::move(handleMap)));
+            CC_ENSURES(res.second);
         }
     }
 }
 
 void NativeProgramLibrary::precompileEffect(gfx::Device *device, EffectAsset *effectAsset) {
+    // noop
 }
 
-ccstd::pmr::string NativeProgramLibrary::getKey(
+ccstd::string NativeProgramLibrary::getKey(
     uint32_t phaseID, const ccstd::pmr::string &programName,
     const MacroRecord &defines) const {
-    std::ignore = phaseID;
-    std::ignore = programName;
-    std::ignore = defines;
-    return {};
+    auto iter = phases.find(phaseID);
+    if (iter == phases.end()) {
+        CC_LOG_ERROR("phase not found");
+        return "";
+    }
+    const auto &phase = iter->second;
+    auto iter2 = phase.programInfos.find(programName);
+    if (iter2 == phase.programInfos.end()) {
+        CC_LOG_ERROR("program not found");
+        return "";
+    }
+    const auto &info = iter2->second;
+    return getVariantKey(info.programInfo, defines);
 }
 
 const gfx::PipelineLayout &NativeProgramLibrary::getPipelineLayout(
-    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const {
-    std::ignore = device;
-    std::ignore = phaseID;
-    std::ignore = programName;
-    throw std::runtime_error("not implemented");
+    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) {
+    if (mergeHighFrequency) {
+        CC_EXPECTS(phaseID != LayoutGraphData::null_vertex());
+        const auto &layout = get(RenderPhaseTag{}, phaseID, layoutGraph);
+        return *layout.pipelineLayout;
+    }
+    auto &lg = layoutGraph;
+    auto &phase = get(RenderPhaseTag{}, phaseID, lg);
+    const auto iter = phase.shaderIndex.find(programName);
+    if (iter == phase.shaderIndex.end()) {
+        return *emptyPipelineLayout;
+    }
+    const auto programID = iter->second;
+    auto &programData = phase.shaderPrograms.at(programID);
+    if (programData.pipelineLayout) {
+        return *programData.pipelineLayout;
+    }
+
+    // get pass
+    const auto passID = parent(phaseID, lg);
+    if (passID == LayoutGraphData::null_vertex()) {
+        return *emptyPipelineLayout;
+    }
+    // create pipeline layout
+    gfx::PipelineLayoutInfo info{};
+    auto *passSet = getDescriptorSetLayout(lg, passID, phaseID, UpdateFrequency::PER_PASS);
+    if (passSet) {
+        info.setLayouts.emplace_back(passSet);
+    }
+    auto *phaseSet = getDescriptorSetLayout(lg, passID, phaseID, UpdateFrequency::PER_PHASE);
+    if (phaseSet) {
+        info.setLayouts.emplace_back(phaseSet);
+    }
+    auto *batchSet = getProgramDescriptorSetLayout(
+        device, lg, phaseID, programName, UpdateFrequency::PER_BATCH);
+    if (batchSet) {
+        info.setLayouts.emplace_back(batchSet);
+    }
+    auto *instanceSet = getProgramDescriptorSetLayout(
+        device, lg, phaseID, programName, UpdateFrequency::PER_INSTANCE);
+    if (instanceSet) {
+        info.setLayouts.emplace_back(instanceSet);
+    }
+    programData.pipelineLayout = device->createPipelineLayout(info);
+    return *programData.pipelineLayout;
 }
 
 const gfx::DescriptorSetLayout &NativeProgramLibrary::getMaterialDescriptorSetLayout(
-    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const {
-    std::ignore = device;
-    std::ignore = phaseID;
-    std::ignore = programName;
-    throw std::runtime_error("not implemented");
+    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) {
+    if (mergeHighFrequency) {
+        CC_EXPECTS(phaseID != LayoutGraphData::null_vertex());
+        const auto passID = parent(phaseID, layoutGraph);
+        return getOrCreateDescriptorSetLayout(
+            *this, layoutGraph, passID, phaseID, UpdateFrequency::PER_BATCH);
+    }
+    return getOrCreateProgramDescriptorSetLayout(
+        *this, device, layoutGraph, phaseID, programName, UpdateFrequency::PER_BATCH);
 }
 
 const gfx::DescriptorSetLayout &NativeProgramLibrary::getLocalDescriptorSetLayout(
-    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) const {
-    std::ignore = device;
-    std::ignore = phaseID;
-    std::ignore = programName;
-    throw std::runtime_error("not implemented");
+    gfx::Device *device, uint32_t phaseID, const ccstd::pmr::string &programName) {
+    if (mergeHighFrequency) {
+        CC_EXPECTS(phaseID != LayoutGraphData::null_vertex());
+        const auto passID = parent(phaseID, layoutGraph);
+        return getOrCreateDescriptorSetLayout(
+            *this, layoutGraph, passID, phaseID, UpdateFrequency::PER_INSTANCE);
+    }
+    return getOrCreateProgramDescriptorSetLayout(
+        *this, device, layoutGraph, phaseID, programName, UpdateFrequency::PER_INSTANCE);
 }
 
 const IProgramInfo &NativeProgramLibrary::getProgramInfo(
     uint32_t phaseID, const ccstd::pmr::string &programName) const {
-    std::ignore = phaseID;
-    std::ignore = programName;
-    throw std::runtime_error("not implemented");
+    const auto &group = phases.at(phaseID);
+    return group.programInfos.at(programName).programInfo;
 }
 
 const gfx::ShaderInfo &NativeProgramLibrary::getShaderInfo(
     uint32_t phaseID, const ccstd::pmr::string &programName) const {
-    std::ignore = phaseID;
-    std::ignore = programName;
-    throw std::runtime_error("not implemented");
+    const auto &group = phases.at(phaseID);
+    return group.programInfos.at(programName).shaderInfo;
 }
 
 ProgramProxy *NativeProgramLibrary::getProgramVariant(
     gfx::Device *device, uint32_t phaseID, const ccstd::string &name,
-    const MacroRecord &defines, const ccstd::pmr::string *key) const {
+    const MacroRecord &defines, const ccstd::pmr::string *key0) const {
+    auto iter = phases.find(phaseID);
+    if (iter == phases.end()) {
+        CC_LOG_ERROR("phase not found");
+        return nullptr;
+    }
+    const auto &phase = iter->second;
+    auto iter2 = phase.programInfos.find(std::string_view{name});
+    if (iter2 == phase.programInfos.end()) {
+        CC_LOG_ERROR("program not found");
+        return nullptr;
+    }
+    const auto &info = iter2->second;
+
+    const auto &programInfo = info.programInfo;
+
+    std::string_view key;
+    ccstd::string key1;
+
+    if (key0 == nullptr) {
+        key1 = getVariantKey(programInfo, defines);
+        key = key1;
+    } else {
+        key = *key0;
+    }
+
+    auto iter3 = phase.programHosts.find(key);
+    if (iter3 != phase.programHosts.end()) {
+        return new NativeProgramProxy(iter3->second.program);
+    }
+
     std::ignore = device;
     std::ignore = phaseID;
     std::ignore = name;
