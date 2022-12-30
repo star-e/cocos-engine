@@ -315,7 +315,7 @@ export function buildBloomPass (camera: Camera,
     }
     ppl.updateRenderTarget(bloomPassPrefilterRTName, width, height);
     ppl.updateDepthStencil(bloomPassPrefilterDSName, width, height);
-    const bloomPrefilterPass = ppl.addRasterPass(width, height, 'Bloom_Prefilter');
+    const bloomPrefilterPass = ppl.addRasterPass(width, height, 'bloom-prefilter');
     bloomPrefilterPass.name = `CameraBloomPrefilterPass${cameraID}`;
     bloomPrefilterPass.setViewport(new Viewport(area.x, area.y, width, height));
     if (ppl.containsResource(inputRT)) {
@@ -347,7 +347,7 @@ export function buildBloomPass (camera: Camera,
         }
         ppl.updateRenderTarget(bloomPassDownSampleRTName, width, height);
         ppl.updateDepthStencil(bloomPassDownSampleDSName, width, height);
-        const bloomDownSamplePass = ppl.addRasterPass(width, height, `Bloom_Downsample${i}`);
+        const bloomDownSamplePass = ppl.addRasterPass(width, height, `bloom-downsample${i}`);
         bloomDownSamplePass.name = `CameraBloomDownSamplePass${cameraID}${i}`;
         bloomDownSamplePass.setViewport(new Viewport(area.x, area.y, width, height));
         const computeView = new ComputeView();
@@ -382,7 +382,7 @@ export function buildBloomPass (camera: Camera,
         }
         ppl.updateRenderTarget(bloomPassUpSampleRTName, width, height);
         ppl.updateDepthStencil(bloomPassUpSampleDSName, width, height);
-        const bloomUpSamplePass = ppl.addRasterPass(width, height, `Bloom_Upsample${i}`);
+        const bloomUpSamplePass = ppl.addRasterPass(width, height, `bloom-upsample${i}`);
         bloomUpSamplePass.name = `CameraBloomUpSamplePass${cameraID}${bloomData.iterations - 1 - i}`;
         bloomUpSamplePass.setViewport(new Viewport(area.x, area.y, width, height));
         const computeView = new ComputeView();
@@ -416,7 +416,7 @@ export function buildBloomPass (camera: Camera,
     }
     ppl.updateRenderTarget(bloomPassCombineRTName, width, height);
     ppl.updateDepthStencil(bloomPassCombineDSName, width, height);
-    const bloomCombinePass = ppl.addRasterPass(width, height, 'Bloom_Combine');
+    const bloomCombinePass = ppl.addRasterPass(width, height, 'bloom-combine');
     bloomCombinePass.name = `CameraBloomCombinePass${cameraID}`;
     bloomCombinePass.setViewport(new Viewport(area.x, area.y, width, height));
     const computeViewOut = new ComputeView();
