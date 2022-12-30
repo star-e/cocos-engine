@@ -462,7 +462,7 @@ export function buildPostprocessPass (camera: Camera,
     }
     ppl.updateRenderWindow(postprocessPassRTName, camera.window);
     ppl.updateDepthStencil(postprocessPassDS, width, height);
-    const postprocessPass = ppl.addRasterPass(width, height, 'Postprocess');
+    const postprocessPass = ppl.addRasterPass(width, height, 'post-process');
     postprocessPass.name = `CameraPostprocessPass${cameraID}`;
     postprocessPass.setViewport(new Viewport(area.x, area.y, area.width, area.height));
     if (ppl.containsResource(inputTex)) {
@@ -753,7 +753,7 @@ export function buildGBufferPass (camera: Camera,
     ppl.updateRenderTarget(gBufferPassEmissive, width, height);
     ppl.updateDepthStencil(gBufferPassDSName, width, height);
     // gbuffer pass
-    const gBufferPass = ppl.addRasterPass(width, height, 'Geometry');
+    const gBufferPass = ppl.addRasterPass(width, height, 'default');
     gBufferPass.name = `CameraGBufferPass${cameraID}`;
     gBufferPass.setViewport(new Viewport(area.x, area.y, area.width, area.height));
     const rtColor = new Color(0, 0, 0, 0);
@@ -842,7 +842,7 @@ export function buildLightingPass (camera: Camera, ppl: Pipeline, gBuffer: GBuff
     ppl.updateRenderTarget(deferredLightingPassRTName, width, height);
     ppl.updateDepthStencil(deferredLightingPassDS, width, height);
     // lighting pass
-    const lightingPass = ppl.addRasterPass(width, height, 'Lighting');
+    const lightingPass = ppl.addRasterPass(width, height, 'deferred-lighting');
     lightingPass.name = `CameraLightingPass${cameraID}`;
     lightingPass.setViewport(new Viewport(area.x, area.y, width, height));
     for (const dirShadowName of cameraInfo.mainLightShadowNames) {

@@ -5,7 +5,7 @@ CCEffect %{
   - passes:
     - vert: bloom-vs
       frag: prefilter-fs
-      phase: bloom-prefilter
+      pass: bloom-prefilter
       depthStencilState:
         depthTest: false
         depthWrite: false
@@ -13,7 +13,7 @@ CCEffect %{
     - &downsample
         vert: bloom-vs
         frag: downsample-fs
-        phase: bloom-downsample
+        pass: bloom-downsample
         depthStencilState:
           depthTest: false
           depthWrite: false
@@ -25,7 +25,7 @@ CCEffect %{
     - &upsample
         vert: bloom-vs
         frag: upsample-fs
-        phase: bloom-upsample
+        pass: bloom-upsample
         depthStencilState:
           depthTest: false
           depthWrite: false
@@ -36,7 +36,7 @@ CCEffect %{
     - *upsample
     - vert: bloom-vs
       frag: combine-fs
-      phase: bloom-combine
+      pass: bloom-combine
       depthStencilState:
         depthTest: false
         depthWrite: false

@@ -177,7 +177,7 @@ export function buildForwardLayout (ppl: Pipeline) {
     lg.merge(bloomCombineSampleDescriptors);
     lg.mergeDescriptors(bloomCombineSampleID);
     // 5.=== Postprocess ===
-    const postPassID = lg.addRenderStage('Postprocess', DeferredStage.POST);
+    const postPassID = lg.addRenderStage('post-process', DeferredStage.POST);
     const postDescriptors = lg.layoutGraph.getDescriptors(postPassID);
     const postPassBlock = lg.getLayoutBlock(UpdateFrequency.PER_PASS,
         ParameterType.TABLE,
@@ -242,8 +242,8 @@ export function buildDeferredLayout (ppl: Pipeline) {
     const defaultID = lg.addGlobal('default', true, true, true, true, true, true, true, true);
     lg.mergeDescriptors(defaultID);
     const geometryPassID = lg.addRenderStage('Geometry', DeferredStage.GEOMETRY);
-    const lightingPassID = lg.addRenderStage('Lighting', DeferredStage.LIGHTING);
-    const postPassID = lg.addRenderStage('Postprocess', DeferredStage.POST);
+    const lightingPassID = lg.addRenderStage('deferred-lighting', DeferredStage.LIGHTING);
+    const postPassID = lg.addRenderStage('post-process', DeferredStage.POST);
 
     const geometryQueueID = lg.addRenderPhase('Queue', geometryPassID);
     const lightingQueueID = lg.addRenderPhase('Queue', lightingPassID);
