@@ -233,7 +233,7 @@ class BlitDesc {
         inputAssemblerData.quadIA = quadIA;
         return inputAssemblerData;
     }
-    createSreenQuad () {
+    createScreenQuad () {
         if (!this._screenQuad) {
             this._screenQuad = this._createQuadInputAssembler();
         }
@@ -409,7 +409,7 @@ class DeviceRenderQueue {
             return;
         }
         this._blitDesc = new BlitDesc(blit, this);
-        this._blitDesc.createSreenQuad();
+        this._blitDesc.createScreenQuad();
         this._blitDesc.createStageDescriptor();
     }
     addSceneTask (scene: GraphScene): void {
