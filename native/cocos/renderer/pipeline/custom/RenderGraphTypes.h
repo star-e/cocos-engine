@@ -100,6 +100,8 @@ struct ManagedBuffer {
     ManagedBuffer(IntrusivePtr<gfx::Buffer> bufferIn) noexcept // NOLINT
     : buffer(std::move(bufferIn)) {}
 
+    bool checkResource(const ResourceDesc &desc) const;
+
     IntrusivePtr<gfx::Buffer> buffer;
     uint64_t fenceValue{0};
 };
@@ -108,6 +110,8 @@ struct ManagedTexture {
     ManagedTexture() = default;
     ManagedTexture(IntrusivePtr<gfx::Texture> textureIn) noexcept // NOLINT
     : texture(std::move(textureIn)) {}
+
+    bool checkResource(const ResourceDesc &desc) const;
 
     IntrusivePtr<gfx::Texture> texture;
     uint64_t fenceValue{0};

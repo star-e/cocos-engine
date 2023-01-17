@@ -226,11 +226,6 @@ void NativePipeline::updateRenderWindow(const ccstd::string &name, scene::Render
 void NativePipeline::updateRenderTarget(
     const ccstd::string &name,
     uint32_t width, uint32_t height, gfx::Format format) { // NOLINT(bugprone-easily-swappable-parameters)
-}
-
-void NativePipeline::updateDepthStencil(
-    const ccstd::string &name,
-    uint32_t width, uint32_t height, gfx::Format format) { // NOLINT(bugprone-easily-swappable-parameters)
     auto resID = findVertex(ccstd::pmr::string(name, get_allocator()), resourceGraph);
     if (resID == ResourceGraph::null_vertex()) {
         return;
@@ -239,11 +234,20 @@ void NativePipeline::updateDepthStencil(
     visitObject(
         resID, resourceGraph,
         [&](ManagedTexture &tex) {
+            std::ignore = tex;
             desc.width = width;
             desc.height = height;
+            if (format != gfx::Format::UNKNOWN) {
+                desc.format = format;
+            }
         },
         [](const auto & /*res*/) {});
+}
 
+void NativePipeline::updateDepthStencil(
+    const ccstd::string &name,
+    uint32_t width, uint32_t height, gfx::Format format) { // NOLINT(bugprone-easily-swappable-parameters)
+    updateRenderTarget(name, width, height, format);
 }
 
 void NativePipeline::beginFrame() {
