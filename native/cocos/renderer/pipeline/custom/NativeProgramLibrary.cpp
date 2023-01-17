@@ -875,17 +875,19 @@ void overwriteShaderSourceBinding(
                 // layout not found
                 layoutBeg = ccstd::string::npos;
                 CC_ENSURES(layoutBeg == ccstd::string::npos);
+                CC_ENSURES(layoutEnd == ccstd::string::npos);
             } else {
                 CC_EXPECTS(layoutBeg >= beg && layoutBeg <= end);
                 layoutEnd = source.find(')', layoutBeg) + 1;
                 CC_EXPECTS(layoutEnd != ccstd::string::npos);
                 CC_ENSURES(layoutBeg < layoutEnd && layoutEnd <= end);
                 prevLayout = std::string_view(source.c_str() + layoutBeg, layoutEnd - layoutBeg);
+
+                // check layout expression is within uniform declaration
+                // prev layout expression is from layoutBeg to layoutEnd
+                CC_ENSURES(layoutBeg >= beg && layoutBeg <= end);
+                CC_ENSURES(layoutEnd >= layoutBeg && layoutEnd <= end);
             }
-            // check layout expression is within uniform declaration
-            // prev layout expression is from layoutBeg to layoutEnd
-            CC_ENSURES(layoutBeg >= beg && layoutBeg <= end);
-            CC_ENSURES(layoutEnd >= layoutBeg && layoutEnd <= end);
 
             // find uniform set and binding
             auto [set, binding] = findBinding(shaderInfo, name);
@@ -927,6 +929,9 @@ void overwriteShaderProgramBinding(
     IShaderSource *src = &programInfo.glsl3;
     const auto *deviceShaderVersion = getDeviceShaderVersion(device);
     if (deviceShaderVersion) {
+        if (deviceShaderVersion != std::string_view{"glsl4"}) {
+            return;
+        }
         src = programInfo.getSource(deviceShaderVersion);
     } else {
         CC_LOG_ERROR("Invalid GFX API!");
@@ -1136,6 +1141,8 @@ void NativeProgramLibrary::init(gfx::Device *deviceIn) {
         auto &phase = get(RenderPhaseTag{}, phaseID, lg);
         phase.pipelineLayout = device->createPipelineLayout(info);
     }
+
+    generateConstantMacros(device, lg.constantMacros, false);
 }
 
 void NativeProgramLibrary::destroy() {
@@ -1388,9 +1395,7 @@ ProgramProxy *NativeProgramLibrary::getProgramVariant(
     }
 
     std::string prefix;
-    if (pipeline) {
-        prefix += pipeline->getConstantMacros();
-    }
+    prefix += layoutGraph.constantMacros;
     prefix += programInfo.constantMacros + ss.str();
 
     const IShaderSource *src = &programInfo.glsl3;
