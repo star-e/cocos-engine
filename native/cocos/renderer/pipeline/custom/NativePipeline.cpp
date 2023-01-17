@@ -63,6 +63,7 @@
 #include "details/DebugUtils.h"
 #include "details/GslUtils.h"
 #include "pipeline/custom/LayoutGraphUtils.h"
+#include "pipeline/PipelineStateManager.h"
 
 #if CC_USE_DEBUG_RENDERER
     #include "profiler/DebugRenderer.h"
@@ -546,7 +547,7 @@ bool NativePipeline::destroy() noexcept {
         pipelineSceneData->destroy();
         pipelineSceneData = {};
     }
-
+    pipeline::PipelineStateManager::destroyAll();
     return true;
 }
 
