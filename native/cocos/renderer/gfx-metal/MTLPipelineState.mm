@@ -150,10 +150,16 @@ bool CCMTLPipelineState::createMTLDepthStencilState() {
         CC_LOG_ERROR("CCMTLPipelineState: MTLDepthStencilDescriptor could not be allocated.");
         return false;
     }
+    
+    const auto& colorAttachments = _renderPass->getColorAttachments();
+    bool hasDS = std::any_of(colorAttachments.begin(), colorAttachments.end(), [](const ColorAttachment& attachemnt){
+        return attachemnt.format == Format::DEPTH ||attachemnt.format == Format::DEPTH_STENCIL;
+    });
+    hasDS |= _renderPass->getDepthStencilAttachment().format != Format::UNKNOWN;
+    
+    descriptor.depthWriteEnabled = _depthStencilState.depthWrite != 0 && hasDS;
 
-    descriptor.depthWriteEnabled = _depthStencilState.depthWrite != 0;
-
-    if (!_depthStencilState.depthTest)
+    if (!_depthStencilState.depthTest || !hasDS)
         descriptor.depthCompareFunction = MTLCompareFunctionAlways;
     else
         descriptor.depthCompareFunction = mu::toMTLCompareFunction(_depthStencilState.depthFunc);
