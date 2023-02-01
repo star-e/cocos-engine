@@ -405,8 +405,8 @@ CCMTLGPUPipelineState *getClearRenderPassPipelineState(CCMTLDevice *device, Rend
 
     DepthStencilState dsState;
     dsState.depthWrite = 0;
-    dsState.depthTest = 1;
-    dsState.depthFunc = ComparisonFunc::LESS_EQUAL;
+    dsState.depthTest = 0;
+    dsState.depthFunc = ComparisonFunc::ALWAYS;
     pipelineInfo.depthStencilState = dsState;
 
     PipelineState *pipelineState = device->createPipelineState(std::move(pipelineInfo));
