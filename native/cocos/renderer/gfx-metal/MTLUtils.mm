@@ -404,7 +404,7 @@ CCMTLGPUPipelineState *getClearRenderPassPipelineState(CCMTLDevice *device, Rend
     pipelineInfo.renderPass = curPass;
 
     DepthStencilState dsState;
-    dsState.depthWrite = 0;
+    dsState.depthWrite = curPass->getDepthStencilAttachment().format != Format::UNKNOWN;
     dsState.depthTest = 0;
     dsState.depthFunc = ComparisonFunc::ALWAYS;
     pipelineInfo.depthStencilState = dsState;
