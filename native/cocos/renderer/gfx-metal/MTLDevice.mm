@@ -341,9 +341,11 @@ void CCMTLDevice::writeBuffer(Buffer* buffer, const void* data, size_t size) {
     if(!hasFrameInFlight && mtlBuffer.storageMode != MTLStorageModePrivate) {
         if(@available(macOS 10.15, *)) {
             memcpy(mtlBuffer.contents, data, size);
+#if (CC_PLATFORM == CC_PLATFORM_MACOS)
             if (mtlBuffer.storageMode == MTLStorageModeManaged) {
                 [mtlBuffer didModifyRange:NSMakeRange(0, size)]; // Synchronize the managed buffer.
             }
+#endif
         }
         if(@available(iOS 11.0, *)) {
             memcpy(mtlBuffer.contents, data, size);
