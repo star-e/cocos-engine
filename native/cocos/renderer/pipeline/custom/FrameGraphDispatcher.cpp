@@ -304,14 +304,14 @@ void buildAccessGraph(const RenderGraph &renderGraph, const Graphs &graphs) {
         bool isExternal = pass.second.isExternal;
         bool needCulling = pass.second.needCulling;
 
-        if (isExternal && !needCulling) {
-            if (pass.first != resourceAccessGraph.presentPassID) {
+        if(pass.first != resourceAccessGraph.presentPassID) {
+            if (isExternal && !needCulling) {
                 add_edge(pass.first, resourceAccessGraph.presentPassID, resourceAccessGraph);
-            }
-        } else {
-            // write into transient resources, culled
-            if constexpr (ENABLE_BRANCH_CULLING) {
-                branchCulling(pass.first, resourceAccessGraph);
+            } else {
+                // write into transient resources, culled
+                if constexpr (ENABLE_BRANCH_CULLING) {
+                    branchCulling(pass.first, resourceAccessGraph);
+                }
             }
         }
     }
