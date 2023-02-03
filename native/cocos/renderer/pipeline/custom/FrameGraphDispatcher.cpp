@@ -1539,7 +1539,9 @@ AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGra
                 }
             }
             if (isExternalPass) {
-                rag.leafPasses[curVertID] = LeafStatus{true, access == gfx::MemoryAccessBit::READ_ONLY && passType != PassType::PRESENT};
+                // only external res will be manually record here, leaf pass with transient resource will be culled by default,
+                // those leaf passes with ALL read access on external(or with transients) res can be culled.
+                rag.leafPasses[curVertID].needCulling &= (access == gfx::MemoryAccessBit::READ_ONLY && passType != PassType::PRESENT);
             }
             trans.currStatus = {curVertID, visibility, access, passType, accessFlag, usage, Range{}};
             lastVertID = trans.lastStatus.vertID;
@@ -1555,7 +1557,8 @@ AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGra
                 if (rag.leafPasses.find(curVertID) != rag.leafPasses.end()) {
                     // only write into externalRes counts
                     if (isExternalPass) {
-                        rag.leafPasses[curVertID] = LeafStatus{true, access == gfx::MemoryAccessBit::READ_ONLY && passType != PassType::PRESENT};
+                        // same as above
+                        rag.leafPasses[curVertID].needCulling &= (access == gfx::MemoryAccessBit::READ_ONLY && passType != PassType::PRESENT);
                     }
                 }
             } else {
