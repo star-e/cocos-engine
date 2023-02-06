@@ -297,6 +297,7 @@ void NativeRasterQueueBuilder::setName(const ccstd::string &name) {
 namespace {
 
 uint8_t getCombineSignY(gfx::Device* device) {
+    // 0: vk, 1: metal, 2: none, 3: gl-like
     static int8_t combineSignY{-1};
     if(combineSignY < 0) {
         const float screenSpaceSignY = device->getCapabilities().screenSpaceSignY * 0.5F + 0.5F;
