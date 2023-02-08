@@ -252,7 +252,7 @@ void CommandBufferValidator::bindPipelineState(PipelineState *pso) {
         if(!(slotCheck || dsCheck)) {
             ccstd::string err = "RenderPass is not compatible with pipelinestate, do you enable depth/stencil test while forgetting setting a depth/stencil attachment?";
             err += "\nTarget pipelinestate: " + pso->getShader()->getName();
-            LogErrorPer5Sec(err.c_str());
+            logErrorPer5Sec(err.c_str());
         }
     }
 
