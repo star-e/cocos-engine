@@ -24,7 +24,7 @@
 
 #include "Log.h"
 
-#include <string.h> // strstr
+#include <cstring> // strstr
 #include <chrono>
 #include <cstdarg>
 #include <ctime>
