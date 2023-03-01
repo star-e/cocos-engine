@@ -83,8 +83,6 @@ namespace cc { namespace gfx {
 %ignore Device::createBuffer;
 %ignore Device::createTexture;
 %ignore Device::getInstance;
-%ignore Device::setOptions;
-%ignore Device::getOptions;
 
 %ignore DeviceManager::isDetachDeviceThread;
 %ignore DeviceManager::getGFXName;

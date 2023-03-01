@@ -340,11 +340,11 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
         const ResourceGraph &rg,
         BarrierMap &barriers,                 // what we get
         ExternalResMap &extMap,               // record external res between frames
-        ResourceNames &externalNames,         // for external record
+        ResourceNames &resourceNamesIn,       // for resource record
         const AccessTable &accessRecordIn,    // resource last meet
         ResourceLifeRecordMap &rescLifeRecord // resource lifetime
         )
-    : barrierMap(barriers), resourceGraph(rg), externalMap(extMap), externalResNames(externalNames), accessRecord(accessRecordIn), resourceLifeRecord(rescLifeRecord) {}
+    : barrierMap(barriers), resourceGraph(rg), externalMap(extMap), resourceNames(resourceNamesIn), accessRecord(accessRecordIn), resourceLifeRecord(rescLifeRecord) {}
 
     void updateResourceLifeTime(const ResourceAccessNode &node, ResourceAccessGraph::vertex_descriptor u) {
         for (auto access : node.attachmentStatus) {
@@ -442,7 +442,12 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                               [](const AccessStatus &lhs, const AccessStatus &rhs) {
                                   return lhs.vertID < rhs.vertID;
                               });
-        if (commonResources.empty()) {
+        auto checkMeet = [&](const AccessStatus &status) {
+            const auto &resName = get(ResourceGraph::Name, resourceGraph, status.vertID);
+            return resourceNames.find(resName) == resourceNames.end();
+        };
+        bool newRes = std::any_of(srcStatus.begin(), srcStatus.end(), checkMeet) || std::any_of(dstStatus.begin(), dstStatus.end(), checkMeet);
+        if (commonResources.empty() || !newRes) {
             // this edge is a logic edge added during pass reorder,
             // no real dependency between this two vertices.
             return;
@@ -573,59 +578,73 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
         //----------------------------------------------check external----------------------------------------------
         auto barrierExternalRes = [&](const AccessStatus &resourcecAccess, Vertex vert) {
             uint32_t rescID = resourcecAccess.vertID;
-            bool externalRes = get(get(ResourceGraph::Traits, resourceGraph), rescID).hasSideEffects();
-            if (externalRes) {
-                const auto &states = get(ResourceGraph::States, resourceGraph, rescID);
-                const PmrString &resName = get(ResourceGraph::Name, resourceGraph, rescID);
-                auto resIter = externalMap.find(resName);
-                // first meet in this frame
-                if (resIter == externalMap.end()) {
-                    // first meet in this program
-                    if (states.states == gfx::AccessFlagBit::NONE) {
-                        auto lastRescAccess = resourcecAccess;
-                        auto currRescAccess = resourcecAccess;
+            const auto &states = get(ResourceGraph::States, resourceGraph, rescID);
+            const PmrString &resName = get(ResourceGraph::Name, resourceGraph, rescID);
+            auto resIter = externalMap.find(resName);
+            // first meet in this frame
+            if (resIter == externalMap.end()) {
+                // first meet in this program
+                if (states.states == gfx::AccessFlagBit::NONE) {
+                    auto lastRescAccess = AccessStatus{
+                        vert,
+                        gfx::ShaderStageFlagBit::NONE,
+                        gfx::MemoryAccessBit::NONE,
+                        gfx::PassType::RASTER,
+                        gfx::AccessFlagBit::NONE,
+                        gfx::TextureUsageBit::NONE,
+                        TextureRange{},
+                    };
+                    auto currRescAccess = resourcecAccess;
 
-                        // resource id in access -> pass id in barrier
-                        lastRescAccess.vertID = vert;
-                        currRescAccess.vertID = vert;
+                    // resource id in access -> pass id in barrier
+                    currRescAccess.vertID = vert;
 
-                        externalMap.insert({resName,
-                                            ResourceTransition{
-                                                lastRescAccess,
-                                                currRescAccess,
-                                            }});
-                    } else {
-                        externalMap[resName].lastStatus = {};
-                        externalMap[resName].lastStatus.vertID = INVALID_ID;
-                        externalMap[resName].lastStatus.accessFlag = states.states;
-                        // deprecated
-                        externalMap[resName].lastStatus.usage = gfx::TextureUsageBit::NONE;
-                        externalMap[resName].lastStatus.range = TextureRange{};
+                    lastRescAccess.accessFlag = gfx::AccessFlagBit::NONE;
 
-                        externalMap[resName].currStatus = resourcecAccess;
-                        externalMap[resName].currStatus.vertID = vert;
-
-                        const auto &traits = get(ResourceGraph::Traits, resourceGraph, rescID);
-                        // transit status from last frame end to this frame begin
-                        if (isTransitionStatusDependent(externalMap[resName].lastStatus, externalMap[resName].currStatus)) {
-                            barrierMap[vert].blockBarrier.frontBarriers.emplace_back(Barrier{
-                                rescID,
-                                traits.residency == ResourceResidency::BACKBUFFER ? gfx::BarrierType::FULL : gfx::BarrierType::SPLIT_END,
-                                nullptr,
-                                externalMap[resName].lastStatus,
-                                externalMap[resName].currStatus,
-                            });
-                            externalResNames.emplace(resName);
-                        }
-                    }
+                    // add undefined layout -> write at first meet
+                    barrierMap[vert].blockBarrier.frontBarriers.emplace_back(Barrier{
+                        rescID,
+                        gfx::BarrierType::FULL,
+                        nullptr,
+                        lastRescAccess,
+                        currRescAccess,
+                    });
+                    externalMap.insert({resName,
+                                        ResourceTransition{
+                                            lastRescAccess,
+                                            currRescAccess,
+                                        }});
                 } else {
-                    if (resIter->second.currStatus.vertID < vert) {
-                        //[pass: vert] is later access than in iter.
-                        externalMap[resName].currStatus = resourcecAccess;
-                        externalMap[resName].currStatus.vertID = vert;
-                        if (isReadOnlyAccess(resourcecAccess.accessFlag)) {
-                            externalResNames.emplace(resName);
-                        }
+                    externalMap[resName].lastStatus = {};
+                    externalMap[resName].lastStatus.vertID = INVALID_ID;
+                    externalMap[resName].lastStatus.accessFlag = states.states;
+                    // deprecated
+                    externalMap[resName].lastStatus.usage = gfx::TextureUsageBit::NONE;
+                    externalMap[resName].lastStatus.range = TextureRange{};
+
+                    externalMap[resName].currStatus = resourcecAccess;
+                    externalMap[resName].currStatus.vertID = vert;
+
+                    const auto &traits = get(ResourceGraph::Traits, resourceGraph, rescID);
+                    // transit status from last frame end to this frame begin
+                    if (isTransitionStatusDependent(externalMap[resName].lastStatus, externalMap[resName].currStatus)) {
+                        barrierMap[vert].blockBarrier.frontBarriers.emplace_back(Barrier{
+                            rescID,
+                            traits.residency == ResourceResidency::BACKBUFFER ? gfx::BarrierType::FULL : gfx::BarrierType::SPLIT_END,
+                            nullptr,
+                            externalMap[resName].lastStatus,
+                            externalMap[resName].currStatus,
+                        });
+                        resourceNames.emplace(resName);
+                    }
+                }
+            } else {
+                if (resIter->second.currStatus.vertID < vert) {
+                    //[pass: vert] is later access than in iter.
+                    externalMap[resName].currStatus = resourcecAccess;
+                    externalMap[resName].currStatus.vertID = vert;
+                    if (isReadOnlyAccess(resourcecAccess.accessFlag)) {
+                        resourceNames.emplace(resName);
                     }
                 }
             }
@@ -765,8 +784,8 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
     const AccessTable &accessRecord;
     BarrierMap &barrierMap;
     const ResourceGraph &resourceGraph;
-    ExternalResMap &externalMap;     // last frame to curr frame status transition
-    ResourceNames &externalResNames; // first meet in this frame
+    ExternalResMap &externalMap;  // last frame to curr frame status transition
+    ResourceNames &resourceNames; // first meet in this frame
     ResourceLifeRecordMap &resourceLifeRecord;
 };
 
@@ -791,7 +810,6 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
     BarrierMap &batchedBarriers = fgDispatcher.barrierMap;
     ResourceNames namesSet;
     {
-        // _externalResNames records external resource between frames
         BarrierVisitor visitor(resourceGraph, batchedBarriers, externalResMap, namesSet, rag.accessRecord, rag.resourceLifeRecord);
         auto colors = rag.colors(scratch);
         boost::queue<AccessVertex> q;
