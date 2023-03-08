@@ -164,15 +164,14 @@ public:
     }
 };
 
-class RasterPassBuilder : public Setter {
+class RasterSubpassBuilder : public Setter {
 public:
-    RasterPassBuilder() noexcept = default;
+    RasterSubpassBuilder() noexcept = default;
 
     virtual void addRasterView(const ccstd::string &name, const RasterView &view) = 0;
     virtual void addComputeView(const ccstd::string &name, const ComputeView &view) = 0;
-    virtual RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string &layoutName) = 0;
     virtual void setViewport(const gfx::Viewport &viewport) = 0;
-    virtual void setVersion(const ccstd::string &name, uint64_t version) = 0;
+    virtual RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string &layoutName) = 0;
     virtual bool getShowStatistics() const = 0;
     virtual void setShowStatistics(bool enable) = 0;
     RasterQueueBuilder *addQueue() {
@@ -193,6 +192,45 @@ public:
     }
     void addDispatch(uint32_t threadGroupCountX, uint32_t threadGroupCountY, uint32_t threadGroupCountZ, Material *material) {
         addDispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ, material, 0);
+    }
+};
+
+class ComputeSubpassBuilder : public Setter {
+public:
+    ComputeSubpassBuilder() noexcept = default;
+
+    virtual void addRasterView(const ccstd::string &name, const RasterView &view) = 0;
+    virtual void addComputeView(const ccstd::string &name, const ComputeView &view) = 0;
+    virtual ComputeQueueBuilder *addQueue(const ccstd::string &layoutName) = 0;
+    ComputeQueueBuilder *addQueue() {
+        return addQueue("");
+    }
+};
+
+class RasterPassBuilder : public Setter {
+public:
+    RasterPassBuilder() noexcept = default;
+
+    virtual void addRasterView(const ccstd::string &name, const RasterView &view) = 0;
+    virtual void addComputeView(const ccstd::string &name, const ComputeView &view) = 0;
+    virtual RasterQueueBuilder *addQueue(QueueHint hint, const ccstd::string &layoutName) = 0;
+    virtual RasterSubpassBuilder *addRasterSubpass(const ccstd::string &layoutName) = 0;
+    virtual ComputeSubpassBuilder *addComputeSubpass(const ccstd::string &layoutName) = 0;
+    virtual void setViewport(const gfx::Viewport &viewport) = 0;
+    virtual void setVersion(const ccstd::string &name, uint64_t version) = 0;
+    virtual bool getShowStatistics() const = 0;
+    virtual void setShowStatistics(bool enable) = 0;
+    RasterQueueBuilder *addQueue() {
+        return addQueue(QueueHint::NONE, "");
+    }
+    RasterQueueBuilder *addQueue(QueueHint hint) {
+        return addQueue(hint, "");
+    }
+    RasterSubpassBuilder *addRasterSubpass() {
+        return addRasterSubpass("");
+    }
+    ComputeSubpassBuilder *addComputeSubpass() {
+        return addComputeSubpass("");
     }
 };
 
@@ -286,7 +324,6 @@ public:
     virtual ComputePassBuilder *addComputePass(const ccstd::string &layoutName) = 0;
     virtual MovePassBuilder *addMovePass() = 0;
     virtual CopyPassBuilder *addCopyPass() = 0;
-    virtual void presentAll() = 0;
     virtual SceneTransversal *createSceneTransversal(const scene::Camera *camera, const scene::RenderScene *scene) = 0;
     virtual gfx::DescriptorSetLayout *getDescriptorSetLayout(const ccstd::string &shaderName, UpdateFrequency freq) = 0;
     uint32_t addRenderTarget(const ccstd::string &name, gfx::Format format, uint32_t width, uint32_t height) {

@@ -48,8 +48,8 @@ import { PipelineSceneData } from '../pipeline-scene-data';
 import { PipelineInputAssemblerData } from '../render-pipeline';
 import { DescriptorSetData, LayoutGraphData, PipelineLayoutData, RenderPhaseData, RenderStageData } from './layout-graph';
 import { Pipeline, SceneVisitor } from './pipeline';
-import { Blit, ClearView, ComputePass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, ManagedTexture, MovePass, PresentPass,
-    RasterPass, RaytracePass, RenderData, RenderGraph, RenderGraphVisitor, RenderQueue, RenderSwapchain, ResourceDesc,
+import { Blit, ClearView, ComputePass, ComputeSubpass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, ManagedTexture, MovePass,
+    RasterPass, RasterSubpass, RaytracePass, RenderData, RenderGraph, RenderGraphVisitor, RenderQueue, RenderSwapchain, ResourceDesc,
     ResourceGraph, ResourceGraphVisitor, ResourceTraits, SceneData } from './render-graph';
 import { AttachmentType, ComputeView, QueueHint, ResourceDimension, ResourceFlags, SceneFlags, UpdateFrequency } from './types';
 import { PipelineUBO } from '../pipeline-ubo';
@@ -1779,14 +1779,12 @@ class PreRenderVisitor extends BaseRenderVisitor implements RenderGraphVisitor {
     constructor (context: ExecutorContext) {
         super(context);
     }
-
     clear (value: ClearView[]) {
         // do nothing
     }
     viewport (value: Viewport) {
         // do nothing
     }
-
     raster (pass: RasterPass) {
         if (!this.rg.getValid(this.passID)) return;
         const devicePasses = this.context.devicePasses;
@@ -1811,10 +1809,11 @@ class PreRenderVisitor extends BaseRenderVisitor implements RenderGraphVisitor {
             }
         }
     }
+    rasterSubpass (value: RasterSubpass) {}
+    computeSubpass (value: ComputeSubpass) {}
     compute (value: ComputePass) {}
     copy (value: CopyPass) {}
     move (value: MovePass) {}
-    present (value: PresentPass) {}
     raytrace (value: RaytracePass) {}
     queue (value: RenderQueue) {
         if (!this.rg.getValid(this.queueID)) return;
@@ -1868,10 +1867,11 @@ class PostRenderVisitor extends BaseRenderVisitor implements RenderGraphVisitor 
         this.currPass.record();
         this.currPass.postPass();
     }
+    rasterSubpass (value: RasterSubpass) {}
+    computeSubpass (value: ComputeSubpass) {}
     compute (value: ComputePass) {}
     copy (value: CopyPass) {}
     move (value: MovePass) {}
-    present (value: PresentPass) {}
     raytrace (value: RaytracePass) {}
     queue (value: RenderQueue) {
         // collect scene results

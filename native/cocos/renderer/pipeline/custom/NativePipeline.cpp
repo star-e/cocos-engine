@@ -38,12 +38,10 @@
 #include "RenderInterfaceFwd.h"
 #include "RenderInterfaceTypes.h"
 #include "RenderingModule.h"
-#include "cocos/application/ApplicationManager.h"
 #include "cocos/base/Macros.h"
 #include "cocos/base/Ptr.h"
 #include "cocos/base/StringUtil.h"
 #include "cocos/base/std/container/string.h"
-#include "cocos/core/Root.h"
 #include "cocos/math/Mat4.h"
 #include "cocos/renderer/gfx-base/GFXBuffer.h"
 #include "cocos/renderer/gfx-base/GFXDef-common.h"
@@ -206,7 +204,7 @@ void NativePipeline::updateRenderWindow(const ccstd::string &name, scene::Render
     if (resID == ResourceGraph::null_vertex()) {
         return;
     }
-    auto &desc = get(ResourceGraph::Desc, resourceGraph, resID);
+    auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, resID);
     visitObject(
         resID, resourceGraph,
         [&](IntrusivePtr<gfx::Framebuffer> &fb) {
@@ -237,7 +235,7 @@ void NativePipeline::updateRenderTarget(
     if (resID == ResourceGraph::null_vertex()) {
         return;
     }
-    auto &desc = get(ResourceGraph::Desc, resourceGraph, resID);
+    auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, resID);
 
     // update format
     if (format == gfx::Format::UNKNOWN) {
@@ -270,68 +268,6 @@ void NativePipeline::beginFrame() {
 
 void NativePipeline::endFrame() {
 }
-
-namespace {
-
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-void updateRasterPassConstants(uint32_t width, uint32_t height, Setter &setter) {
-    const auto &root = *Root::getInstance();
-    const auto shadingWidth = static_cast<float>(width);
-    const auto shadingHeight = static_cast<float>(height);
-    setter.setVec4(
-        "cc_time",
-        Vec4(
-            root.getCumulativeTime(),
-            root.getFrameTime(),
-            static_cast<float>(CC_CURRENT_ENGINE()->getTotalFrames()),
-            0.0F));
-
-    setter.setVec4(
-        "cc_screenSize",
-        Vec4(shadingWidth, shadingHeight, 1.0F / shadingWidth, 1.0F / shadingHeight));
-    setter.setVec4(
-        "cc_nativeSize",
-        Vec4(shadingWidth, shadingHeight, 1.0F / shadingWidth, 1.0F / shadingHeight));
-#if 0
-    const auto *debugView = root.getDebugView();
-    if (debugView) {
-        setter.setVec4(
-            "cc_debug_view_mode",
-            Vec4(static_cast<float>(debugView->getSingleMode()),
-                 debugView->isLightingWithAlbedo() ? 1.0F : 0.0F,
-                 debugView->isCsmLayerColoration() ? 1.0F : 0.0F,
-                 0.0F));
-        Vec4 debugPackVec{};
-        for (auto i = static_cast<uint32_t>(pipeline::DebugViewCompositeType::DIRECT_DIFFUSE);
-             i < static_cast<uint32_t>(pipeline::DebugViewCompositeType::MAX_BIT_COUNT); ++i) {
-            const auto idx = i % 4;
-            (&debugPackVec.x)[idx] = debugView->isCompositeModeEnabled(i) ? 1.0F : 0.0F;
-            const auto packIdx = static_cast<uint32_t>(floor(static_cast<float>(i) / 4.0F));
-            if (idx == 3) {
-                std::string name("cc_debug_view_composite_pack_");
-                name.append(std::to_string(packIdx + 1));
-                setter.setVec4(name, debugPackVec);
-            }
-        }
-    } else {
-        setter.setVec4("cc_debug_view_mode", Vec4(0.0F, 1.0F, 0.0F, 0.0F));
-        Vec4 debugPackVec{};
-        for (auto i = static_cast<uint32_t>(pipeline::DebugViewCompositeType::DIRECT_DIFFUSE);
-             i < static_cast<uint32_t>(pipeline::DebugViewCompositeType::MAX_BIT_COUNT); ++i) {
-            const auto idx = i % 4;
-            (&debugPackVec.x)[idx] = 1.0F;
-            const auto packIdx = static_cast<uint32_t>(floor(i / 4.0));
-            if (idx == 3) {
-                std::string name("cc_debug_view_composite_pack_");
-                name.append(std::to_string(packIdx + 1));
-                setter.setVec4(name, debugPackVec);
-            }
-        }
-    }
-#endif
-}
-
-} // namespace
 
 RasterPassBuilder *NativePipeline::addRasterPass(
     uint32_t width, uint32_t height, // NOLINT(bugprone-easily-swappable-parameters)
@@ -409,32 +345,6 @@ CopyPassBuilder *NativePipeline::addCopyPass() {
 }
 
 // NOLINTNEXTLINE
-void NativePipeline::presentAll() {
-    PresentPass present(renderGraph.get_allocator());
-
-    for (const auto &rasterPass : renderGraph.rasterPasses) {
-        for (const auto &[name, view] : rasterPass.rasterViews) {
-            const auto &resourceID = findVertex(name, resourceGraph);
-            const auto &traits = get(ResourceGraph::Traits, resourceGraph, resourceID);
-            if (traits.residency == ResourceResidency::BACKBUFFER) {
-                present.presents.emplace(
-                    std::piecewise_construct,
-                    std::forward_as_tuple(name),
-                    std::forward_as_tuple());
-            }
-        }
-    }
-    auto passID = addVertex(
-        PresentTag{},
-        std::forward_as_tuple("Present"),
-        std::forward_as_tuple(),
-        std::forward_as_tuple(),
-        std::forward_as_tuple(),
-        std::forward_as_tuple(std::move(present)),
-        renderGraph);
-}
-
-// NOLINTNEXTLINE
 SceneTransversal *NativePipeline::createSceneTransversal(const scene::Camera *camera, const scene::RenderScene *scene) {
     return ccnew NativeSceneTransversal(camera, scene);
 }
@@ -443,7 +353,7 @@ gfx::DescriptorSetLayout *NativePipeline::getDescriptorSetLayout(const ccstd::st
     const auto &lg = programLibrary->layoutGraph;
     auto iter = lg.shaderLayoutIndex.find(std::string_view{shaderName});
     if (iter != lg.shaderLayoutIndex.end()) {
-        const auto &layouts = get(LayoutGraphData::Layout, lg, iter->second).descriptorSets;
+        const auto &layouts = get(LayoutGraphData::LayoutTag{}, lg, iter->second).descriptorSets;
         auto iter2 = layouts.find(freq);
         if (iter2 != layouts.end()) {
             return iter2->second.descriptorSetLayout.get();
@@ -513,7 +423,7 @@ bool NativePipeline::activate(gfx::Swapchain *swapchainIn) {
 
     for (uint32_t i = 0; i != numNodes; ++i) {
         auto &node = nativeContext.layoutGraphResources.emplace_back();
-        const auto &layout = get(LayoutGraphData::Layout, lg, i);
+        const auto &layout = get(LayoutGraphData::LayoutTag{}, lg, i);
         if (holds<RenderStageTag>(i, lg)) {
             auto iter = layout.descriptorSets.find(UpdateFrequency::PER_PASS);
             if (iter == layout.descriptorSets.end()) {

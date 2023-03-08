@@ -27,8 +27,8 @@ import { VectorGraphColorMap } from './effect';
 import { DefaultVisitor, depthFirstSearch, ReferenceGraphView } from './graph';
 import { LayoutGraphData } from './layout-graph';
 import { Pipeline } from './pipeline';
-import { Blit, ClearView, ComputePass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, ManagedTexture, MovePass,
-    PresentPass, RasterPass, RaytracePass, RenderGraph, RenderGraphVisitor,
+import { Blit, ClearView, ComputePass, ComputeSubpass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, ManagedTexture, MovePass,
+    RasterPass, RasterSubpass, RaytracePass, RenderGraph, RenderGraphVisitor,
     RenderQueue, RenderSwapchain, ResourceGraph, ResourceGraphVisitor, SceneData } from './render-graph';
 import { AccessType, RasterView, ResourceResidency } from './types';
 
@@ -121,10 +121,11 @@ class PassVisitor implements RenderGraphVisitor {
         // }
         this._currPass = pass;
     }
+    rasterSubpass (value: RasterSubpass) {}
+    computeSubpass (value: ComputeSubpass) {}
     compute (value: ComputePass) {}
     copy (value: CopyPass) {}
     move (value: MovePass) {}
-    present (value: PresentPass) {}
     raytrace (value: RaytracePass) {}
     queue (value: RenderQueue) {}
     scene (value: SceneData) {
