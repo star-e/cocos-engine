@@ -661,6 +661,16 @@ export class WebRasterQueueBuilder extends WebSetter implements RasterQueueBuild
             RenderGraphValue.Blit, new Blit(material, passID, sceneFlags, null),
             name, '', new RenderData(), false, this._vertID,
         );
+        const layoutName = this.getLayoutName();
+        setCameraUBOValues(this, null, this._pipeline,
+            cclegacy.director.getScene().renderScene, layoutName);
+        if (sceneFlags & SceneFlags.SHADOW_CASTER) {
+            // setShadowUBOLightView(this, light.light!, light.level);
+        } else {
+            setShadowUBOView(this, null, layoutName);
+        }
+        setTextureUBOView(this, null, this._pipeline);
+        initGlobalDescBinding(this._data, layoutName);
     }
     addCameraQuad (camera: Camera, material: Material, passID: number, sceneFlags = SceneFlags.NONE) {
         this._renderGraph.addVertex<RenderGraphValue.Blit>(
