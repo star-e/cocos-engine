@@ -26,7 +26,7 @@
 import { systemInfo } from 'pal/system-info';
 import { DEBUG } from 'internal:constants';
 import { Color, Buffer, DescriptorSetLayout, Device, Feature, Format, FormatFeatureBit, Sampler, Swapchain, Texture, ClearFlagBit, DescriptorSet, deviceManager, Viewport, API, CommandBuffer, Type, SamplerInfo, Filter, Address, DescriptorSetInfo } from '../../gfx';
-import { Mat4, Quat, toRadian, Vec2, Vec3, Vec4, assert, macro, cclegacy, RecyclePool } from '../../core';
+import { Mat4, Quat, toRadian, Vec2, Vec3, Vec4, assert, macro, cclegacy } from '../../core';
 import { ComputeView, CopyPair, LightInfo, LightingMode, MovePair, QueueHint, RasterView, ResourceDimension, ResourceFlags, ResourceResidency, SceneFlags, UpdateFrequency } from './types';
 import { Blit, ClearView, ComputePass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, MovePass, RasterPass, RasterSubpass, RenderData, RenderGraph, RenderGraphComponent, RenderGraphValue, RenderQueue, RenderSwapchain, ResourceDesc, ResourceGraph, ResourceGraphValue, ResourceStates, ResourceTraits, SceneData, Subpass } from './render-graph';
 import { ComputePassBuilder, ComputeQueueBuilder, ComputeSubpassBuilder, CopyPassBuilder, MovePassBuilder, Pipeline, PipelineBuilder, RasterPassBuilder, RasterQueueBuilder, RasterSubpassBuilder, SceneTransversal } from './pipeline';
@@ -714,11 +714,15 @@ export class WebRasterSubpassBuilder extends WebSetter implements RasterSubpassB
     setViewport (viewport: Viewport): void {
 
     }
-    addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, name = 'Queue'): RasterQueueBuilder {
+    addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default'): RasterQueueBuilder {
+        if (DEBUG) {
+            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
+            assert(layoutId !== 0xFFFFFFFF);
+        }
         const queue = new RenderQueue(hint);
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(
-            RenderGraphValue.Queue, queue, name, '', data, false, this._vertID,
+            RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID,
         );
         return new WebRasterQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
     }
@@ -771,7 +775,7 @@ export class WebRasterPassBuilder extends WebSetter implements RasterPassBuilder
     addComputeView (name: string, view: ComputeView) {
         if (DEBUG) {
             assert(view.name);
-            assert(this._resourceGraph.contains(name));
+            assert(name && this._resourceGraph.contains(name));
             const descriptorName = view.name;
             const descriptorID = this._layoutGraph.attributeIndex.get(descriptorName);
             assert(descriptorID !== undefined);
@@ -797,11 +801,15 @@ export class WebRasterPassBuilder extends WebSetter implements RasterPassBuilder
     addComputeSubpass (layoutName = ''): ComputeSubpassBuilder {
         throw new Error('Method not implemented.');
     }
-    addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, name = 'Queue') {
+    addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default') {
+        if (DEBUG) {
+            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
+            assert(layoutId !== 0xFFFFFFFF);
+        }
         const queue = new RenderQueue(hint);
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(
-            RenderGraphValue.Queue, queue, name, '', data, false, this._vertID,
+            RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID,
         );
         return new WebRasterQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
     }
@@ -886,10 +894,11 @@ export class WebComputeQueueBuilder extends WebSetter implements ComputeQueueBui
 }
 
 export class WebComputePassBuilder extends WebSetter implements ComputePassBuilder {
-    constructor (data: RenderData, renderGraph: RenderGraph, layoutGraph: LayoutGraphData, vertID: number, pass: ComputePass, pipeline: PipelineSceneData) {
+    constructor (data: RenderData, renderGraph: RenderGraph, layoutGraph: LayoutGraphData, resourceGraph: ResourceGraph, vertID: number, pass: ComputePass, pipeline: PipelineSceneData) {
         super(data, layoutGraph);
         this._renderGraph = renderGraph;
         this._layoutGraph = layoutGraph;
+        this._resourceGraph = resourceGraph;
         this._vertID = vertID;
         this._pass = pass;
         this._pipeline = pipeline;
@@ -909,22 +918,30 @@ export class WebComputePassBuilder extends WebSetter implements ComputePassBuild
         this._renderGraph.setName(this._vertID, name);
     }
     addComputeView (name: string, view: ComputeView) {
+        if (DEBUG) {
+            assert(name && this._resourceGraph.contains(name));
+        }
         if (this._pass.computeViews.has(name)) {
             this._pass.computeViews.get(name)?.push(view);
         } else {
             this._pass.computeViews.set(name, [view]);
         }
     }
-    addQueue (name = 'Queue') {
+    addQueue (layoutName = 'default') {
+        if (DEBUG) {
+            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
+            assert(layoutId !== 0xFFFFFFFF);
+        }
         const queue = new RenderQueue();
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(
-            RenderGraphValue.Queue, queue, name, '', data, false, this._vertID,
+            RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID,
         );
         return new WebComputeQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
     }
     private readonly _renderGraph: RenderGraph;
     private readonly _layoutGraph: LayoutGraphData;
+    private readonly _resourceGraph: ResourceGraph;
     private readonly _vertID: number;
     private readonly _layoutID: number;
     private readonly _pass: ComputePass;
@@ -1423,7 +1440,7 @@ export class WebPipeline implements Pipeline {
     addRasterPass (width: number, height: number, layoutName = 'default'): RasterPassBuilder {
         if (DEBUG) {
             const stageId = this.layoutGraph.locateChild(this.layoutGraph.nullVertex(), layoutName);
-            assert(stageId === 0xFFFFFFFF);
+            assert(stageId !== 0xFFFFFFFF);
             const layout = this.layoutGraph.getLayout(stageId);
             assert(layout);
             assert(layout.descriptorSets.get(UpdateFrequency.PER_PASS));
