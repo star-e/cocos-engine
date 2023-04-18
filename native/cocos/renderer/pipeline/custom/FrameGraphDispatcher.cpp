@@ -423,21 +423,51 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
         auto &rearBarriers = barrierMap[u].blockBarrier.rearBarriers;
         auto &frontBarriers = barrierMap[u].blockBarrier.frontBarriers;
+        Barrier *lastSubpassBarrier = nullptr;
+        uint32_t subpassIdx{0};
         for (const auto &barriers : barrierMap[u].subpassBarriers) {
-            for (const auto &barrier : barriers.frontBarriers) {
-                auto resID = barrier.resourceID;
-                auto findBarrierByResID = [resID](const Barrier &barrier) {
-                    return barrier.resourceID == resID;
-                };
-                auto resFinalPassID = accessRecord.at(resID).currStatus.vertID;
-                auto firstMeetIter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
-                auto innerResIter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
+            if (!barriers.frontBarriers.empty()) {
+                auto &dependency = subpassDependencies[u].emplace_back();
+                dependency.srcSubpass = INVALID_ID;
+                dependency.dstSubpass = subpassIdx;
+                dependency.prevAccesses = gfx::AccessFlagBit::NONE;
+                dependency.nextAccesses = gfx::AccessFlagBit::NONE;
+                for (const auto &barrier : barriers.frontBarriers) {
+                    auto resID = barrier.resourceID;
+                    auto findBarrierByResID = [resID](const Barrier &barrier) {
+                        return barrier.resourceID == resID;
+                    };
+                    auto resFinalPassID = accessRecord.at(resID).currStatus.vertID;
+                    auto firstMeetIter = std::find_if(frontBarriers.begin(), frontBarriers.end(), findBarrierByResID);
+                    auto innerResIter = std::find_if(rearBarriers.begin(), rearBarriers.end(), findBarrierByResID);
 
-                if (firstMeetIter == frontBarriers.end() && innerResIter == rearBarriers.end() && resFinalPassID >= u) {
-                    auto &collect = frontBarriers.emplace_back(barrier);
-                    collect.beginStatus.vertID = collect.endStatus.vertID = u;
+                    if (firstMeetIter == frontBarriers.end() && innerResIter == rearBarriers.end() && resFinalPassID >= u) {
+                        auto &collect = frontBarriers.emplace_back(barrier);
+                        collect.beginStatus.vertID = collect.endStatus.vertID = u;
+                    }
+                    if ((barrier.beginStatus.vertID > dependency.srcSubpass) && (barrier.beginStatus.vertID != INVALID_ID)) {
+                        dependency.srcSubpass = barrier.beginStatus.vertID;
+                    }
+                    dependency.prevAccesses |= barrier.beginStatus.accessFlag;
+                    dependency.nextAccesses |= barrier.endStatus.accessFlag;
                 }
             }
+
+            if (!barriers.rearBarriers.empty()) {
+                auto &dependency = subpassDependencies[u].emplace_back();
+                dependency.srcSubpass = subpassIdx;
+                dependency.dstSubpass = INVALID_ID;
+                dependency.prevAccesses = gfx::AccessFlagBit::NONE;
+                dependency.nextAccesses = gfx::AccessFlagBit::NONE;
+                for (const auto &barrier : barriers.rearBarriers) {
+                    if (barrier.endStatus.vertID < dependency.dstSubpass) {
+                        dependency.dstSubpass = barrier.endStatus.vertID;
+                    }
+                    dependency.prevAccesses |= barrier.beginStatus.accessFlag;
+                    dependency.nextAccesses |= barrier.endStatus.accessFlag;
+                }
+            }
+            ++subpassIdx;
         }
     }
 
@@ -590,7 +620,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                             // barrier for ResA between 2 - 6 can be totally replaced by 5 - 6
                             auto blockIter = dstBarrierIter;
                             auto &blockBarrier = barrierMap.at(dstPassVert).blockBarrier;
-                            if (subTosubDeps) {
+                            if (subToSubDeps) {
                                 blockIter = std::find_if(blockBarrier.frontBarriers.begin(), blockBarrier.frontBarriers.end(), findBarrierNodeByResID);
                             }
                             auto lastVert = blockIter->endStatus.vertID;

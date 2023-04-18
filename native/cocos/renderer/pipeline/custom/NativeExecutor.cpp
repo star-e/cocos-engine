@@ -361,14 +361,8 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
         for (const auto& subpass : pass.subpassGraph.subpasses) {
             auto& subpassInfo = rpInfo.subpasses.emplace_back();
             fillSubpass(subpass, subpassInfo);
-
-            auto& dependency = rpInfo.dependencies.emplace_back();
-            dependency
-
-            //const
-            // fill subpass dependency
-            //ctx.fgd.resourceAccessGraph.access
         }
+        rpInfo.dependencies = ctx.fgd.resourceAccessGraph.subpassDependencies[ragVertID];
     }
 
     data.renderPass = ctx.device->createRenderPass(rpInfo);
