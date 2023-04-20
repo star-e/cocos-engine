@@ -90,6 +90,7 @@ struct RenderGraphVisitorContext {
     ProgramLibrary* programLib = nullptr;
     boost::container::pmr::memory_resource* scratch = nullptr;
     gfx::RenderPass* currentPass = nullptr;
+    uint32_t subpassIndex = 0;
     LayoutGraphData::vertex_descriptor currentPassLayoutID = LayoutGraphData::null_vertex();
     RenderGraph::vertex_descriptor currentInFlightPassID = RenderGraph::null_vertex();
     Mat4 currentProjMatrix{};
@@ -203,7 +204,7 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
     };
     fbInfo.colorTextures.reserve(pass.rasterViews.size());
 
-    auto fillSubpass = [&](const auto& pass, gfx::SubpassInfo& subpass) {
+    auto fillFrameBufferInfo = [&](const auto& pass) {
         auto numTotalAttachments = static_cast<uint32_t>(pass.rasterViews.size());
 
         PmrFlatMap<uint32_t, ccstd::pmr::string> viewIndex(scratch);
@@ -211,34 +212,18 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
             viewIndex.emplace(view.slotID, name);
         }
 
+        if (pass.rasterViews.size() == 5) {
+            CC_LOG_INFO("found");
+        }
+
         uint32_t dsvCount = 0;
-        for (const auto& [slotID, name] : viewIndex) {
-            const auto& view = pass.rasterViews.at(name);
+        uint32_t index = 0;
+        for (const auto& [name, rasterView] : pass.rasterViews) {
+            const auto& view = rasterView;
             const auto resID = vertex(name, ctx.resourceGraph);
             const auto& desc = get(ResourceGraph::DescTag{}, ctx.resourceGraph, resID);
 
             if (view.attachmentType == AttachmentType::RENDER_TARGET || view.attachmentType == AttachmentType::SHADING_RATE) { // RenderTarget
-                auto slot = static_cast<uint32_t>(rpInfo.colorAttachments.size());
-                auto& rtv = rpInfo.colorAttachments.emplace_back(
-                    gfx::ColorAttachment{
-                        desc.format,
-                        desc.sampleCount,
-                        view.loadOp,
-                        view.storeOp,
-                        getGeneralBarrier(ctx.device, view),
-                        hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT),
-                    });
-                if (view.attachmentType == AttachmentType::SHADING_RATE) {
-                    subpass.shadingRate = slot;
-                } else {
-                    if (view.accessType != AccessType::WRITE) { // Input
-                        subpass.inputs.emplace_back(slot);
-                    }
-                    if (view.accessType != AccessType::READ) { // Output
-                        subpass.colors.emplace_back(slot);
-                    }
-                }
-
                 data.clearColors.emplace_back(view.clearColor);
 
                 auto resID = findVertex(name, resg);
@@ -266,29 +251,27 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
                     [&](const IntrusivePtr<gfx::Framebuffer>& fb) {
                         CC_EXPECTS(fb->getColorTextures().size() == 1);
                         CC_EXPECTS(fb->getColorTextures().at(0));
-                        fbInfo.colorTextures.emplace_back(fb->getColorTextures()[slot]);
+                        fbInfo.colorTextures.emplace_back(fb->getColorTextures()[index]);
                         // render window attaches a depthStencil by default, which may differs from renderpassInfo here.
                         // data.framebuffer = fb;
                     },
                     [&](const RenderSwapchain& sc) {
                         fbInfo.colorTextures.emplace_back(sc.swapchain->getColorTexture());
                     });
-                CC_ENSURES(rpInfo.colorAttachments.size() == data.clearColors.size());
-                CC_ENSURES(rpInfo.colorAttachments.size() == fbInfo.colorTextures.size());
             } else if (view.attachmentType == AttachmentType::DEPTH_STENCIL) { // DepthStencil
-                auto& dsv = rpInfo.depthStencilAttachment;
-                CC_EXPECTS(desc.format != gfx::Format::UNKNOWN);
-                dsv.format = desc.format;
-                dsv.sampleCount = desc.sampleCount;
-                dsv.depthLoadOp = view.loadOp;
-                dsv.depthStoreOp = view.storeOp;
-                dsv.stencilLoadOp = view.loadOp;
-                dsv.stencilStoreOp = view.storeOp;
-                dsv.barrier = getGeneralBarrier(ctx.device, view);
-                dsv.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
+                //auto& dsv = rpInfo.depthStencilAttachment;
+                //CC_EXPECTS(desc.format != gfx::Format::UNKNOWN);
+                //dsv.format = desc.format;
+                //dsv.sampleCount = desc.sampleCount;
+                //dsv.depthLoadOp = view.loadOp;
+                //dsv.depthStoreOp = view.storeOp;
+                //dsv.stencilLoadOp = view.loadOp;
+                //dsv.stencilStoreOp = view.storeOp;
+                //dsv.barrier = getGeneralBarrier(ctx.device, view);
+                //dsv.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
 
-                CC_EXPECTS(numTotalAttachments > 0);
-                subpass.depthStencil = numTotalAttachments - 1;
+                //CC_EXPECTS(numTotalAttachments > 0);
+                //subpass.depthStencil = numTotalAttachments - 1;
 
                 data.clearDepth = view.clearColor.x;
                 data.clearStencil = static_cast<uint8_t>(view.clearColor.y);
@@ -311,9 +294,13 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
                         });
                 }
             }
+            ++index;
         }
     };
 
+    
+    const auto passID = ctx.currentInFlightPassID;
+    const auto ragVertID = ctx.fgd.resourceAccessGraph.passIndex.at(passID);
     if (pass.subpassGraph.subpasses.empty()) {
         const auto numInputs = getRasterPassInputCount(pass);
         const auto numColors = getRasterPassOutputCount(pass);
@@ -321,49 +308,17 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
         // persistent cache
         data.clearColors.reserve(numColors);
 
-        // render pass
-        rpInfo.colorAttachments.reserve(numColors);
+        rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID);
 
-        auto& subpass = rpInfo.subpasses.emplace_back();
-        subpass.inputs.reserve(numInputs);
-        subpass.colors.reserve(numColors);
-        subpass.resolves.reserve(getRasterPassResolveCount(pass));
-        subpass.preserves.reserve(getRasterPassPreserveCount(pass));
+        fillFrameBufferInfo(pass);
 
-        fillSubpass(pass, subpass);
     } else {
-        const auto passID = ctx.currentInFlightPassID;
-        const auto ragVertID = ctx.fgd.resourceAccessGraph.passIndex.at(passID);
+        rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID);
 
-        const auto& access = ctx.fgd.resourceAccessGraph.access[ragVertID];
-        const auto& blockBarrier = ctx.fgd.barrierMap.at(ragVertID).blockBarrier;
-
-        for (const auto& [name, rasterView] : pass.rasterViews) {
-            const auto resID = vertex(name, ctx.resourceGraph);
-            const auto& desc = get(ResourceGraph::DescTag{}, ctx.resourceGraph, resID);
-            auto& attachment = rpInfo.colorAttachments.emplace_back();
-            attachment.loadOp = rasterView.loadOp;
-            attachment.storeOp = rasterView.storeOp;
-            attachment.sampleCount = desc.sampleCount;
-            attachment.format = desc.format;
-            attachment.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-            auto iter = std::find_if(blockBarrier.frontBarriers.begin(), blockBarrier.frontBarriers.end(), [resID](const Barrier& barrier) {
-                return barrier.resourceID == resID;
-            });
-            const Barrier* barrierInfo = iter == blockBarrier.frontBarriers.end() ? nullptr : &(*iter);
-            auto accessIter = std::find_if(access.attachmentStatus.begin(), access.attachmentStatus.end(), [resID](const AccessStatus& status) {
-                return status.vertID == resID;
-            });
-            attachment.barrier = getRenderPassBarrier(ctx.device, barrierInfo, *accessIter);
-        }
-
-        const auto& subpassBarrier = ctx.fgd.barrierMap.at(ragVertID).subpassBarriers;
-        for (const auto& subpass : pass.subpassGraph.subpasses) {
-            auto& subpassInfo = rpInfo.subpasses.emplace_back();
-            fillSubpass(subpass, subpassInfo);
-        }
-        rpInfo.dependencies = ctx.fgd.resourceAccessGraph.subpassDependencies[ragVertID];
+        fillFrameBufferInfo(pass);
     }
+    CC_ENSURES(rpInfo.colorAttachments.size() == data.clearColors.size());
+    CC_ENSURES(rpInfo.colorAttachments.size() == fbInfo.colorTextures.size());
 
     data.renderPass = ctx.device->createRenderPass(rpInfo);
     fbInfo.renderPass = data.renderPass;
@@ -1261,6 +1216,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
             ctx.cmdBuff->nextSubpass();
         }
         tryBindPerPassDescriptorSet(vertID);
+        ctx.subpassIndex = subpass.subpassID;
     }
     void begin(const ComputeSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
         std::ignore = subpass;
@@ -1389,7 +1345,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         auto& shader = *pass.getShaderVariant();
         // get pso
         auto* pso = pipeline::PipelineStateManager::getOrCreatePipelineState(
-            &pass, &shader, ctx.context.fullscreenQuad.quadIA.get(), ctx.currentPass);
+            &pass, &shader, ctx.context.fullscreenQuad.quadIA.get(), ctx.currentPass, ctx.subpassIndex);
         if (!pso) {
             return;
         }
@@ -1444,6 +1400,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void end(const RasterSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
         std::ignore = subpass;
         std::ignore = vertID;
+        ctx.subpassIndex = 0;
         // noop
     }
     void end(const ComputeSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)

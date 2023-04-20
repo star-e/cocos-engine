@@ -245,7 +245,8 @@ struct ResourceAccessGraph {
     PmrFlatMap<uint32_t, ResourceTransition> accessRecord;
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
-    PmrFlatMap<vertex_descriptor, gfx::SubpassDependencyList> subpassDependencies;
+    PmrFlatMap<vertex_descriptor, ccstd::vector<uint32_t>> subpasses;
+    PmrFlatMap<vertex_descriptor, gfx::RenderPassInfo> rpInfos;
 };
 
 struct RelationGraph {
