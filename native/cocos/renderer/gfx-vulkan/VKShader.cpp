@@ -65,6 +65,9 @@ CCVKGPUShader *CCVKShader::gpuShader() const {
 void CCVKShader::doInit(const ShaderInfo & /*info*/) {
     _gpuShader = ccnew CCVKGPUShader;
     _gpuShader->name = _name;
+    if (strstr(_name.c_str(), "deferred-lighting")) {
+        CC_LOG_INFO("found");
+    }
     _gpuShader->attributes = _attributes;
     for (ShaderStage &stage : _stages) {
         _gpuShader->gpuStages.emplace_back(CCVKGPUShaderStage{stage.stage, stage.source});

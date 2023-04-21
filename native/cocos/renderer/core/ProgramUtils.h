@@ -48,6 +48,9 @@ ccstd::vector<gfx::Attribute> getActiveAttributes(
 ccstd::string getShaderInstanceName(
     const ccstd::string& name, const ccstd::vector<IMacroInfo>& macros);
 
+ccstd::vector<gfx::UniformInputAttachment> getSubpassInputs(
+    const ccstd::vector<IInputAttachmentInfo>& inputInfo);
+
 void addEffectDefaultProperties(EffectAsset& effect);
 
 } // namespace render

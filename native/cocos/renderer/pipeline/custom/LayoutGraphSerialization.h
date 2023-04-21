@@ -374,6 +374,9 @@ inline void load(InputArchive& ar, LayoutGraphData& g) {
         load(ar, id);
         load(ar, u);
         load(ar, name);
+        if (strstr(name.c_str(), "deferred-lighting")) {
+            printf("found\n");
+        }
         load(ar, update);
         load(ar, layout);
         switch (id) {
