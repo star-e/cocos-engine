@@ -657,9 +657,9 @@ gfx::DescriptorSet* initDescriptorSet(
                     auto iter = resourceIndex.find(d.descriptorID);
                     if (iter != resourceIndex.end()) {
                         // render graph textures
-                        auto* buffer = resg.getBuffer(iter->second);
+                        auto* buffer = resg.getTexture(iter->second);
                         CC_ENSURES(buffer);
-                        newSet->bindBuffer(bindID, buffer);
+                        newSet->bindTexture(bindID, buffer);
                     }
                     bindID += d.count;
                 }
@@ -1098,8 +1098,18 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             }
 
             // build pass resources
-            const auto& resourceIndex = buildResourceIndex(
-                ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);
+          /*  const auto& resourceIndex = buildResourceIndex(
+                ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);*/
+
+            PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
+            resourceIndex.reserve(subpass.rasterViews.size() * 2);
+            for (const auto& [resName, rasterView] : subpass.rasterViews) {
+                const auto resID = vertex(resName, ctx.resourceGraph);
+                auto iter = ctx.lg.attributeIndex.find(rasterView.slotName);
+                if (iter != ctx.lg.attributeIndex.end()) {
+                    resourceIndex.emplace(iter->second, resID);
+                }
+            }
 
             // populate set
             auto& set = iter->second;
