@@ -1180,7 +1180,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         }
         const auto& nodeID = iter->second;
         auto iter2 = ctx.barrierMap.find(nodeID);
-        if (iter2 != ctx.barrierMap.end()) {
+        if (iter2 != ctx.barrierMap.end() && iter2->second.subpassBarriers.empty()) {
             submitBarriers(iter2->second.blockBarrier.frontBarriers);
         }
     }
@@ -1191,7 +1191,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         }
         const auto& nodeID = iter->second;
         auto iter2 = ctx.barrierMap.find(nodeID);
-        if (iter2 != ctx.barrierMap.end()) {
+        if (iter2 != ctx.barrierMap.end() && iter2->second.subpassBarriers.empty()) {
             submitBarriers(iter2->second.blockBarrier.rearBarriers);
         }
     }
