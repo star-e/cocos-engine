@@ -154,6 +154,26 @@ enum class PixelFormat : uint32_t {
      */
     RGB_ETC1 = static_cast<uint32_t>(gfx::Format::ETC_RGB8),
     /**
+     * @en A pixel format containing red, green, and blue channels that is BC1 compressed.
+     * @zh 包含 RGB 通道的 BC1 压缩纹理格式
+     */
+    BC1 = static_cast<uint32_t>(gfx::Format::BC1),
+    /**
+     * @en A pixel format containing red, green, blue, and alpha channels that is BC3 compressed.
+     * @zh 包含 RGBA 通道的 BC3 压缩纹理格式
+     */
+    BC3 = static_cast<uint32_t>(gfx::Format::BC3),
+    /**
+     * @en A pixel format containing red, green, blue, and alpha channels that is BC7 compressed.
+     * @zh 包含 RGBA 通道的 BC7 压缩纹理格式
+     */
+    BC7 = static_cast<uint32_t>(gfx::Format::BC7),
+    /**
+     * @en A pixel format containing red, green, blue, and alpha channels that is BC6H_UF16 compressed.
+     * @zh 包含 RGBA 通道的 BC6H_UF16 压缩纹理格式
+     */
+    BC6H_UF16 = static_cast<uint32_t>(gfx::Format::BC6H_UF16),
+    /**
      * @en A pixel format containing red, green, blue, and alpha channels that is ETC1 compressed.
      * @zh 包含 RGBA 通道的 ETC1 压缩纹理格式
      */
