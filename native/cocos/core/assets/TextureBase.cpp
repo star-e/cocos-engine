@@ -107,9 +107,9 @@ void TextureBase::setAnisotropy(uint32_t anisotropy) {
 
 bool TextureBase::destroy() {
     const bool destroyed = Super::destroy();
-    // cjh TODO:    if (destroyed && legacyCC.director.root?.batcher2D) {
-    //         legacyCC.director.root.batcher2D._releaseDescriptorSetCache(this._textureHash);
-    //     }
+    //cjh TODO:    if (destroyed && legacyCC.director.root?.batcher2D) {
+    //        legacyCC.director.root.batcher2D._releaseDescriptorSetCache(this._textureHash);
+    //    }
     return destroyed;
 }
 
@@ -125,11 +125,11 @@ gfx::Sampler *TextureBase::getGFXSampler() const {
 }
 
 ccstd::any TextureBase::serialize(const ccstd::any & /*ctxForExporting*/) {
-    // cjh TODO:    if (EDITOR || TEST) {
-    //         return `${this._minFilter},${this._magFilter},${
-    //             this._wrapS},${this._wrapT},${
-    //             this._mipFilter},${this._anisotropy}`;
-    //     }
+    //cjh TODO:    if (EDITOR || TEST) {
+    //        return `${this._minFilter},${this._magFilter},${
+    //            this._wrapS},${this._wrapT},${
+    //            this._mipFilter},${this._anisotropy}`;
+    //    }
     return ccstd::string("");
 }
 
@@ -179,7 +179,7 @@ gfx::Format TextureBase::getGFXPixelFormat(PixelFormat format) {
 }
 
 bool TextureBase::isCompressed() const {
-    return (_format >= PixelFormat::BC1 && _format <= PixelFormat::RGBA_ASTC_12X12) || (_format >= PixelFormat::RGB_A_PVRTC_2BPPV1 && _format <= PixelFormat::RGBA_ETC1);
+    return (_format >= PixelFormat::RGB_ETC1 && _format <= PixelFormat::RGBA_ASTC_12X12) || (_format >= PixelFormat::RGB_A_PVRTC_2BPPV1 && _format <= PixelFormat::RGBA_ETC1);
 }
 
 void TextureBase::notifySamplerUpdated() {
