@@ -218,8 +218,8 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
 
         uint32_t dsvCount = 0;
         uint32_t index = 0;
-        for (const auto& [name, rasterView] : pass.rasterViews) {
-            const auto& view = rasterView;
+        for (const auto& [slotID, name] : viewIndex) {
+            const auto& view = pass.rasterViews.at(name);
             const auto resID = vertex(name, ctx.resourceGraph);
             const auto& desc = get(ResourceGraph::DescTag{}, ctx.resourceGraph, resID);
 
@@ -649,20 +649,32 @@ gfx::DescriptorSet* initDescriptorSet(
                     bindID += d.count;
                 }
                 break;
-            case DescriptorTypeOrder::INPUT_ATTACHMENT:
+            case DescriptorTypeOrder::INPUT_ATTACHMENT: {
                 CC_EXPECTS(newSet);
-                for (const auto& d : block.descriptors) {
-                    CC_EXPECTS(d.count == 1);
-                
-                    auto iter = resourceIndex.find(d.descriptorID);
-                    if (iter != resourceIndex.end()) {
-                        // render graph textures
-                        auto* buffer = resg.getTexture(iter->second);
-                        CC_ENSURES(buffer);
-                        newSet->bindTexture(bindID, buffer);
+                PmrFlatMap< ResourceGraph::vertex_descriptor,  NameLocalID> tmpMap(resourceIndex.get_allocator());
+                auto binding = bindID;
+                for (const auto& [localID, resID] : resourceIndex) {
+                    tmpMap.emplace(resID, localID);
+                }
+                for (const auto& [resID, localID] : tmpMap) {
+                    auto dscID = localID;
+                    auto iter = std::find_if(block.descriptors.begin(), block.descriptors.end(), [dscID](const DescriptorData& dscData) {
+                        return dscData.descriptorID == dscID;
+                    });
+                    if (iter == block.descriptors.end()) {
+                        continue;
                     }
+                    const auto& d = (*iter);
+                    CC_EXPECTS(d.count == 1);
+
+                    // render graph textures
+                    auto* buffer = resg.getTexture(resID);
+                    CC_ENSURES(buffer);
+                    newSet->bindTexture(bindID, buffer);
+
                     bindID += d.count;
                 }
+            }
                 break;
             default:
                 CC_EXPECTS(false);
@@ -1100,7 +1112,6 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             // build pass resources
           /*  const auto& resourceIndex = buildResourceIndex(
                 ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);*/
-
             PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
             resourceIndex.reserve(subpass.rasterViews.size() * 2);
             for (const auto& [resName, rasterView] : subpass.rasterViews) {
