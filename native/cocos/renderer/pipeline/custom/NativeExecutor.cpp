@@ -149,16 +149,6 @@ uint32_t getRasterPassPreserveCount(const RasterPass& pass) {
     return 0;
 }
 
-uint32_t getRasterSubpassResolveCount(const RasterSubpass& pass) {
-    std::ignore = pass;
-    return 0;
-}
-
-uint32_t getRasterSubpassPreserveCount(const RasterSubpass& pass) {
-    std::ignore = pass;
-    return 0;
-}
-
 gfx::GeneralBarrier* getGeneralBarrier(gfx::Device* device, const RasterView& view) {
     if (view.accessType != AccessType::WRITE) { // Input
         return device->getGeneralBarrier({
@@ -174,22 +164,6 @@ gfx::GeneralBarrier* getGeneralBarrier(gfx::Device* device, const RasterView& vi
         return device->getGeneralBarrier({accessFlagBit, accessFlagBit});
     }
     return nullptr;
-}
-
-gfx::GeneralBarrier* getRenderPassBarrier(gfx::Device* device,
-                                          const Barrier* barrierInfo,
-                                          const AccessStatus& status) {
-    if (!barrierInfo) {
-        return device->getGeneralBarrier({
-            status.accessFlag,
-            status.accessFlag,
-        });
-    }
-
-    return device->getGeneralBarrier({
-        barrierInfo->beginStatus.accessFlag,
-        barrierInfo->endStatus.accessFlag,
-    });
 }
 
 PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
@@ -213,11 +187,7 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
             viewIndex.emplace(view.slotID, name);
         }
 
-        if (pass.rasterViews.size() == 5) {
-            CC_LOG_INFO("found");
-        }
-
-        uint32_t dsvCount = 0;
+        // uint32_t dsvCount = 0;
         uint32_t index = 0;
         for (const auto& [slotID, name] : viewIndex) {
             const auto& view = pass.rasterViews.at(name);
@@ -260,20 +230,6 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
                         fbInfo.colorTextures.emplace_back(sc.swapchain->getColorTexture());
                     });
             } else if (view.attachmentType == AttachmentType::DEPTH_STENCIL) { // DepthStencil
-                // auto& dsv = rpInfo.depthStencilAttachment;
-                // CC_EXPECTS(desc.format != gfx::Format::UNKNOWN);
-                // dsv.format = desc.format;
-                // dsv.sampleCount = desc.sampleCount;
-                // dsv.depthLoadOp = view.loadOp;
-                // dsv.depthStoreOp = view.storeOp;
-                // dsv.stencilLoadOp = view.loadOp;
-                // dsv.stencilStoreOp = view.storeOp;
-                // dsv.barrier = getGeneralBarrier(ctx.device, view);
-                // dsv.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-
-                // CC_EXPECTS(numTotalAttachments > 0);
-                // subpass.depthStencil = numTotalAttachments - 1;
-
                 data.clearDepth = view.clearColor.x;
                 data.clearStencil = static_cast<uint8_t>(view.clearColor.y);
 
@@ -307,14 +263,11 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
 
         // persistent cache
         data.clearColors.reserve(numColors);
-
         rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID);
-
         fillFrameBufferInfo(pass);
 
     } else {
         rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID);
-
         fillFrameBufferInfo(pass);
     }
     CC_ENSURES(rpInfo.colorAttachments.size() == data.clearColors.size());
@@ -651,30 +604,35 @@ gfx::DescriptorSet* initDescriptorSet(
                 break;
             case DescriptorTypeOrder::INPUT_ATTACHMENT: {
                 CC_EXPECTS(newSet);
-                PmrFlatMap<ResourceGraph::vertex_descriptor, NameLocalID> tmpMap(resourceIndex.get_allocator());
-                auto binding = bindID;
+                PmrFlatMap<ResourceGraph::vertex_descriptor, NameLocalID> bindingOrderSet(resourceIndex.get_allocator());
                 for (const auto& [localID, resID] : resourceIndex) {
-                    tmpMap.emplace(resID, localID);
+                    bindingOrderSet.emplace(resID, localID);
                 }
-                for (const auto& [resID, localID] : tmpMap) {
-                    auto dscID = localID;
-                    auto iter = std::find_if(block.descriptors.begin(), block.descriptors.end(), [dscID](const DescriptorData& dscData) {
-                        return dscData.descriptorID == dscID;
-                    });
-                    if (iter == block.descriptors.end()) {
-                        continue;
+                ccstd::pmr::vector<DescriptorData&> descriptors(block.descriptors.begin(), block.descriptors.end(), resourceIndex.get_allocator());
+                std::sort(descriptors.begin(), descriptors.end(), [&](const DescriptorData& a, const DescriptorData& b) {
+                    auto aIter = resourceIndex.find(a.descriptorID);
+                    auto bIter = resourceIndex.find(b.descriptorID);
+                    if (aIter != resourceIndex.end() && bIter != resourceIndex.end()) {
+                        return aIter->second < bIter->second;
+                    } else {
+                        return a.descriptorID < b.descriptorID;
                     }
-                    const auto& d = (*iter);
+                });
+
+                for (const auto& d : descriptors) {
                     CC_EXPECTS(d.count == 1);
-
-                    // render graph textures
-                    auto* buffer = resg.getTexture(resID);
-                    CC_ENSURES(buffer);
-                    newSet->bindTexture(bindID, buffer);
-
+                    auto iter = resourceIndex.find(d.descriptorID);
+                    if (iter != resourceIndex.end()) {
+                        // render graph textures
+                        auto* texture = resg.getTexture(iter->second);
+                        CC_ENSURES(texture);
+                        newSet->bindTexture(bindID, texture);
+                    }
                     bindID += d.count;
                 }
-            } break;
+
+            };
+                break;
             default:
                 CC_EXPECTS(false);
                 break;

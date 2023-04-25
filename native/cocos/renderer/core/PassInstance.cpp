@@ -52,7 +52,6 @@ PassInstance::PassInstance(scene::Pass *parent, MaterialInstance *owner)
             for (uint32_t i = 0; i < samplerTexture.count; ++i) {
                 auto *sampler = parentDescriptorSet->getSampler(samplerTexture.binding, i);
                 auto *texture = parentDescriptorSet->getTexture(samplerTexture.binding, i);
-                if (!texture) continue;
                 _descriptorSet->bindSampler(samplerTexture.binding, sampler, i);
                 _descriptorSet->bindTexture(samplerTexture.binding, texture, i);
             }

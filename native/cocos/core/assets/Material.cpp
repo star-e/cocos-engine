@@ -274,9 +274,6 @@ void Material::copy(const Material *mat, IMaterialInfo *overrides) {
 
 void Material::update(bool keepProps /* = true*/) {
     if (_effectAsset) {
-        if (strstr(getEffectName().c_str(), "deferred-lighting")) {
-            CC_LOG_INFO("found");
-        }
         *_passes = createPasses();
         CC_ASSERT(!_effectAsset->_techniques.empty());
         // handle property values

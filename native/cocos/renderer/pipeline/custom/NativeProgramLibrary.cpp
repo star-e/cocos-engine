@@ -1237,9 +1237,6 @@ void NativeProgramLibrary::addEffect(const EffectAsset *effectAssetIn) {
     for (const auto &tech : effect._techniques) {
         for (const auto &pass : tech.passes) {
             const auto &programName = pass.program;
-            if (strstr(programName.c_str(), "deferred-lighting")) {
-                CC_LOG_INFO("found");
-            }
             const auto [passID, phaseID, pShaderInfo, shaderID] =
                 getEffectShader(lg, effect, pass);
             if (pShaderInfo == nullptr || validateShaderInfo(*pShaderInfo)) {
