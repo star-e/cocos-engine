@@ -31,6 +31,7 @@
 #include "gfx-base/GFXDef-common.h"
 #include "gfx-gles-common/GLESCommandPool.h"
 #include "gfx-gles3/GLES3GPUObjects.h"
+#include "gfx-gles3/states/GLES3Sampler.h"
 
 #define BUFFER_OFFSET(idx) (static_cast<char *>(0) + (idx))
 
@@ -829,7 +830,11 @@ void cmdFuncGLES3CreateTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture)
     }
 
     if (gpuTexture->glTexture) {
-        gpuTexture->glTarget = GL_TEXTURE_EXTERNAL_OES;
+        if (hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_OES)) {
+            gpuTexture->glTarget = GL_TEXTURE_EXTERNAL_OES;
+        } else {
+            gpuTexture->glTarget = GL_TEXTURE_2D;
+        }
         return;
     }
 
@@ -935,7 +940,7 @@ void cmdFuncGLES3DestroyTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture
                 glTexture = 0;
             }
         }
-        if (gpuTexture->glTarget != GL_TEXTURE_EXTERNAL_OES) {
+        if (!hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_OES) && !hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_NORMAL)) {
             GL_CHECK(glDeleteTextures(1, &gpuTexture->glTexture));
         }
         gpuTexture->glTexture = 0;
@@ -952,7 +957,10 @@ void cmdFuncGLES3DestroyTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture
 }
 
 void cmdFuncGLES3ResizeTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture) {
-    if (gpuTexture->memoryless || gpuTexture->glTarget == GL_TEXTURE_EXTERNAL_OES) return;
+    if (gpuTexture->memoryless || hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_OES) ||
+        hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_NORMAL)) {
+        return;
+    }
 
     if (gpuTexture->glSamples <= 1) {
         // immutable by default
@@ -2558,7 +2566,8 @@ void cmdFuncGLES3BindState(GLES3Device *device, GLES3GPUPipelineState *gpuPipeli
             for (size_t u = 0; u < glSamplerTexture.units.size(); u++, gpuDescriptor++) {
                 auto unit = static_cast<uint32_t>(glSamplerTexture.units[u]);
 
-                if (!gpuDescriptor->gpuTextureView || !gpuDescriptor->gpuTextureView->gpuTexture || !gpuDescriptor->gpuSampler) {
+                auto *sampler = gpuDescriptor->gpuSampler ? gpuDescriptor->gpuSampler : static_cast<GLES3Sampler*>(device->getSampler({}))->gpuSampler();
+                if (!gpuDescriptor->gpuTextureView || !gpuDescriptor->gpuTextureView->gpuTexture || !sampler) {
                     // CC_LOG_ERROR("Sampler texture '%s' at binding %d set %d index %d is not bounded",
                     //              glSamplerTexture.name.c_str(), glSamplerTexture.set, glSamplerTexture.binding, u);
                     continue;
@@ -2581,7 +2590,7 @@ void cmdFuncGLES3BindState(GLES3Device *device, GLES3GPUPipelineState *gpuPipeli
                         cache->glTextures[unit] = glTexture;
                     }
 
-                    GLuint glSampler = gpuDescriptor->gpuSampler->getGLSampler(minLod, maxLod);
+                    GLuint glSampler = sampler->getGLSampler(minLod, maxLod);
                     if (cache->glSamplers[unit] != glSampler) {
                         GL_CHECK(glBindSampler(unit, glSampler));
                         cache->glSamplers[unit] = glSampler;

@@ -77,7 +77,7 @@ struct RenderGraphVisitorContext {
     ccstd::pmr::unordered_map<
         const scene::RenderScene*,
         ccstd::pmr::unordered_map<scene::Camera*, NativeRenderQueue>>& sceneQueues;
-    PipelineRuntime* ppl = nullptr;
+    NativePipeline* ppl = nullptr;
     ccstd::pmr::unordered_map<
         RenderGraph::vertex_descriptor,
         gfx::DescriptorSet*>& renderGraphDescriptorSet;
@@ -88,6 +88,7 @@ struct RenderGraphVisitorContext {
         RenderGraph::vertex_descriptor,
         gfx::DescriptorSet*>& perInstanceDescriptorSets;
     ProgramLibrary* programLib = nullptr;
+    CustomRenderGraphContext customContext;
     boost::container::pmr::memory_resource* scratch = nullptr;
     gfx::RenderPass* currentPass = nullptr;
     uint32_t subpassIndex = 0;
@@ -259,19 +260,19 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
                         fbInfo.colorTextures.emplace_back(sc.swapchain->getColorTexture());
                     });
             } else if (view.attachmentType == AttachmentType::DEPTH_STENCIL) { // DepthStencil
-                //auto& dsv = rpInfo.depthStencilAttachment;
-                //CC_EXPECTS(desc.format != gfx::Format::UNKNOWN);
-                //dsv.format = desc.format;
-                //dsv.sampleCount = desc.sampleCount;
-                //dsv.depthLoadOp = view.loadOp;
-                //dsv.depthStoreOp = view.storeOp;
-                //dsv.stencilLoadOp = view.loadOp;
-                //dsv.stencilStoreOp = view.storeOp;
-                //dsv.barrier = getGeneralBarrier(ctx.device, view);
-                //dsv.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
+                // auto& dsv = rpInfo.depthStencilAttachment;
+                // CC_EXPECTS(desc.format != gfx::Format::UNKNOWN);
+                // dsv.format = desc.format;
+                // dsv.sampleCount = desc.sampleCount;
+                // dsv.depthLoadOp = view.loadOp;
+                // dsv.depthStoreOp = view.storeOp;
+                // dsv.stencilLoadOp = view.loadOp;
+                // dsv.stencilStoreOp = view.storeOp;
+                // dsv.barrier = getGeneralBarrier(ctx.device, view);
+                // dsv.isGeneralLayout = hasFlag(desc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
 
-                //CC_EXPECTS(numTotalAttachments > 0);
-                //subpass.depthStencil = numTotalAttachments - 1;
+                // CC_EXPECTS(numTotalAttachments > 0);
+                // subpass.depthStencil = numTotalAttachments - 1;
 
                 data.clearDepth = view.clearColor.x;
                 data.clearStencil = static_cast<uint8_t>(view.clearColor.y);
@@ -298,7 +299,6 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
         }
     };
 
-    
     const auto passID = ctx.currentInFlightPassID;
     const auto ragVertID = ctx.fgd.resourceAccessGraph.passIndex.at(passID);
     if (pass.subpassGraph.subpasses.empty()) {
@@ -651,7 +651,7 @@ gfx::DescriptorSet* initDescriptorSet(
                 break;
             case DescriptorTypeOrder::INPUT_ATTACHMENT: {
                 CC_EXPECTS(newSet);
-                PmrFlatMap< ResourceGraph::vertex_descriptor,  NameLocalID> tmpMap(resourceIndex.get_allocator());
+                PmrFlatMap<ResourceGraph::vertex_descriptor, NameLocalID> tmpMap(resourceIndex.get_allocator());
                 auto binding = bindID;
                 for (const auto& [localID, resID] : resourceIndex) {
                     tmpMap.emplace(resID, localID);
@@ -674,8 +674,7 @@ gfx::DescriptorSet* initDescriptorSet(
 
                     bindID += d.count;
                 }
-            }
-                break;
+            } break;
             default:
                 CC_EXPECTS(false);
                 break;
@@ -1009,8 +1008,11 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
         CC_EXPECTS(ctx.currentPassLayoutID != LayoutGraphData::null_vertex());
 
         if (holds<RasterPassTag>(vertID, ctx.g) || holds<ComputeTag>(vertID, ctx.g)) {
-            //            const auto& pass = get(RasterPassTag{}, vertID, ctx.g);
-            const auto& computeViews = holds<RasterPassTag>(vertID, ctx.g) ? get(RasterPassTag{}, vertID, ctx.g).computeViews : get(ComputeTag{}, vertID, ctx.g).computeViews;
+            // const auto& pass = get(RasterPassTag{}, vertID, ctx.g);
+            const auto& computeViews =
+                holds<RasterPassTag>(vertID, ctx.g)
+                    ? get(RasterPassTag{}, vertID, ctx.g).computeViews
+                    : get(ComputeTag{}, vertID, ctx.g).computeViews;
 
             // render pass
             const auto& layoutName = get(RenderGraph::LayoutTag{}, ctx.g, vertID);
@@ -1110,8 +1112,8 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             }
 
             // build pass resources
-          /*  const auto& resourceIndex = buildResourceIndex(
-                ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);*/
+            /*  const auto& resourceIndex = buildResourceIndex(
+                  ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);*/
             PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
             resourceIndex.reserve(subpass.rasterViews.size() * 2);
             for (const auto& [resName, rasterView] : subpass.rasterViews) {
@@ -1226,6 +1228,16 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         }
     }
     void begin(const RasterPass& pass, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& passes = ctx.ppl->custom.renderPasses;
+            auto iter = passes.find(renderData.custom);
+            if (iter != passes.end()) {
+                iter->second->beginRenderPass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         // viewport
         auto vp = pass.viewport;
         if (vp.width == 0 && vp.height == 0) {
@@ -1255,19 +1267,50 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         tryBindPerPassDescriptorSet(vertID);
     }
     void begin(const RasterSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& subpasses = ctx.ppl->custom.renderSubpasses;
+            auto iter = subpasses.find(renderData.custom);
+            if (iter != subpasses.end()) {
+                iter->second->beginRenderSubpass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         // PerPass DescriptorSet
         if (subpass.subpassID) {
             ctx.cmdBuff->nextSubpass();
         }
         tryBindPerPassDescriptorSet(vertID);
         ctx.subpassIndex = subpass.subpassID;
+        // noop
     }
     void begin(const ComputeSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& subpasses = ctx.ppl->custom.computeSubpasses;
+            auto iter = subpasses.find(renderData.custom);
+            if (iter != subpasses.end()) {
+                iter->second->beginComputeSubpass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         std::ignore = subpass;
         std::ignore = vertID;
         // noop
     }
     void begin(const ComputePass& pass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& passes = ctx.ppl->custom.computePasses;
+            auto iter = passes.find(renderData.custom);
+            if (iter != passes.end()) {
+                iter->second->beginComputePass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         std::ignore = pass;
         std::ignore = vertID;
         for (const auto& [name, views] : pass.computeViews) {
@@ -1336,6 +1379,16 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         CC_EXPECTS(false);
     }
     void begin(const RenderQueue& queue, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& queues = ctx.ppl->custom.renderQueues;
+            auto iter = queues.find(renderData.custom);
+            if (iter != queues.end()) {
+                iter->second->beginRenderQueue(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         // PerPhase DescriptorSet
         std::ignore = queue;
         tryBindPerPhaseDescriptorSet(vertID);
@@ -1377,6 +1430,16 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         }
     }
     void begin(const Blit& blit, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& commands = ctx.ppl->custom.renderCommands;
+            auto iter = commands.find(renderData.custom);
+            if (iter != commands.end()) {
+                iter->second->beginRenderCommand(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         const auto& programLib = *dynamic_cast<const NativeProgramLibrary*>(ctx.programLib);
         CC_EXPECTS(blit.material);
         CC_EXPECTS(blit.material->getPasses());
@@ -1434,6 +1497,16 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void begin(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
     void end(const RasterPass& pass, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& passes = ctx.ppl->custom.renderPasses;
+            auto iter = passes.find(renderData.custom);
+            if (iter != passes.end()) {
+                iter->second->endRenderPass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         if (pass.showStatistics) {
             submitProfilerCommands(ctx, vertID, pass);
         }
@@ -1442,38 +1515,90 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         ctx.currentPassLayoutID = LayoutGraphData::null_vertex();
     }
     void end(const RasterSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& subpasses = ctx.ppl->custom.renderSubpasses;
+            auto iter = subpasses.find(renderData.custom);
+            if (iter != subpasses.end()) {
+                iter->second->endRenderSubpass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         std::ignore = subpass;
         std::ignore = vertID;
         ctx.subpassIndex = 0;
         // noop
     }
     void end(const ComputeSubpass& subpass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& subpasses = ctx.ppl->custom.computeSubpasses;
+            auto iter = subpasses.find(renderData.custom);
+            if (iter != subpasses.end()) {
+                iter->second->endComputeSubpass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         std::ignore = subpass;
         std::ignore = vertID;
         // noop
     }
-    void end(const ComputePass& pass) const {
-    }
-    void end(const CopyPass& pass) const {
-    }
-    void end(const MovePass& pass) const {
-    }
-    void end(const RaytracePass& pass) const { // NOLINT(readability-convert-member-functions-to-static)
+    void end(const ComputePass& pass, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& passes = ctx.ppl->custom.computePasses;
+            auto iter = passes.find(renderData.custom);
+            if (iter != passes.end()) {
+                iter->second->endComputePass(ctx.customContext, vertID);
+                return;
+            }
+        }
+
         std::ignore = pass;
+    }
+    void end(const CopyPass& pass, RenderGraph::vertex_descriptor vertID) const {
+    }
+    void end(const MovePass& pass, RenderGraph::vertex_descriptor vertID) const {
+    }
+    void end(const RaytracePass& pass, RenderGraph::vertex_descriptor vertID) const { // NOLINT(readability-convert-member-functions-to-static)
+        std::ignore = pass;
+        std::ignore = vertID;
         // not implemented yet
         CC_EXPECTS(false);
     }
-    void end(const RenderQueue& pass) const {
+    void end(const RenderQueue& pass, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& queues = ctx.ppl->custom.renderQueues;
+            auto iter = queues.find(renderData.custom);
+            if (iter != queues.end()) {
+                iter->second->endRenderQueue(ctx.customContext, vertID);
+                return;
+            }
+        }
+        std::ignore = pass;
     }
-    void end(const SceneData& pass) const {
+    void end(const SceneData& pass, RenderGraph::vertex_descriptor vertID) const {
     }
-    void end(const Blit& pass) const {
+    void end(const Blit& pass, RenderGraph::vertex_descriptor vertID) const {
+        const auto& renderData = get(RenderGraph::DataTag{}, ctx.g, vertID);
+        if (!renderData.custom.empty()) {
+            const auto& commands = ctx.ppl->custom.renderCommands;
+            auto iter = commands.find(renderData.custom);
+            if (iter != commands.end()) {
+                iter->second->endRenderCommand(ctx.customContext, vertID);
+                return;
+            }
+        }
+        std::ignore = pass;
     }
-    void end(const Dispatch& pass) const {
+    void end(const Dispatch& pass, RenderGraph::vertex_descriptor vertID) const {
     }
-    void end(const ccstd::pmr::vector<ClearView>& pass) const {
+    void end(const ccstd::pmr::vector<ClearView>& pass, RenderGraph::vertex_descriptor vertID) const {
     }
-    void end(const gfx::Viewport& pass) const {
+    void end(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
 
     void mountResources(const RasterPass& pass) const {
@@ -1553,8 +1678,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
                     if (profiler && profiler->isEnabled()) {
                         // current pass
                         RenderData user(ctx.scratch);
-                        NativeSetter setter(ctx.lg, user);
-                        setter.setMat4("cc_matProj", ctx.currentProjMatrix);
+                        setMat4Impl(user, ctx.lg, "cc_matProj", ctx.currentProjMatrix);
 
                         auto* renderPass = ctx.currentPass;
                         auto* cmdBuff = ctx.cmdBuff;
@@ -1649,23 +1773,23 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
                 end(subpass, vertID);
             },
             [&](const ComputePass& pass) {
-                end(pass);
+                end(pass, vertID);
                 rearBarriers(vertID);
             },
             [&](const CopyPass& pass) {
-                end(pass);
+                end(pass, vertID);
                 rearBarriers(vertID);
             },
             [&](const MovePass& pass) {
-                end(pass);
+                end(pass, vertID);
                 rearBarriers(vertID);
             },
             [&](const RaytracePass& pass) {
-                end(pass);
+                end(pass, vertID);
                 rearBarriers(vertID);
             },
             [&](const auto& queue) {
-                end(queue);
+                end(queue, vertID);
             });
     }
 
@@ -2144,6 +2268,10 @@ void NativePipeline::executeRenderGraph(const RenderGraph& rg) {
             profilerPerPassDescriptorSets,
             perInstanceDescriptorSets,
             programLibrary,
+            CustomRenderGraphContext{
+                custom.currentContext,
+                &rg,
+            },
             scratch};
 
         RenderGraphVisitor visitor{{}, ctx};

@@ -83,8 +83,8 @@ void CCSurfacesFragmentGetMaterialData(inout SurfacesMaterialData surfaceData)
 
 #if CC_USE_DEBUG_VIEW == CC_SURFACES_DEBUG_VIEW_COMPOSITE_AND_MISC
   if (!IS_DEBUG_VIEW_COMPOSITE_ENABLE_NORMAL_MAP) {
-      surfaceData.worldNormal = FSInput_worldNormal;
-      surfaceData.worldTangent = FSInput_worldTangent;
+      surfaceData.worldNormal = normalize(FSInput_worldNormal);
+      surfaceData.worldTangent = normalize(FSInput_worldTangent);
   }
 #endif
 
@@ -167,7 +167,9 @@ void CCSurfacesGetLightingIntermediateDataTransmitDiffuse(inout LightingIntermed
   lightingDataTD = lightingData;
   // view-depenedent mode make sure normal always back from view direction
   // (-N) + (-V) for smoother result
-  lightingDataTD.N = lightingData.transmitScatteringParams.z > 0.0 ? -lightingData.N : -normalize(lightingData.N+lightingData.V);
+  // ignore normalMap for 3S simulation
+  lightingDataTD.N = lightingData.transmitScatteringParams.z > 0.0 ? -FSInput_worldNormal : -(normalize(FSInput_worldNormal)+lightingData.V);
+  lightingDataTD.N = normalize(lightingDataTD.N);
 }
 #endif
 

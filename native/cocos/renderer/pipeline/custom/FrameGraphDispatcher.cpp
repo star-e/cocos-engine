@@ -1828,7 +1828,7 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
         if (backBuffer) {
             swapchain = backBuffer->swapchain;
         }
-        auto iter = std::find_if(rag.resourceIndex.begin(), rag.resourceIndex.end(), [&](const auto& pair) {
+        auto iter = std::find_if(rag.resourceIndex.begin(), rag.resourceIndex.end(), [&](const auto &pair) {
             const auto &traits = get(ResourceGraph::TraitsTag{}, rg, pair.second);
             bool found{false};
             if (traits.residency == ResourceResidency::BACKBUFFER) {
@@ -2009,7 +2009,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
             }
             const auto &[vis, usage, accessFlag] = getResourceStatus(passType, pair.first, access, tryGotVis, resourceGraph, false);
             ViewStatus viewStatus{pair.first, passType, vis, access, accessFlag, usage};
-            const auto& newName = addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
+            const auto &newName = addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
             viewStatus.name = newName;
             auto lastVertId = dependencyCheck(resourceAccessGraph, vertID, resourceGraph, viewStatus);
             if (lastVertId != INVALID_ID) {
@@ -2140,7 +2140,7 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
     const auto &obj = renderGraph.objects.at(passID);
     const auto parentID = obj.parents.front().target;
     const auto parentRagVert = resourceAccessGraph.passIndex.at(parentID);
-    const auto* parentPass = get_if<RasterPass>(parentID, &renderGraph);
+    const auto *parentPass = get_if<RasterPass>(parentID, &renderGraph);
     CC_EXPECTS(parentPass);
     const auto &uberPass = *parentPass;
 
@@ -2174,9 +2174,9 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
         viewIndex.emplace(view.slotID, name);
     }
 
-    for (const auto &[slotID, name]: viewIndex) {
+    for (const auto &[slotID, name] : viewIndex) {
         const auto &rag = resourceAccessGraph;
-        const auto &resg = resourceGraph; 
+        const auto &resg = resourceGraph;
 
         auto iter = uberPass.rasterViews.find(name);
         const auto &view = pass.rasterViews.at(name);
