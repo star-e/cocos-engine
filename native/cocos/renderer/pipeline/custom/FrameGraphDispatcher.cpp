@@ -2033,10 +2033,10 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
 }
 
 // TODO(Zeqiang): remove barrier in renderpassinfo
-gfx::GeneralBarrier *getGeneralBarrier(gfx::Device *device, const RasterView &view) {
+gfx::GeneralBarrier *getGeneralBarrier(gfx::Device *device, const RasterView& view, gfx::AccessFlagBit prevAccess, gfx::AccessFlagBit nextAccess) {
     if (view.accessType != AccessType::WRITE) { // Input
         return device->getGeneralBarrier({
-            gfx::AccessFlagBit::NONE,
+            gfx::AccessFlagBit::COLOR_ATTACHMENT_READ,
             gfx::AccessFlagBit::COLOR_ATTACHMENT_READ,
         });
     }
@@ -2045,21 +2045,25 @@ gfx::GeneralBarrier *getGeneralBarrier(gfx::Device *device, const RasterView &vi
         auto accessFlagBit = view.attachmentType == AttachmentType::RENDER_TARGET
                                  ? gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE
                                  : gfx::AccessFlagBit::DEPTH_STENCIL_ATTACHMENT_WRITE;
-        return device->getGeneralBarrier({gfx::AccessFlagBit::NONE, accessFlagBit});
+        return device->getGeneralBarrier({accessFlagBit, accessFlagBit});
     }
     return nullptr;
 }
 
-void fillRenderPassInfo(const RasterView &view, const ResourceGraph &resourceGraph, ResourceGraph::vertex_descriptor resID, gfx::RenderPassInfo& rpInfo) {
+void fillRenderPassInfo(const PmrString& name, const RasterView &view, const ResourceGraph &resourceGraph, ResourceGraph::vertex_descriptor resID,
+    gfx::RenderPassInfo& rpInfo, uint32_t index, const ResourceAccessGraph& rag) {
     const auto &viewDesc = get(ResourceGraph::DescTag{}, resourceGraph, resID);
     if (view.attachmentType != AttachmentType::DEPTH_STENCIL) {
-        auto &colorAttachment = rpInfo.colorAttachments.emplace_back();
+        auto &colorAttachment = rpInfo.colorAttachments[index];
         colorAttachment.format = viewDesc.format;
         colorAttachment.loadOp = view.loadOp;
         colorAttachment.storeOp = view.storeOp;
         colorAttachment.sampleCount = viewDesc.sampleCount;
         colorAttachment.isGeneralLayout = gfx::hasFlag(viewDesc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-        colorAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view);
+        auto iter = rag.resourceIndex.find(name);
+        gfx::AccessFlagBit prevAccess = iter == rag.resourceIndex.end() ? gfx::AccessFlagBit::NONE : rag.accessRecord.at(iter->second).currStatus.accessFlag;
+        gfx::AccessFlagBit nextAccess = view.accessType != AccessType::WRITE ? gfx::AccessFlagBit::COLOR_ATTACHMENT_READ : gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE;
+        colorAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
     } else {
         auto &depthStencilAttachment = rpInfo.depthStencilAttachment;
         depthStencilAttachment.format = viewDesc.format;
@@ -2069,7 +2073,10 @@ void fillRenderPassInfo(const RasterView &view, const ResourceGraph &resourceGra
         depthStencilAttachment.stencilStoreOp = view.storeOp;
         depthStencilAttachment.sampleCount = viewDesc.sampleCount;
         depthStencilAttachment.isGeneralLayout = gfx::hasFlag(viewDesc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-        depthStencilAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view);
+        auto iter = rag.resourceIndex.find(name);
+        gfx::AccessFlagBit prevAccess = gfx::AccessFlagBit::DEPTH_STENCIL_ATTACHMENT_READ;
+        gfx::AccessFlagBit nextAccess = view.accessType != AccessType::WRITE ? gfx::AccessFlagBit::DEPTH_STENCIL_ATTACHMENT_READ : gfx::AccessFlagBit::DEPTH_STENCIL_ATTACHMENT_WRITE;
+        depthStencilAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
     }
 }
 
@@ -2089,13 +2096,29 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
     }
 
     auto &rpInfo = resourceAccessGraph.rpInfos.emplace(vertID, gfx::RenderPassInfo{}).first->second;
+    if (!hasSubpass) {
+        auto size = std::count_if(pass.rasterViews.begin(), pass.rasterViews.end(), [](const auto &pair) {
+            return pair.second.attachmentType != AttachmentType::DEPTH_STENCIL;
+        });
+        rpInfo.colorAttachments.resize(size);
+    } else {
+        PmrFlatSet<PmrString> viewSet(resourceAccessGraph.get_allocator());
+        for (const auto& subpass : pass.subpassGraph.subpasses) {
+            for (const auto &pair : subpass.rasterViews) {
+                if (pair.second.attachmentType != AttachmentType::DEPTH_STENCIL) {
+                    viewSet.emplace(pair.first);
+                }
+            }
+        }
+        rpInfo.colorAttachments.resize(viewSet.size());
+    }
 
     uint32_t index = 0;
     // initial layout(accessrecord.laststatus) and final layout(accessrecord.currstatus) can be filled here
     for (const auto &[slotID, name] : viewIndex) {
         const auto resID = vertex(name, resourceGraph);
         const auto &view = pass.rasterViews.at(name);
-        fillRenderPassInfo(view, resourceGraph, resID, rpInfo);
+        fillRenderPassInfo(name, view, resourceGraph, resID, rpInfo, index, resourceAccessGraph);
         if (!hasSubpass) {
             if (rpInfo.subpasses.empty()) {
                 rpInfo.subpasses.emplace_back();
@@ -2204,10 +2227,15 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             }
         }
 
+        if (dsIndex != INVALID_ID) {
+            subpassInfo.depthStencil = rpInfo.colorAttachments.size();
+        }
+
         if (iter == node.attachmentStatus.end()) {
+            auto index = dsIndex == INVALID_ID ? node.attachmentStatus.size() : node.attachmentStatus.size() - 1;
+            fillRenderPassInfo(name, view, resourceGraph, resID, rpInfo, index, rag);
             auto curIter = std::find_if(head->attachmentStatus.begin(), head->attachmentStatus.end(), findByResID);
             node.attachmentStatus.emplace_back(*curIter);
-            fillRenderPassInfo(view, resourceGraph, resID, rpInfo);
         }
     }
 }

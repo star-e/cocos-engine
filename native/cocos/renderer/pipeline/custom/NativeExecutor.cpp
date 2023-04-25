@@ -611,13 +611,9 @@ gfx::DescriptorSet* initDescriptorSet(
                 break;
             case DescriptorTypeOrder::INPUT_ATTACHMENT: {
                 CC_EXPECTS(newSet);
-                PmrFlatMap<ResourceGraph::vertex_descriptor, NameLocalID> bindingOrderSet(resourceIndex.get_allocator());
-                for (const auto& [localID, resID] : resourceIndex) {
-                    bindingOrderSet.emplace(resID, localID);
-                }
-                using DescriptorDataRef = std::reference_wrapper<DescriptorData>;
+                using DescriptorDataRef = std::reference_wrapper<const DescriptorData>;
                 ccstd::pmr::vector<DescriptorDataRef> descriptors(resourceIndex.get_allocator());
-                for (auto& d : descriptors) {
+                for (auto& d : block.descriptors) {
                     descriptors.emplace_back(std::ref(d));
                 }
                 std::sort(descriptors.begin(), descriptors.end(), [&](const DescriptorDataRef& aRef, const DescriptorDataRef& bRef) {
