@@ -201,7 +201,6 @@ ShaderProgramData &buildProgramData(
     auto shaderID = static_cast<uint32_t>(phase.shaderPrograms.size());
     phase.shaderIndex.emplace(programName, shaderID);
     auto &programData = phase.shaderPrograms.emplace_back();
-
     // build per-batch
     {
         auto res = programData.layout.descriptorSets.emplace(
@@ -828,6 +827,11 @@ std::pair<uint32_t, uint32_t> findBinding(
         }
     }
     for (const auto &v : shaderInfo.images) {
+        if (v.name == name) {
+            return std::pair{v.set, v.binding};
+        }
+    }
+    for (const auto &v : shaderInfo.subpassInputs) {
         if (v.name == name) {
             return std::pair{v.set, v.binding};
         }
@@ -1495,6 +1499,8 @@ ProgramProxy *NativeProgramLibrary::getProgramVariant(
         info.shaderInfo.stages[0].source = prefix + src->vert;
         info.shaderInfo.stages[1].source = prefix + src->frag;
     }
+
+    info.shaderInfo.subpassInputs = getSubpassInputs(programInfo.subpassInputs);
 
     // strip out the active attributes only, instancing depend on this
     info.shaderInfo.attributes = getActiveAttributes(programInfo, info.attributes, defines);

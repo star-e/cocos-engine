@@ -237,6 +237,22 @@ ccstd::vector<gfx::Attribute> getActiveAttributes(
     return getActiveAttributesImpl(tmpl, gfxAttributes, defines);
 }
 
+ccstd::vector<gfx::UniformInputAttachment> getSubpassInputs(const ccstd::vector<IInputAttachmentInfo>& inputInfo) {
+    ccstd::vector<gfx::UniformInputAttachment> inputs{};
+    for (const auto &info : inputInfo) {
+        inputs.emplace_back(
+            gfx::UniformInputAttachment{
+                info.set,
+                info.binding,
+                info.name,
+                info.count,
+                // info.stageFlag -> input.flttened
+            }
+        );
+    }
+    return inputs;
+}
+
 ccstd::string getShaderInstanceName(const ccstd::string &name, const ccstd::vector<IMacroInfo> &macros) {
     std::stringstream ret;
     ret << name;
