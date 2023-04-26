@@ -106,6 +106,12 @@ struct ResourceAccessNode {
     struct ResourceAccessNode* nextSubpass{nullptr};
 };
 
+struct FGRenderPassInfo {
+    std::vector<std::pair<gfx::AccessFlags/*prev*/,gfx::AccessFlags/*next*/>> colorAccesses;
+    std::pair<gfx::AccessFlags/*prev*/,gfx::AccessFlags/*next*/> dsAccess;
+    gfx::RenderPassInfo rpInfo;
+};
+
 struct ResourceAccessGraph {
     using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
     allocator_type get_allocator() const noexcept { // NOLINT
@@ -246,7 +252,7 @@ struct ResourceAccessGraph {
     PmrFlatMap<uint32_t, ResourceTransition> accessRecord;
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
-    PmrFlatMap<vertex_descriptor, gfx::RenderPassInfo> rpInfos;
+    PmrFlatMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
 };
 
 struct RelationGraph {
