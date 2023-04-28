@@ -671,6 +671,7 @@ export function buildShadowPasses (cameraName: string, camera: Camera, ppl: Pipe
                 camera, mainLight, 0, mapWidth, mapHeight);
         } else {
             const csmLevel = pipeline.pipelineSceneData.csmSupported ? mainLight.csmLevel : 1;
+            cameraInfo.mainLightShadowNames[0] = `MainLightShadow${cameraName}`;
             for (let i = 0; i < csmLevel; i++) {
                 buildShadowPass(cameraInfo.mainLightShadowNames[0], ppl,
                     camera, mainLight, i, mapWidth, mapHeight);
