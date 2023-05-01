@@ -915,6 +915,14 @@ void overwriteShaderSourceBinding(
             newLayout.append(std::to_string(set));
             newLayout.append(", binding = ");
             newLayout.append(std::to_string(binding));
+
+            auto inputIndex = prevLayout.find("input_attachment_index");
+            if (inputIndex != ccstd::string::npos) {
+                newLayout.append(", ");
+                auto endIndex = prevLayout.find_first_of(",)", inputIndex + 1);
+                newLayout.append(prevLayout.data(), inputIndex, endIndex - inputIndex);
+            }
+
             newLayout.append(")");
 
             // replace layout expression
@@ -934,14 +942,6 @@ void overwriteShaderSourceBinding(
         end += offset;
         // find next uniform
         pos = source.find(" uniform ", end);
-        auto exceptionPos = source.find(" uniform subpassInput ", end);
-        if (exceptionPos != ccstd::string::npos) {
-            while (pos == exceptionPos) {
-                end += strlen(" uniform subpassInput ");
-                pos = source.find(" uniform ", end);
-                exceptionPos = source.find(" uniform subpassInput ", end);
-            }
-        }
     }
 }
 
