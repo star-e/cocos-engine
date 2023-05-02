@@ -579,7 +579,7 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
     } else {
         manuallyDeduce = dependencyCount == 0;
     }
-    if (0) {
+    if (manuallyDeduce) {
         // offset = 0U;
         ccstd::unordered_set<const GFXObject *> subpassExternalFilter;
 

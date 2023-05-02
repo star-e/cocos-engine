@@ -610,26 +610,7 @@ gfx::DescriptorSet* initDescriptorSet(
                 }
                 break;
             case DescriptorTypeOrder::INPUT_ATTACHMENT: {
-                CC_EXPECTS(newSet);
-                using DescriptorDataRef = std::reference_wrapper<const DescriptorData>;
-                ccstd::pmr::vector<DescriptorDataRef> descriptors(resourceIndex.get_allocator());
-                for (auto& d : block.descriptors) {
-                    descriptors.emplace_back(std::ref(d));
-                }
-                std::sort(descriptors.begin(), descriptors.end(), [&](const DescriptorDataRef& aRef, const DescriptorDataRef& bRef) {
-                    const auto& a = aRef.get();
-                    const auto& b = bRef.get();
-                    auto aIter = resourceIndex.find(a.descriptorID);
-                    auto bIter = resourceIndex.find(b.descriptorID);
-                    if (aIter != resourceIndex.end() && bIter != resourceIndex.end()) {
-                        return aIter->second < bIter->second;
-                    } else {
-                        return a.descriptorID < b.descriptorID;
-                    }
-                });
-
-                for (auto& dRef : descriptors) {
-                    auto& d = dRef.get();
+                for (auto d : block.descriptors) {
                     CC_EXPECTS(d.count == 1);
                     auto iter = resourceIndex.find(d.descriptorID);
                     if (iter != resourceIndex.end()) {

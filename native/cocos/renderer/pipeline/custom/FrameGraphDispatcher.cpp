@@ -1843,32 +1843,6 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
     const auto &traits = get(ResourceGraph::TraitsTag{}, rg, rescID);
     const PmrString *resName = &name;
 
-    // implicit move
-    if (traits.residency == ResourceResidency::BACKBUFFER) {
-        const auto *backBuffer = get_if<RenderSwapchain>(rescID, &rg);
-        const gfx::Swapchain *swapchain = nullptr;
-        if (backBuffer) {
-            swapchain = backBuffer->swapchain;
-        }
-        auto iter = std::find_if(rag.resourceIndex.begin(), rag.resourceIndex.end(), [&](const auto &pair) {
-            const auto &traits = get(ResourceGraph::TraitsTag{}, rg, pair.second);
-            bool found{false};
-            if (traits.residency == ResourceResidency::BACKBUFFER) {
-                const auto *back = get_if<RenderSwapchain>(pair.second, &rg);
-                if (back) {
-                    found = back->swapchain == swapchain;
-                }
-            }
-            return found;
-        });
-
-        if (iter != rag.resourceIndex.end()) {
-            // aliasing?
-            rag.resourceIndex.emplace(*resName, iter->second);
-            resName = &iter->first;
-            rescID = iter->second;
-        }
-    }
     Range range;
     if (resourceDesc.dimension == ResourceDimension::BUFFER) {
         range = BufferRange{0, resourceDesc.width};
