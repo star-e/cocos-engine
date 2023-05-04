@@ -239,6 +239,7 @@ ccstd::vector<gfx::Attribute> getActiveAttributes(
 
 ccstd::vector<gfx::UniformInputAttachment> getSubpassInputs(const ccstd::vector<IInputAttachmentInfo>& inputInfo) {
     ccstd::vector<gfx::UniformInputAttachment> inputs{};
+    inputs.reserve(inputInfo.size());
     for (const auto &info : inputInfo) {
         inputs.emplace_back(
             gfx::UniformInputAttachment{

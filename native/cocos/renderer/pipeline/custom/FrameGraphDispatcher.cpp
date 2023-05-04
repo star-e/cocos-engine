@@ -1713,7 +1713,7 @@ bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph &graph) {
 }
 
 bool isTransitionStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs) {
-    return (!(isReadOnlyAccess(lhs.accessFlag) && isReadOnlyAccess(rhs.accessFlag)));
+    return !(isReadOnlyAccess(lhs.accessFlag) && isReadOnlyAccess(rhs.accessFlag));
 }
 
 auto mapTextureFlags(ResourceFlags flags) {
@@ -1841,7 +1841,7 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
     uint32_t rescID = rg.valueIndex.at(name);
     const auto &resourceDesc = get(ResourceGraph::DescTag{}, rg, rescID);
     const auto &traits = get(ResourceGraph::TraitsTag{}, rg, rescID);
-    const PmrString *resName = &name;
+    // const PmrString *resName = &name;
 
     Range range;
     if (resourceDesc.dimension == ResourceDimension::BUFFER) {
@@ -1850,10 +1850,10 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
         range = TextureRange{0, 1, 0, resourceDesc.mipLevels};
     }
 
-    CC_EXPECTS(rg.valueIndex.find(*resName) != rg.valueIndex.end());
-    if (std::find(rag.resourceNames.begin(), rag.resourceNames.end(), *resName) == rag.resourceNames.end()) {
-        rag.resourceIndex.emplace(*resName, rescID);
-        rag.resourceNames.emplace_back(*resName);
+    CC_EXPECTS(rg.valueIndex.find(name) != rg.valueIndex.end());
+    if (std::find(rag.resourceNames.begin(), rag.resourceNames.end(), name) == rag.resourceNames.end()) {
+        rag.resourceIndex.emplace(name, rescID);
+        rag.resourceNames.emplace_back(name);
     }
 
     node.attachmentStatus.emplace_back(AccessStatus{
@@ -1865,7 +1865,7 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
         usage,
         range,
     });
-    return *resName;
+    return name;
 }
 
 AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGraph &rg, const ViewStatus &viewStatus) {
@@ -1978,8 +1978,7 @@ bool checkRasterViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, Pa
         tryGotVis |= pair.second.shaderStageFlags;
         const auto &[vis, usage, accessFlag] = getResourceStatus(passType, pair.first, access, tryGotVis, resourceGraph, true);
         ViewStatus viewStatus{pair.first, passType, vis, access, accessFlag, usage};
-        const auto &newName = addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
-        viewStatus.name = newName;
+        addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
         auto lastVertId = dependencyCheck(resourceAccessGraph, vertID, resourceGraph, viewStatus);
         if (lastVertId != INVALID_ID && lastVertId != vertID) {
             tryAddEdge(lastVertId, vertID, resourceAccessGraph);
@@ -2009,8 +2008,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
             }
             const auto &[vis, usage, accessFlag] = getResourceStatus(passType, pair.first, access, tryGotVis, resourceGraph, false);
             ViewStatus viewStatus{pair.first, passType, vis, access, accessFlag, usage};
-            const auto &newName = addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
-            viewStatus.name = newName;
+            addAccessStatus(resourceAccessGraph, resourceGraph, node, viewStatus);
             auto lastVertId = dependencyCheck(resourceAccessGraph, vertID, resourceGraph, viewStatus);
             if (lastVertId != INVALID_ID) {
                 tryAddEdge(lastVertId, vertID, resourceAccessGraph);
@@ -2026,8 +2024,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
     return dependent;
 }
 
-void fillRenderPassInfo(const RasterView &view, gfx::AccessFlags prevAccess, gfx::AccessFlags nextAccess,
-                        gfx::RenderPassInfo &rpInfo, uint32_t index, const ResourceDesc& viewDesc) {
+void fillRenderPassInfo(const RasterView &view, gfx::RenderPassInfo &rpInfo, uint32_t index, const ResourceDesc& viewDesc) {
 
     if (view.attachmentType != AttachmentType::DEPTH_STENCIL) {
         auto &colorAttachment = rpInfo.colorAttachments[index];
@@ -2121,7 +2118,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
                 fgRenderpassInfo.dsAccess.first = prevAccess;
                 fgRenderpassInfo.dsAccess.second = nextAccess;
             }
-            fillRenderPassInfo(view, prevAccess, nextAccess, rpInfo, index, viewDesc);
+            fillRenderPassInfo(view, rpInfo, index, viewDesc);
         }
     } else {
         PmrFlatSet<PmrString> viewSet(resourceAccessGraph.get_allocator());
@@ -2242,13 +2239,39 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             } else {
                 fgRenderpassInfo.colorAccesses[slot].first = prevAccess;
             }
-            fillRenderPassInfo(view, prevAccess, nextAccess, rpInfo, slot, viewDesc);
+            fillRenderPassInfo(view, rpInfo, slot, viewDesc);
         }
     }
 }
 
 void processComputeSubpass(const Graphs &graphs, uint32_t passID, const ComputeSubpass &pass) {
     const auto &[renderGraph, resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    const auto &obj = renderGraph.objects.at(passID);
+    const auto parentID = obj.parents.front().target;
+    const auto parentRagVert = resourceAccessGraph.passIndex.at(parentID);
+    const auto *parentPass = get_if<ComputePass>(parentID, &renderGraph);
+    CC_EXPECTS(parentPass);
+    const auto &rag = resourceAccessGraph;
+    const auto &resg = resourceGraph;
+    const auto &uberPass = *parentPass;
+
+    resourceAccessGraph.passIndex[passID] = parentRagVert;
+
+    auto &node = get(RAG::AccessNodeTag{}, resourceAccessGraph, parentRagVert);
+
+    auto *lastNode = &node;
+    while (lastNode->nextSubpass) {
+        lastNode = lastNode->nextSubpass;
+    }
+    lastNode->nextSubpass = new ResourceAccessNode;
+    auto *head = lastNode->nextSubpass;
+
+    bool dependent = checkComputeViews(graphs, parentRagVert, passID, PassType::COMPUTE, *head, pass.computeViews);
+
+    if (!dependent) {
+        tryAddEdge(EXPECT_START_ID, parentRagVert, resourceAccessGraph);
+        tryAddEdge(EXPECT_START_ID, parentRagVert, relationGraph);
+    }
 }
 
 void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass) {
