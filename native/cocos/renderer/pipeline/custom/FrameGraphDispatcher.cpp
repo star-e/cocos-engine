@@ -1797,7 +1797,7 @@ auto getResourceStatus(PassType passType, const PmrString &name, gfx::MemoryAcce
             if (shadingRateAttachment) texUsage |= gfx::TextureUsage::SHADING_RATE;
         } else {
             if (memAccess == gfx::MemoryAccess::READ_ONLY) {
-                if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE) {
+                if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE && rasterized) {
                     texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::INPUT_ATTACHMENT));
                 } else {
                     texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::SAMPLED | gfx::TextureUsage::STORAGE | gfx::TextureUsage::SHADING_RATE));
