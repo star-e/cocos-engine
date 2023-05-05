@@ -146,6 +146,138 @@ void NativeSetter::setMat4ArrayElem(const ccstd::string &name, const cc::Mat4 &m
 
 namespace {
 
+uint8_t getCombineSignY(gfx::Device *device) {
+    // 0: vk, 1: metal, 2: none, 3: gl-like
+    static int8_t combineSignY{-1};
+    if (combineSignY < 0) {
+        const float screenSpaceSignY = device->getCapabilities().screenSpaceSignY * 0.5F + 0.5F;
+        const float clipSpaceSignY = device->getCapabilities().clipSpaceSignY * 0.5F + 0.5F;
+        combineSignY = static_cast<int8_t>(static_cast<int>(screenSpaceSignY) << 1 | static_cast<int>(clipSpaceSignY));
+    }
+    return static_cast<uint8_t>(combineSignY);
+}
+
+void setCameraUBOValues(
+    const scene::Camera &camera,
+    const LayoutGraphData &layoutGraph,
+    const pipeline::PipelineSceneData &cfg,
+    const scene::DirectionalLight *mainLight,
+    RenderData &data) {
+    CC_EXPECTS(camera.getNode());
+    CC_EXPECTS(cfg.getSkybox());
+    const auto &skybox = *cfg.getSkybox();
+    const auto &shadingScale = cfg.getShadingScale();
+    // Camera
+    setMat4Impl(data, layoutGraph, "cc_matView", camera.getMatView());
+    setMat4Impl(data, layoutGraph, "cc_matViewInv", camera.getNode()->getWorldMatrix());
+    setMat4Impl(data, layoutGraph, "cc_matProj", camera.getMatProj());
+    setMat4Impl(data, layoutGraph, "cc_matProjInv", camera.getMatProjInv());
+    setMat4Impl(data, layoutGraph, "cc_matViewProj", camera.getMatViewProj());
+    setMat4Impl(data, layoutGraph, "cc_matViewProjInv", camera.getMatViewProjInv());
+    setVec4Impl(data, layoutGraph, "cc_cameraPos",
+                Vec4(
+                    camera.getPosition().x,
+                    camera.getPosition().y,
+                    camera.getPosition().z,
+                    getCombineSignY(cc::gfx::Device::getInstance())));
+    setVec4Impl(data, layoutGraph, "cc_surfaceTransform",
+                Vec4(
+                    static_cast<float>(camera.getSurfaceTransform()),
+                    0.0F,
+                    cosf(static_cast<float>(mathutils::toRadian(skybox.getRotationAngle()))),
+                    sinf(static_cast<float>(mathutils::toRadian(skybox.getRotationAngle())))));
+    setVec4Impl(data, layoutGraph, "cc_screenScale",
+                Vec4(
+                    cfg.getShadingScale(),
+                    cfg.getShadingScale(),
+                    1.0F / cfg.getShadingScale(),
+                    1.0F / cfg.getShadingScale()));
+    setVec4Impl(data, layoutGraph, "cc_exposure",
+                Vec4(
+                    camera.getExposure(),
+                    1.0F / camera.getExposure(),
+                    cfg.isHDR() ? 1.0F : 0.0F,
+                    1.0F / scene::Camera::getStandardExposureValue()));
+
+    if (mainLight) {
+        const auto &shadowInfo = *cfg.getShadows();
+        const bool shadowEnable = (mainLight->isShadowEnabled() &&
+                                   shadowInfo.getType() == scene::ShadowType::SHADOW_MAP);
+        setVec4Impl(data, layoutGraph, "cc_mainLitDir",
+                    Vec4(
+                        mainLight->getDirection().x,
+                        mainLight->getDirection().y,
+                        mainLight->getDirection().z,
+                        shadowEnable));
+        auto r = mainLight->getColor().x;
+        auto g = mainLight->getColor().y;
+        auto b = mainLight->getColor().z;
+        if (mainLight->isUseColorTemperature()) {
+            r *= mainLight->getColorTemperatureRGB().x;
+            g *= mainLight->getColorTemperatureRGB().y;
+            b *= mainLight->getColorTemperatureRGB().z;
+        }
+        auto w = mainLight->getIlluminance();
+        if (cfg.isHDR()) {
+            w *= camera.getExposure();
+        }
+        setVec4Impl(data, layoutGraph, "cc_mainLitColor", Vec4(r, g, b, w));
+    } else {
+        setVec4Impl(data, layoutGraph, "cc_mainLitDir", Vec4(0, 0, 1, 0));
+        setVec4Impl(data, layoutGraph, "cc_mainLitColor", Vec4(0, 0, 0, 0));
+    }
+
+    CC_EXPECTS(cfg.getAmbient());
+    auto &ambient = *cfg.getAmbient();
+    auto &skyColor = ambient.getSkyColor();
+    if (cfg.isHDR()) {
+        skyColor.w = ambient.getSkyIllum() * camera.getExposure();
+    } else {
+        skyColor.w = ambient.getSkyIllum();
+    }
+    setVec4Impl(data, layoutGraph, "cc_ambientSky",
+                Vec4(skyColor.x, skyColor.y, skyColor.z, skyColor.w));
+    setVec4Impl(data, layoutGraph, "cc_ambientGround",
+                Vec4(
+                    ambient.getGroundAlbedo().x,
+                    ambient.getGroundAlbedo().y,
+                    ambient.getGroundAlbedo().z,
+                    skybox.getEnvmap() ? static_cast<float>(skybox.getEnvmap()->mipmapLevel()) : 1.0F));
+
+    CC_EXPECTS(cfg.getFog());
+    const auto &fog = *cfg.getFog();
+
+    const auto &colorTempRGB = fog.getColorArray();
+    setVec4Impl(data, layoutGraph, "cc_fogColor",
+                Vec4(colorTempRGB.x, colorTempRGB.y, colorTempRGB.z, colorTempRGB.z));
+    setVec4Impl(data, layoutGraph, "cc_fogBase",
+                Vec4(fog.getFogStart(), fog.getFogEnd(), fog.getFogDensity(), 0.0F));
+    setVec4Impl(data, layoutGraph, "cc_fogAdd",
+                Vec4(fog.getFogTop(), fog.getFogRange(), fog.getFogAtten(), 0.0F));
+    setVec4Impl(data, layoutGraph, "cc_nearFar",
+                Vec4(camera.getNearClip(), camera.getFarClip(), 0.0F, 0.0F));
+    setVec4Impl(data, layoutGraph, "cc_viewPort",
+                Vec4(
+                    camera.getViewport().x,
+                    camera.getViewport().y,
+                    shadingScale * static_cast<float>(camera.getWindow()->getWidth()) * camera.getViewport().z,
+                    shadingScale * static_cast<float>(camera.getWindow()->getHeight()) * camera.getViewport().w));
+}
+
+} // namespace
+
+void NativeSetter::setCamera(const scene::Camera *camera) {
+    auto &data = get(RenderGraph::DataTag{}, *renderGraph, nodeID);
+
+    setCameraUBOValues(
+        *camera,
+        *layoutGraph,
+        *pipelineRuntime->getPipelineSceneData(),
+        camera->getScene()->getMainLight(), data);
+}
+
+namespace {
+
 template <class Tag>
 void addRenderTargetImpl(
     RenderGraph &graph,
@@ -262,34 +394,38 @@ void NativeRasterPassBuilder::addTexture(const ccstd::string &name, const ccstd:
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             AccessType::READ,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            ClearValueType::NONE,
+            ClearValue{},
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeRasterPassBuilder::addStorageBuffer(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeRasterPassBuilder::addStorageBuffer(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeRasterPassBuilder::addStorageImage(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeRasterPassBuilder::addStorageImage(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
@@ -502,34 +638,38 @@ void NativeRasterSubpassBuilder::addTexture(const ccstd::string &name, const ccs
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             AccessType::READ,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            ClearValueType::NONE,
+            ClearValue{},
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeRasterSubpassBuilder::addStorageBuffer(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeRasterSubpassBuilder::addStorageBuffer(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeRasterSubpassBuilder::addStorageImage(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeRasterSubpassBuilder::addStorageImage(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
@@ -652,34 +792,38 @@ void NativeComputeSubpassBuilder::addTexture(const ccstd::string &name, const cc
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             AccessType::READ,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            ClearValueType::NONE,
+            ClearValue{},
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeComputeSubpassBuilder::addStorageBuffer(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeComputeSubpassBuilder::addStorageBuffer(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeComputeSubpassBuilder::addStorageImage(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeComputeSubpassBuilder::addStorageImage(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
@@ -716,124 +860,6 @@ ComputeQueueBuilder *NativeComputeSubpassBuilder::addQueue(const ccstd::string &
 }
 
 namespace {
-
-uint8_t getCombineSignY(gfx::Device *device) {
-    // 0: vk, 1: metal, 2: none, 3: gl-like
-    static int8_t combineSignY{-1};
-    if (combineSignY < 0) {
-        const float screenSpaceSignY = device->getCapabilities().screenSpaceSignY * 0.5F + 0.5F;
-        const float clipSpaceSignY = device->getCapabilities().clipSpaceSignY * 0.5F + 0.5F;
-        combineSignY = static_cast<int8_t>(static_cast<int>(screenSpaceSignY) << 1 | static_cast<int>(clipSpaceSignY));
-    }
-    return static_cast<uint8_t>(combineSignY);
-}
-
-void setCameraUBOValues(
-    const scene::Camera &camera,
-    const LayoutGraphData &layoutGraph,
-    const pipeline::PipelineSceneData &cfg,
-    const scene::DirectionalLight *mainLight,
-    RenderData &data) {
-    CC_EXPECTS(camera.getNode());
-    CC_EXPECTS(cfg.getSkybox());
-    const auto &skybox = *cfg.getSkybox();
-    const auto &shadingScale = cfg.getShadingScale();
-    // Camera
-    setMat4Impl(data, layoutGraph, "cc_matView", camera.getMatView());
-    setMat4Impl(data, layoutGraph, "cc_matViewInv", camera.getNode()->getWorldMatrix());
-    setMat4Impl(data, layoutGraph, "cc_matProj", camera.getMatProj());
-    setMat4Impl(data, layoutGraph, "cc_matProjInv", camera.getMatProjInv());
-    setMat4Impl(data, layoutGraph, "cc_matViewProj", camera.getMatViewProj());
-    setMat4Impl(data, layoutGraph, "cc_matViewProjInv", camera.getMatViewProjInv());
-    setVec4Impl(data, layoutGraph, "cc_cameraPos",
-                Vec4(
-                    camera.getPosition().x,
-                    camera.getPosition().y,
-                    camera.getPosition().z,
-                    getCombineSignY(cc::gfx::Device::getInstance())));
-    setVec4Impl(data, layoutGraph, "cc_surfaceTransform",
-                Vec4(
-                    static_cast<float>(camera.getSurfaceTransform()),
-                    0.0F,
-                    cosf(static_cast<float>(mathutils::toRadian(skybox.getRotationAngle()))),
-                    sinf(static_cast<float>(mathutils::toRadian(skybox.getRotationAngle())))));
-    setVec4Impl(data, layoutGraph, "cc_screenScale",
-                Vec4(
-                    cfg.getShadingScale(),
-                    cfg.getShadingScale(),
-                    1.0F / cfg.getShadingScale(),
-                    1.0F / cfg.getShadingScale()));
-    setVec4Impl(data, layoutGraph, "cc_exposure",
-                Vec4(
-                    camera.getExposure(),
-                    1.0F / camera.getExposure(),
-                    cfg.isHDR() ? 1.0F : 0.0F,
-                    1.0F / scene::Camera::getStandardExposureValue()));
-
-    if (mainLight) {
-        const auto &shadowInfo = *cfg.getShadows();
-        const bool shadowEnable = (mainLight->isShadowEnabled() &&
-                                   shadowInfo.getType() == scene::ShadowType::SHADOW_MAP);
-        setVec4Impl(data, layoutGraph, "cc_mainLitDir",
-                    Vec4(
-                        mainLight->getDirection().x,
-                        mainLight->getDirection().y,
-                        mainLight->getDirection().z,
-                        shadowEnable));
-        auto r = mainLight->getColor().x;
-        auto g = mainLight->getColor().y;
-        auto b = mainLight->getColor().z;
-        if (mainLight->isUseColorTemperature()) {
-            r *= mainLight->getColorTemperatureRGB().x;
-            g *= mainLight->getColorTemperatureRGB().y;
-            b *= mainLight->getColorTemperatureRGB().z;
-        }
-        auto w = mainLight->getIlluminance();
-        if (cfg.isHDR()) {
-            w *= camera.getExposure();
-        }
-        setVec4Impl(data, layoutGraph, "cc_mainLitColor", Vec4(r, g, b, w));
-    } else {
-        setVec4Impl(data, layoutGraph, "cc_mainLitDir", Vec4(0, 0, 1, 0));
-        setVec4Impl(data, layoutGraph, "cc_mainLitColor", Vec4(0, 0, 0, 0));
-    }
-
-    CC_EXPECTS(cfg.getAmbient());
-    auto &ambient = *cfg.getAmbient();
-    auto &skyColor = ambient.getSkyColor();
-    if (cfg.isHDR()) {
-        skyColor.w = ambient.getSkyIllum() * camera.getExposure();
-    } else {
-        skyColor.w = ambient.getSkyIllum();
-    }
-    setVec4Impl(data, layoutGraph, "cc_ambientSky",
-                Vec4(skyColor.x, skyColor.y, skyColor.z, skyColor.w));
-    setVec4Impl(data, layoutGraph, "cc_ambientGround",
-                Vec4(
-                    ambient.getGroundAlbedo().x,
-                    ambient.getGroundAlbedo().y,
-                    ambient.getGroundAlbedo().z,
-                    skybox.getEnvmap() ? static_cast<float>(skybox.getEnvmap()->mipmapLevel()) : 1.0F));
-
-    CC_EXPECTS(cfg.getFog());
-    const auto &fog = *cfg.getFog();
-
-    const auto &colorTempRGB = fog.getColorArray();
-    setVec4Impl(data, layoutGraph, "cc_fogColor",
-                Vec4(colorTempRGB.x, colorTempRGB.y, colorTempRGB.z, colorTempRGB.z));
-    setVec4Impl(data, layoutGraph, "cc_fogBase",
-                Vec4(fog.getFogStart(), fog.getFogEnd(), fog.getFogDensity(), 0.0F));
-    setVec4Impl(data, layoutGraph, "cc_fogAdd",
-                Vec4(fog.getFogTop(), fog.getFogRange(), fog.getFogAtten(), 0.0F));
-    setVec4Impl(data, layoutGraph, "cc_nearFar",
-                Vec4(camera.getNearClip(), camera.getFarClip(), 0.0F, 0.0F));
-    setVec4Impl(data, layoutGraph, "cc_viewPort",
-                Vec4(
-                    camera.getViewport().x,
-                    camera.getViewport().y,
-                    shadingScale * static_cast<float>(camera.getWindow()->getWidth()) * camera.getViewport().z,
-                    shadingScale * static_cast<float>(camera.getWindow()->getHeight()) * camera.getViewport().w));
-}
 
 void setShadowUBOLightView(
     gfx::Device *device,
@@ -1187,18 +1213,18 @@ void NativeRasterQueueBuilder::addSceneOfCamera(
         data);
 }
 
-void NativeRasterQueueBuilder::addScene(const ccstd::string &name, SceneFlags sceneFlags) {
-    SceneData scene(renderGraph->get_allocator());
-    scene.name = name;
-    scene.flags = sceneFlags;
+void NativeRasterQueueBuilder::addScene(const scene::RenderScene *scene, SceneFlags sceneFlags) {
+    SceneData data(renderGraph->get_allocator());
+    data.scenes.emplace_back(scene);
+    data.flags = sceneFlags;
 
     auto sceneID = addVertex(
         SceneTag{},
-        std::forward_as_tuple(name.c_str()),
+        std::forward_as_tuple("Scene"),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
         std::forward_as_tuple(),
-        std::forward_as_tuple(std::move(scene)),
+        std::forward_as_tuple(std::move(data)),
         *renderGraph, nodeID);
     CC_ENSURES(sceneID != RenderGraph::null_vertex());
 }
@@ -1434,34 +1460,38 @@ void NativeComputePassBuilder::addTexture(const ccstd::string &name, const ccstd
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             AccessType::READ,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            ClearValueType::NONE,
+            ClearValue{},
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeComputePassBuilder::addStorageBuffer(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeComputePassBuilder::addStorageBuffer(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
 
-void NativeComputePassBuilder::addStorageImage(const ccstd::string &name, AccessType accessType, const ccstd::string &slotName) {
+void NativeComputePassBuilder::addStorageImage(
+    const ccstd::string &name, AccessType accessType, const ccstd::string &slotName,
+    ClearValueType clearType, const ClearValue &clearValue) {
     addComputeView(
         name,
         ComputeView{
             ccstd::pmr::string(slotName, renderGraph->get_allocator()),
             accessType,
             gfx::ClearFlagBit::NONE,
-            gfx::Color{},
-            ClearValueType::FLOAT_TYPE,
+            clearType,
+            clearValue,
             gfx::ShaderStageFlagBit::NONE,
             renderGraph->get_allocator()});
 }
@@ -1622,7 +1652,7 @@ struct RenderGraphPrintVisitor : boost::dfs_visitor<> {
                                 INDENT();
                                 OSS << "accessType: " << getName(computeView.accessType) << ";\n";
                                 OSS << "clearFlags: " << getName(computeView.clearFlags) << ";\n";
-                                const auto &c = computeView.clearColor;
+                                const auto &c = computeView.clearValue;
                                 if (hasAnyFlags(computeView.clearFlags, gfx::ClearFlagBit::COLOR)) {
                                     OSS << "clearColor: [" << c.x << ", " << c.y << ", " << c.z << ", " << c.z << "];\n";
                                 } else if (hasAnyFlags(computeView.clearFlags, gfx::ClearFlagBit::DEPTH_STENCIL)) {
@@ -1654,7 +1684,7 @@ struct RenderGraphPrintVisitor : boost::dfs_visitor<> {
                                 INDENT();
                                 OSS << "accessType: " << getName(computeView.accessType) << ";\n";
                                 OSS << "clearFlags: " << getName(computeView.clearFlags) << ";\n";
-                                const auto &c = computeView.clearColor;
+                                const auto &c = computeView.clearValue;
                                 if (hasAnyFlags(computeView.clearFlags, gfx::ClearFlagBit::COLOR)) {
                                     OSS << "clearColor: [" << c.x << ", " << c.y << ", " << c.z << ", " << c.z << "];\n";
                                 } else if (hasAnyFlags(computeView.clearFlags, gfx::ClearFlagBit::DEPTH_STENCIL)) {

@@ -29,7 +29,7 @@ import { Color, Buffer, DescriptorSetLayout, Device, Feature, Format, FormatFeat
 import { Mat4, Quat, toRadian, Vec2, Vec3, Vec4, assert, macro, cclegacy } from '../../core';
 import { AccessType, AttachmentType, ComputeView, CopyPair, LightInfo, LightingMode, MovePair, QueueHint, RasterView, ResourceDimension, ResourceFlags, ResourceResidency, SceneFlags, UpdateFrequency } from './types';
 import { Blit, ClearView, ComputePass, CopyPass, Dispatch, ManagedBuffer, ManagedResource, MovePass, RasterPass, RasterSubpass, RenderData, RenderGraph, RenderGraphComponent, RenderGraphValue, RenderQueue, RenderSwapchain, ResourceDesc, ResourceGraph, ResourceGraphValue, ResourceStates, ResourceTraits, SceneData, Subpass } from './render-graph';
-import { ComputePassBuilder, ComputeQueueBuilder, ComputeSubpassBuilder, CopyPassBuilder, MovePassBuilder, Pipeline, PipelineBuilder, RasterPassBuilder, RasterQueueBuilder, RasterSubpassBuilder, SceneTransversal } from './pipeline';
+import { ComputePassBuilder, ComputeQueueBuilder, ComputeSubpassBuilder, CopyPassBuilder, MovePassBuilder, BasicPipeline, PipelineBuilder, RasterPassBuilder, RasterQueueBuilder, RasterSubpassBuilder, SceneTransversal } from './pipeline';
 import { PipelineSceneData } from '../pipeline-scene-data';
 import { Model, Camera, ShadowType, CSMLevel, DirectionalLight, SpotLight, PCFType, Shadows } from '../../render-scene/scene';
 import { Light, LightType } from '../../render-scene/scene/light';
@@ -242,6 +242,8 @@ export class WebSetter {
         }
         const num = this._lg.attributeIndex.get(name)!;
         this._data.samplers.set(num, sampler);
+    }
+    public setCamera (camera: Camera): void {
     }
     public hasSampler (name: string): boolean {
         const id = this._lg.attributeIndex.get(name);
@@ -808,10 +810,11 @@ export class WebRasterQueueBuilder extends WebSetter implements RasterQueueBuild
         setTextureUBOView(this, camera, this._pipeline);
         initGlobalDescBinding(this._data, layoutName);
     }
-    addScene (sceneName: string, sceneFlags = SceneFlags.NONE): void {
-        const sceneData = new SceneData(sceneName, sceneFlags);
+    addScene (scene: RenderScene, sceneFlags = SceneFlags.NONE): void {
+        const sceneData = new SceneData('Scene', sceneFlags);
+        sceneData.scenes.push(scene);
         this._renderGraph.addVertex<RenderGraphValue.Scene>(
-            RenderGraphValue.Scene, sceneData, sceneName, '', new RenderData(), false, this._vertID,
+            RenderGraphValue.Scene, sceneData, 'Scene', '', new RenderData(), false, this._vertID,
         );
     }
     addFullscreenQuad (material: Material, passID: number, sceneFlags = SceneFlags.NONE, name = 'Quad'): void {
@@ -853,10 +856,7 @@ export class WebRasterQueueBuilder extends WebSetter implements RasterQueueBuild
         );
     }
     setViewport (viewport: Viewport) {
-        this._renderGraph.addVertex<RenderGraphValue.Viewport>(
-            RenderGraphValue.Viewport, viewport,
-            'Viewport', '', new RenderData(), false, this._vertID,
-        );
+        this._queue.viewport = new Viewport().copy(viewport);
     }
     addCustomCommand (customBehavior: string): void {
         throw new Error('Method not implemented.');
@@ -1271,7 +1271,7 @@ function isManaged (residency: ResourceResidency): boolean {
     || residency === ResourceResidency.MEMORYLESS;
 }
 
-export class WebPipeline implements Pipeline {
+export class WebPipeline implements BasicPipeline {
     constructor (layoutGraph: LayoutGraphData) {
         this._layoutGraph = layoutGraph;
     }
@@ -1372,9 +1372,6 @@ export class WebPipeline implements Pipeline {
     public addCopyPass (): CopyPassBuilder {
         throw new Error('Method not implemented.');
     }
-    public createSceneTransversal (camera: Camera, scene: RenderScene): SceneTransversal {
-        throw new Error('Method not implemented.');
-    }
     protected _generateConstantMacros (clusterEnabled: boolean) {
         let str = '';
         str += `#define CC_DEVICE_SUPPORT_FLOAT_TEXTURE ${this._device.getFormatFeatures(Format.RGBA32F)
@@ -1424,7 +1421,8 @@ export class WebPipeline implements Pipeline {
         this._globalDSManager = new GlobalDSManager(this._device);
         this._globalDescSetData = this.getGlobalDescriptorSetData()!;
         this._globalDescriptorSetLayout = this._globalDescSetData.descriptorSetLayout;
-        this._globalDescriptorSet = isEnableEffect() ? this._device.createDescriptorSet(new DescriptorSetInfo(this._globalDescriptorSetLayout!))
+        this._globalDescriptorSetInfo = new DescriptorSetInfo(this._globalDescriptorSetLayout!);
+        this._globalDescriptorSet = isEnableEffect() ? this._device.createDescriptorSet(this._globalDescriptorSetInfo)
             : this._globalDescSetData.descriptorSet;
         this._globalDSManager.globalDescriptorSet = this.globalDescriptorSet;
         this.setMacroBool('CC_USE_HDR', this._pipelineSceneData.isHDR);
@@ -1498,6 +1496,9 @@ export class WebPipeline implements Pipeline {
     }
     public get globalDescriptorSet (): DescriptorSet {
         return this._globalDescriptorSet!;
+    }
+    public get globalDescriptorSetInfo (): DescriptorSetInfo {
+        return this._globalDescriptorSetInfo!;
     }
     public get commandBuffers (): CommandBuffer[] {
         return [this._device.commandBuffer];
@@ -1763,6 +1764,10 @@ export class WebPipeline implements Pipeline {
         return this._layoutGraph;
     }
 
+    get resourceUses () {
+        return this._resourceUses;
+    }
+
     protected _updateRasterPassConstants (setter: WebSetter, width: number, height: number, layoutName = 'default') {
         const director = cclegacy.director;
         const root = director.root;
@@ -1813,6 +1818,7 @@ export class WebPipeline implements Pipeline {
     private _device!: Device;
     private _globalDSManager!: GlobalDSManager;
     private _globalDescriptorSet: DescriptorSet | null = null;
+    private _globalDescriptorSetInfo: DescriptorSetInfo | null = null;
     private _globalDescriptorSetLayout: DescriptorSetLayout | null = null;
     private readonly _macros: MacroRecord = {};
     private readonly _pipelineSceneData: PipelineSceneData = new PipelineSceneData();
@@ -1821,6 +1827,7 @@ export class WebPipeline implements Pipeline {
     private _profiler: Model | null = null;
     private _pipelineUBO: PipelineUBO = new PipelineUBO();
     private _cameras: Camera[] = [];
+    private _resourceUses: string[] = [];
 
     private _layoutGraph: LayoutGraphData;
     private readonly _resourceGraph: ResourceGraph = new ResourceGraph();
