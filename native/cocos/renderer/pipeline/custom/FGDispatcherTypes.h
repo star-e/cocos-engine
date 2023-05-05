@@ -402,7 +402,7 @@ struct FrameGraphDispatcher {
     FrameGraphDispatcher& operator=(FrameGraphDispatcher&& rhs) = delete;
     FrameGraphDispatcher& operator=(FrameGraphDispatcher const& rhs) = delete;
 
-    using BarrierMap = PmrFlatMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
+    using BarrierMap = PmrMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
 
     void enablePassReorder(bool enable);
 
