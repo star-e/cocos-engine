@@ -90,6 +90,10 @@ gfx::Device *NativePipeline::getDevice() const {
     return device;
 }
 
+PipelineType NativePipeline::getPipelineType() const {
+    return PipelineType::STANDARD;
+}
+
 void NativePipeline::beginSetup() {
     renderGraph = RenderGraph(get_allocator());
 }
@@ -579,11 +583,6 @@ CopyPassBuilder *NativePipeline::addCopyPass() {
         renderGraph);
 
     return ccnew NativeCopyPassBuilder(this, &renderGraph, passID);
-}
-
-// NOLINTNEXTLINE
-SceneTransversal *NativePipeline::createSceneTransversal(const scene::Camera *camera, const scene::RenderScene *scene) {
-    return ccnew NativeSceneTransversal(camera, scene);
 }
 
 gfx::DescriptorSetLayout *NativePipeline::getDescriptorSetLayout(const ccstd::string &shaderName, UpdateFrequency freq) {
