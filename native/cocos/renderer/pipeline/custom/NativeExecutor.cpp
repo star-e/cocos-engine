@@ -179,9 +179,7 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
     };
     fbInfo.colorTextures.reserve(pass.rasterViews.size());
 
-    // TODO: record ahead
     PmrFlatSet<ccstd::pmr::string> set(scratch);
-
     auto fillFrameBufferInfo = [&](const auto& pass) {
         auto numTotalAttachments = static_cast<uint32_t>(pass.rasterViews.size());
 
