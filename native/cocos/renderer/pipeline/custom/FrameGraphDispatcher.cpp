@@ -356,7 +356,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
         ResourceNames &resourceNamesIn,        // for resource record
         const AccessTable &accessRecordIn,     // resource last meet
         ResourceLifeRecordMap &rescLifeRecord, // resource lifetime
-            PmrFlatMap<ResourceAccessGraph::vertex_descriptor, FGRenderPassInfo> &rpInfosIn)
+        PmrFlatMap<ResourceAccessGraph::vertex_descriptor, FGRenderPassInfo> &rpInfosIn)
     : barrierMap(barriers), resourceGraph(rg), externalMap(extMap), resourceNames(resourceNamesIn), accessRecord(accessRecordIn), resourceLifeRecord(rescLifeRecord), rpInfos(rpInfosIn) {}
 
     void updateResourceLifeTime(const ResourceAccessNode &node, ResourceAccessGraph::vertex_descriptor u) {
@@ -584,8 +584,8 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                 auto srcBarrierIter = srcRearBarriers.empty() ? srcRearBarriers.end() : std::find_if(srcRearBarriers.begin(), srcRearBarriers.end(), findBarrierNodeByResID);
                 auto dstBarrierIter = dstFrontBarriers.empty() ? dstFrontBarriers.end() : std::find_if(dstFrontBarriers.begin(), dstFrontBarriers.end(), findBarrierNodeByResID);
 
-                auto dstVertDistribute = [&](uint32_t &vertID) {
-                    if (dstExternalDeps) {
+                auto dstVertDistribute = [&](uint32_t &vertID, bool depends) {
+                    if (depends) {
                         vertID = INVALID_ID;
                     } else if (subToSubDeps) {
                         vertID = dstVert;
@@ -595,9 +595,9 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                 };
                 if (srcBarrierIter == srcRearBarriers.end()) {
                     auto srcAccess = (*fromIter);
-                    srcAccess.vertID = srcExternalDeps ? INVALID_ID : srcVert;
+                    srcAccess.vertID = dstExternalDeps ? INVALID_ID : srcVert;
                     auto dstAccess = (*toIter);
-                    dstVertDistribute(dstAccess.vertID);
+                    dstVertDistribute(dstAccess.vertID, dstExternalDeps);
 
                     srcRearBarriers.emplace_back(Barrier{
                         resourceID,
@@ -611,18 +611,19 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                     if (isAdjacent) {
                         srcBarrierIter->type = gfx::BarrierType::FULL;
                         auto srcAccess = (*fromIter);
-                        srcAccess.vertID = srcExternalDeps ? INVALID_ID : srcVert;
+                        srcAccess.vertID = dstExternalDeps ? INVALID_ID : srcVert;
                         srcBarrierIter->beginStatus = srcAccess;
                         auto dstAccess = (*toIter);
-                        dstVertDistribute(dstAccess.vertID);
+                        dstVertDistribute(dstAccess.vertID, dstExternalDeps);
                         srcBarrierIter->endStatus = dstAccess;
                     } else {
                         auto &blockBarrier = barrierMap.at(srcPassVert).blockBarrier;
-                        auto blockIter = srcBarrierIter;
+                        auto lastVert = srcBarrierIter->beginStatus.vertID;
+                        auto blockIter = blockBarrier.rearBarriers.end();
                         if (subToSubDeps) {
                             blockIter = std::find_if(blockBarrier.rearBarriers.begin(), blockBarrier.rearBarriers.end(), findBarrierNodeByResID);
+                            lastVert = blockIter->beginStatus.vertID;
                         }
-                        auto lastVert = blockIter->beginStatus.vertID;
                         if (srcVert >= lastVert) {
                             auto srcAccess = (*fromIter);
                             srcAccess.vertID = srcVert;
@@ -644,11 +645,11 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                     }
                 }
 
-                auto srcAccess = (*fromIter);
-                srcAccess.vertID = srcExternalDeps ? INVALID_ID : srcVert;
-                auto dstAccess = (*toIter);
-                dstVertDistribute(dstAccess.vertID);
                 if (srcBarrierIter->type == gfx::BarrierType::SPLIT_BEGIN) {
+                    auto srcAccess = (*fromIter);
+                    srcAccess.vertID = srcExternalDeps ? INVALID_ID : srcVert;
+                    auto dstAccess = (*toIter);
+                    dstVertDistribute(dstAccess.vertID, dstExternalDeps);
                     if (dstBarrierIter == dstFrontBarriers.end()) {
                         // if isAdjacent, full barrier already in src rear barriers.
                         if (!isAdjacent) {
@@ -681,12 +682,13 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                             // 2 and 5 read from ResA, 6 writes to ResA
                             // 5 and 6 logically adjacent but not adjacent in execution order.
                             // barrier for ResA between 2 - 6 can be totally replaced by 5 - 6
-                            auto blockIter = dstBarrierIter;
                             auto &blockBarrier = barrierMap.at(dstPassVert).blockBarrier;
+                            auto blockIter = blockBarrier.frontBarriers.end();
+                            auto lastVert = dstBarrierIter->endStatus.vertID;
                             if (subToSubDeps) {
                                 blockIter = std::find_if(blockBarrier.frontBarriers.begin(), blockBarrier.frontBarriers.end(), findBarrierNodeByResID);
+                                lastVert = blockIter->endStatus.vertID;
                             }
-                            auto lastVert = blockIter->endStatus.vertID;
                             if (dstVert <= lastVert) {
                                 uint32_t siblingPass = lastVert;
                                 dstBarrierIter->endStatus = dstAccess;
@@ -878,11 +880,11 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                         if (iter == rearBarriers.end()) {
                             auto &collect = rearBarriers.emplace_back(barrier);
                             collect.beginStatus.vertID = from;
-                            collect.endStatus.vertID = to;
-                        } else if (barrier.endStatus.vertID >= to) {
+                            collect.endStatus.vertID = isAdjacent ? from : to;
+                        } else if (iter->endStatus.vertID >= to) {
                             (*iter) = barrier;
                             iter->beginStatus.vertID = from;
-                            iter->endStatus.vertID = to;
+                            iter->endStatus.vertID = isAdjacent ? from : to;
                         }
                     }
                 }
@@ -1143,7 +1145,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
     }
 
     {
-        for (auto& [vert, fgRenderpassInfo] : rag.rpInfos) {
+        for (auto &[vert, fgRenderpassInfo] : rag.rpInfos) {
             auto &colorAttachments = fgRenderpassInfo.rpInfo.colorAttachments;
             for (uint32_t i = 0; i < colorAttachments.size(); ++i) {
                 const auto &colorAccess = fgRenderpassInfo.colorAccesses[i];
@@ -1795,7 +1797,7 @@ auto getResourceStatus(PassType passType, const PmrString &name, gfx::MemoryAcce
             if (shadingRateAttachment) texUsage |= gfx::TextureUsage::SHADING_RATE;
         } else {
             if (memAccess == gfx::MemoryAccess::READ_ONLY) {
-                if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE) {
+                if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE && rasterized) {
                     texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::INPUT_ATTACHMENT));
                 } else {
                     texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::SAMPLED | gfx::TextureUsage::STORAGE | gfx::TextureUsage::SHADING_RATE));
@@ -2024,8 +2026,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
     return dependent;
 }
 
-void fillRenderPassInfo(const RasterView &view, gfx::RenderPassInfo &rpInfo, uint32_t index, const ResourceDesc& viewDesc) {
-
+void fillRenderPassInfo(const RasterView &view, gfx::RenderPassInfo &rpInfo, uint32_t index, const ResourceDesc &viewDesc) {
     if (view.attachmentType != AttachmentType::DEPTH_STENCIL) {
         auto &colorAttachment = rpInfo.colorAttachments[index];
         colorAttachment.format = viewDesc.format;
@@ -2033,7 +2034,7 @@ void fillRenderPassInfo(const RasterView &view, gfx::RenderPassInfo &rpInfo, uin
         colorAttachment.storeOp = view.storeOp;
         colorAttachment.sampleCount = viewDesc.sampleCount;
         colorAttachment.isGeneralLayout = gfx::hasFlag(viewDesc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-        //colorAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
+        // colorAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
     } else {
         auto &depthStencilAttachment = rpInfo.depthStencilAttachment;
         depthStencilAttachment.format = viewDesc.format;
@@ -2043,7 +2044,7 @@ void fillRenderPassInfo(const RasterView &view, gfx::RenderPassInfo &rpInfo, uin
         depthStencilAttachment.stencilStoreOp = view.storeOp;
         depthStencilAttachment.sampleCount = viewDesc.sampleCount;
         depthStencilAttachment.isGeneralLayout = gfx::hasFlag(viewDesc.textureFlags, gfx::TextureFlags::GENERAL_LAYOUT);
-        //depthStencilAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
+        // depthStencilAttachment.barrier = getGeneralBarrier(gfx::Device::getInstance(), view, prevAccess, nextAccess);
     }
 }
 
@@ -2123,7 +2124,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
     } else {
         PmrFlatSet<PmrString> viewSet(resourceAccessGraph.get_allocator());
         bool hasDS{false};
-        for (const auto& subpass : pass.subpassGraph.subpasses) {
+        for (const auto &subpass : pass.subpassGraph.subpasses) {
             for (const auto &pair : subpass.rasterViews) {
                 if (pair.second.attachmentType != AttachmentType::DEPTH_STENCIL) {
                     viewSet.emplace(pair.first);
@@ -2194,7 +2195,7 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
 
     for (const auto &[slotID, pair] : viewIndex) {
         const auto &resName = pair.first;
-        auto findByResID = [&](const AccessStatus& status) {
+        auto findByResID = [&](const AccessStatus &status) {
             return status.vertID == rag.resourceIndex.at(resName);
         };
         auto iter = std::find_if(node.attachmentStatus.begin(), node.attachmentStatus.end(), findByResID);
