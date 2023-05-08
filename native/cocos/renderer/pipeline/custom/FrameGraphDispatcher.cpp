@@ -188,6 +188,27 @@ bool isPassExecAdjecent(uint32_t passLID, uint32_t passRID) {
     return std::abs(static_cast<int>(passLID) - static_cast<int>(passRID)) <= 1;
 }
 
+template <uint32_t N>
+constexpr uint8_t highestBitPos() {
+    return highestBitPos<(N >> 1)>() + 1;
+}
+
+template <>
+constexpr uint8_t highestBitPos<0>() {
+    return 0;
+}
+
+constexpr uint32_t filledShift(uint8_t pos) {
+    return 0xFFFFFFFF >> (32 - pos);
+}
+
+constexpr uint8_t readPos = highestBitPos<static_cast<uint32_t>(gfx::AccessFlagBit::PRESENT)>() - 1;
+constexpr uint32_t READ_ACCESS = filledShift(readPos) | static_cast<uint32_t>(gfx::AccessFlagBit::SHADING_RATE);
+
+inline bool hasReadAccess(gfx::AccessFlagBit flag) {
+    return (static_cast<uint32_t>(flag) & READ_ACCESS) != 0;
+}
+
 inline bool isReadOnlyAccess(gfx::AccessFlagBit flag) {
     return flag < gfx::AccessFlagBit::PRESENT || flag == gfx::AccessFlagBit::SHADING_RATE;
 }
@@ -466,7 +487,7 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
 
                     const auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, resID);
                     if (desc.format == gfx::Format::DEPTH_STENCIL || desc.format == gfx::Format::DEPTH) {
-                        if (g.access.at(u).attachmentStatus.size() > 1 && dependency.srcSubpass != INVALID_ID) {
+                        if (g.access.at(u).attachmentStatus.size() > 1) {
                             auto &dsDep = subpassDependencies.emplace_back();
                             dsDep.srcSubpass = dependency.srcSubpass;
                             dsDep.dstSubpass = dependency.dstSubpass;
@@ -474,13 +495,20 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                             dsDep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
                         }
                     } else {
-                        bool isWriteAccess = barrier.endStatus.accessFlag > gfx::AccessFlagBit::PRESENT;
-                        if (isWriteAccess && dependency.srcSubpass != INVALID_ID) {
+                        bool isWriteAccess = !isReadOnlyAccess(barrier.endStatus.accessFlag);
+                        if (isWriteAccess) {
                             auto &dep = subpassDependencies.emplace_back();
                             dep.srcSubpass = dependency.srcSubpass;
                             dep.dstSubpass = dependency.dstSubpass;
                             dep.prevAccesses.emplace_back(barrier.beginStatus.accessFlag);
                             dep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
+                            if (hasReadAccess(barrier.endStatus.accessFlag)) {
+                                auto &selfDep = subpassDependencies.emplace_back();
+                                selfDep.srcSubpass = dependency.dstSubpass;
+                                selfDep.dstSubpass = dependency.dstSubpass;
+                                selfDep.prevAccesses.emplace_back(barrier.endStatus.accessFlag);
+                                selfDep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
+                            }
                         } else {
                             dependency.prevAccesses.emplace_back(barrier.beginStatus.accessFlag);
                             dependency.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
@@ -513,13 +541,20 @@ struct BarrierVisitor : public boost::bfs_visitor<> {
                             dsDep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
                         }
                     } else {
-                        bool isWriteAccess = barrier.endStatus.accessFlag < gfx::AccessFlagBit::PRESENT;
+                        bool isWriteAccess = !isReadOnlyAccess(barrier.endStatus.accessFlag);
                         if (isWriteAccess) {
                             auto &dep = subpassDependencies.emplace_back();
                             dep.srcSubpass = dependency.srcSubpass;
                             dep.dstSubpass = dependency.dstSubpass;
                             dep.prevAccesses.emplace_back(barrier.beginStatus.accessFlag);
                             dep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
+                            if (hasReadAccess(barrier.endStatus.accessFlag)) {
+                                auto &selfDep = subpassDependencies.emplace_back();
+                                selfDep.srcSubpass = dependency.dstSubpass;
+                                selfDep.dstSubpass = dependency.dstSubpass;
+                                selfDep.prevAccesses.emplace_back(barrier.endStatus.accessFlag);
+                                selfDep.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
+                            }
                         } else {
                             dependency.prevAccesses.emplace_back(barrier.beginStatus.accessFlag);
                             dependency.nextAccesses.emplace_back(barrier.endStatus.accessFlag);
