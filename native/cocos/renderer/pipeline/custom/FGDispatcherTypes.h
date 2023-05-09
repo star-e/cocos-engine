@@ -106,9 +106,14 @@ struct ResourceAccessNode {
     struct ResourceAccessNode* nextSubpass{nullptr};
 };
 
+struct LayoutAccess {
+    gfx::AccessFlagBit prevAccess{gfx::AccessFlagBit::NONE};
+    gfx::AccessFlagBit nextAccess{gfx::AccessFlagBit::NONE};
+};
+
 struct FGRenderPassInfo {
-    std::vector<std::pair<gfx::AccessFlags/*prev*/,gfx::AccessFlags/*next*/>> colorAccesses;
-    std::pair<gfx::AccessFlags/*prev*/,gfx::AccessFlags/*next*/> dsAccess;
+    std::vector<LayoutAccess> colorAccesses;
+    LayoutAccess dsAccess;
     gfx::RenderPassInfo rpInfo;
 };
 
@@ -408,7 +413,7 @@ struct FrameGraphDispatcher {
 
     // how much paralell-execution weights during pass reorder,
     // eg:0.3 means 30% of effort aim to paralellize execution, other 70% aim to decrease memory using.
-    // 0 by default
+    // 0 by default 
     void setParalellWeight(float paralellExecWeight);
 
     void enableMemoryAliasing(bool enable);
