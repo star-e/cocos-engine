@@ -33,39 +33,49 @@ import { Blit, ClearView, ComputePass, ComputeSubpass, CopyPass, Dispatch, Manag
     RenderQueue, RenderSwapchain, ResourceGraph, ResourceGraphObject, ResourceGraphVisitor, ResourceTraits, SceneData } from './render-graph';
 import { AccessType, RasterView, ComputeView, ResourceResidency, SceneFlags } from './types';
 
+let hashCode = 0;
+function hashCombine (str: string) {
+    // DJB2 HASH
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 33) ^ str.charCodeAt(i);
+    }
+    hashCode ^= (hash >>> 0) + 0x9e3779b9 + (hashCode << 6) + (hashCode >> 2);
+}
 function genHashValue (pass: RasterPass) {
-    let hash = '';
+    hashCode = 0;
     for (const [name, raster] of pass.rasterViews) {
-        hash += 'raster';
-        hash += name;
-        hash += raster.slotName;
-        hash += raster.accessType;
-        hash += raster.attachmentType;
-        hash += raster.loadOp;
-        hash += raster.storeOp;
-        hash += raster.clearFlags;
-        hash += `${raster.clearColor.x}${raster.clearColor.y}${raster.clearColor.z}${raster.clearColor.w}`;
-        hash += raster.slotID;
-        hash += raster.shaderStageFlags;
+        hashCombine('raster');
+        hashCombine(name);
+        hashCombine(raster.slotName);
+        hashCombine(`${raster.accessType}`);
+        hashCombine(`${raster.attachmentType}`);
+        hashCombine(`${raster.loadOp}`);
+        hashCombine(`${raster.storeOp}`);
+        hashCombine(`${raster.clearFlags}`);
+        hashCombine(`${raster.clearColor.x}${raster.clearColor.y}${raster.clearColor.z}${raster.clearColor.w}`);
+        hashCombine(`${raster.slotID}`);
+        hashCombine(`${raster.shaderStageFlags}`);
     }
     for (const [name, computes] of pass.computeViews) {
-        hash += 'computes';
-        hash += name;
+        hashCombine('computes');
+        hashCombine(name);
         for (const compute of computes) {
-            hash += 'compute';
-            hash += compute.name;
-            hash += compute.accessType;
-            hash += compute.clearFlags;
-            hash += compute.clearValueType;
-            hash += `${compute.clearValue.x}${compute.clearValue.y}${compute.clearValue.z}${compute.clearValue.w}`;
-            hash += compute.shaderStageFlags;
+            hashCombine('compute');
+            hashCombine(compute.name);
+            hashCombine(`${compute.accessType}`);
+            hashCombine(`${compute.clearFlags}`);
+            hashCombine(`${compute.clearValueType}`);
+            hashCombine(`${compute.clearValue.x}${compute.clearValue.y}${compute.clearValue.z}${compute.clearValue.w}`);
+            hashCombine(`${compute.shaderStageFlags}`);
         }
     }
-    hash += `width${pass.width}`;
-    hash += `height${pass.height}`;
-    hash += `viewport${pass.viewport.left}${pass.viewport.top}${pass.viewport.width}
-            ${pass.viewport.height}${pass.viewport.minDepth}${pass.viewport.maxDepth}`;
-    hash += `statis${pass.showStatistics}`;
+    hashCombine(`width${pass.width}`);
+    hashCombine(`height${pass.height}`);
+    hashCombine(`viewport${pass.viewport.left}${pass.viewport.top}${pass.viewport.width}
+            ${pass.viewport.height}${pass.viewport.minDepth}${pass.viewport.maxDepth}`);
+    hashCombine(`statist${pass.showStatistics}`);
+    pass.hashValue = hashCode;
 }
 
 class PassVisitor implements RenderGraphVisitor {
