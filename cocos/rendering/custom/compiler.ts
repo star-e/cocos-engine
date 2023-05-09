@@ -33,6 +33,41 @@ import { Blit, ClearView, ComputePass, ComputeSubpass, CopyPass, Dispatch, Manag
     RenderQueue, RenderSwapchain, ResourceGraph, ResourceGraphObject, ResourceGraphVisitor, ResourceTraits, SceneData } from './render-graph';
 import { AccessType, RasterView, ComputeView, ResourceResidency, SceneFlags } from './types';
 
+function genHashValue (pass: RasterPass) {
+    let hash = '';
+    for (const [name, raster] of pass.rasterViews) {
+        hash += 'raster';
+        hash += name;
+        hash += raster.slotName;
+        hash += raster.accessType;
+        hash += raster.attachmentType;
+        hash += raster.loadOp;
+        hash += raster.storeOp;
+        hash += raster.clearFlags;
+        hash += `${raster.clearColor.x}${raster.clearColor.y}${raster.clearColor.z}${raster.clearColor.w}`;
+        hash += raster.slotID;
+        hash += raster.shaderStageFlags;
+    }
+    for (const [name, computes] of pass.computeViews) {
+        hash += 'computes';
+        hash += name;
+        for (const compute of computes) {
+            hash += 'compute';
+            hash += compute.name;
+            hash += compute.accessType;
+            hash += compute.clearFlags;
+            hash += compute.clearValueType;
+            hash += `${compute.clearValue.x}${compute.clearValue.y}${compute.clearValue.z}${compute.clearValue.w}`;
+            hash += compute.shaderStageFlags;
+        }
+    }
+    hash += `width${pass.width}`;
+    hash += `height${pass.height}`;
+    hash += `viewport${pass.viewport.left}${pass.viewport.top}${pass.viewport.width}
+            ${pass.viewport.height}${pass.viewport.minDepth}${pass.viewport.maxDepth}`;
+    hash += `statis${pass.showStatistics}`;
+}
+
 class PassVisitor implements RenderGraphVisitor {
     public queueID = 0xFFFFFFFF;
     public sceneID = 0xFFFFFFFF;
@@ -187,6 +222,7 @@ class PassVisitor implements RenderGraphVisitor {
                     resourceGraph.visitVertex(resVisitor, vertID);
                 }
             }
+            genHashValue(pass);
         }
     }
     applyID (id: number, resId: number): void {
