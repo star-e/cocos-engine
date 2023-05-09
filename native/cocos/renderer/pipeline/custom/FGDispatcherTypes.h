@@ -258,6 +258,7 @@ struct ResourceAccessGraph {
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
     PmrFlatMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
+    PmrFlatSet<PmrString> expiredValues;
 };
 
 struct RelationGraph {

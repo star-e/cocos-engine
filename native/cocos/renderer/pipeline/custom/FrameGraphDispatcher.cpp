@@ -180,6 +180,7 @@ void processComputePass(const Graphs &graphs, uint32_t passID, const ComputePass
 void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSubpass &pass);
 void processComputeSubpass(const Graphs &graphs, uint32_t passID, const ComputeSubpass &pass);
 void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass);
+void processMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass);
 void processRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass &pass);
 auto getResourceStatus(PassType passType, const PmrString &name, gfx::MemoryAccess memAccess, gfx::ShaderStageFlags visibility, const ResourceGraph &resourceGraph, bool rasterized);
 
@@ -284,6 +285,9 @@ void buildAccessGraph(const Graphs &graphs) {
             },
             [&](const CopyPass &pass) {
                 processCopyPass(graphs, passID, pass);
+            },
+            [&](const MovePass &pass) {
+                processMovePass(graphs, passID, pass);
             },
             [&](const RaytracePass &pass) {
                 processRaytracePass(graphs, passID, pass);
@@ -2374,6 +2378,151 @@ void processRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePa
     if (!dependent) {
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
         tryAddEdge(EXPECT_START_ID, rlgVertID, relationGraph);
+    }
+}
+
+struct ResourceRange {
+    uint32_t width{0};
+    uint32_t height{0};
+    uint32_t firstSlice{0};
+    uint32_t numSlices{1};
+    uint32_t mipLevel{0};
+    uint32_t levelCount{1};
+    uint32_t planeSlice{0};
+};
+
+bool rangeIntersect(const ResourceRange& lhs, const ResourceRange& rhs) {
+    bool rSlice = ((lhs.firstSlice + lhs.numSlices) <= (rhs.firstSlice + rhs.numSlices)) && ((lhs.firstSlice + lhs.numSlices) > rhs.firstSlice);
+    bool lSlice = (lhs.firstSlice < (rhs.firstSlice + rhs.numSlices)) && (lhs.firstSlice >= rhs.firstSlice);
+    bool rMip = ((lhs.mipLevel + lhs.levelCount) <= (rhs.mipLevel + rhs.levelCount)) && ((lhs.mipLevel + lhs.levelCount) > rhs.mipLevel);
+    bool lMip = (lhs.mipLevel < (rhs.mipLevel + rhs.levelCount)) && (lhs.mipLevel > rhs.mipLevel);
+    return (rSlice || lSlice) && (rMip || lMip);
+}
+
+struct SliceNode {
+    bool full{false};
+    ccstd::pmr::vector<uint32_t> mips;
+};
+
+struct TextureNode {
+    bool full{false};
+    ccstd::pmr::vector<SliceNode> slices;
+};
+
+struct ResourceNode {
+    ccstd::pmr::vector<TextureNode> planes;
+};
+
+bool rangeCheck(ccstd::pmr::map<PmrString, ResourceNode> &status,
+                const ResourceDesc &desc,
+                const PmrString& targetName,
+                uint32_t firstSlice, uint32_t numSlices,
+                uint32_t firstMip, uint32_t mipLevels,
+                uint32_t planeIndex) {
+
+    if (status.find(targetName) == status.end()) {
+        status.insert(targetName, {});
+    }
+
+    if (planeIndex >= status[targetName].planes.size()) {
+        status[targetName].planes.resize(planeIndex + 1);
+        status[targetName].planes[planeIndex].slices.resize(desc.depthOrArraySize);
+        for (auto &slice : status[targetName].planes[planeIndex].slices) {
+            slice.mips.resize(desc.mipLevels, std::numeric_limits<uint32_t>::max());
+        }
+    }
+
+    // no spare space in target
+    bool check = !status[targetName].planes[planeIndex].full;
+    for (auto slice = firstSlice; slice < firstSlice + numSlices; ++slice) {
+        auto &slices = status[targetName].planes[planeIndex].slices;
+        // no spare space in this slice
+        check &= !slices[slice].full;
+        for (auto mip = firstMip; slice < firstMip + mipLevels; ++mip) {
+            auto &mips = slices[slice].mips;
+            // this mip has been taken
+            check &= mips[mip] == std::numeric_limits<uint32_t>::max();
+            mips[mip] = mip;
+            auto maxIter = std::max_element(mips.begin(), mips.end());
+            if ((*maxIter) != std::numeric_limits<uint32_t>::max()) {
+                // linear increasing
+                check &= (*maxIter) == mips.size() - 1;
+                slices[slice].full = true;
+            }
+        }
+        if (std::all_of(slices.begin(), slices.end(), [](const SliceNode &sliceNode) { return sliceNode.full; })) {
+            status[targetName].planes[planeIndex].full = true;
+        }
+    }
+    return check;
+}
+
+bool moveValidation(RenderGraph::vertex_descriptor passID,
+                    const MovePass &pass,
+                    ResourceGraph &resourceGraph,
+                    ResourceAccessGraph &rag,
+                    PmrFlatMap<PmrString, ResourceGraph::Vertex> &expiredValues) {
+    bool check = true;
+    //ccstd::pmr::map<PmrString, ResourceNode> sourceCheck;
+    ccstd::pmr::map<PmrString, ResourceNode> targetCheck;
+    for (const auto& movePair : pass.movePairs) {
+        const auto &fromResName = movePair.source;
+        const auto fromResID = resourceGraph.valueIndex.at(fromResName);
+        const auto &fromResDesc = get(ResourceGraph::DescTag{}, resourceGraph, fromResID);
+
+        const auto &toResName = movePair.target;
+        const auto toResID = resourceGraph.valueIndex.at(toResName);
+        const auto &toResDesc = get(ResourceGraph::DescTag{}, resourceGraph, toResID);
+
+        const auto &fromResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, fromResID);
+        const auto &toResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, toResID);
+        auto commonUsage = fromResDesc.flags | toResDesc.flags;
+
+        //bool sourceRangeValid = rangeCheck(targetCheck, toResDesc, fromResName, movePair.targetFirstSlice, movePair.numSlices, movePair.targetMostDetailedMip, movePair.mipLevels, movePair.targetPlaneSlice);
+        bool targetRangeValid = rangeCheck(targetCheck, toResDesc, toResName, movePair.targetFirstSlice, movePair.numSlices, movePair.targetMostDetailedMip, movePair.mipLevels, movePair.targetPlaneSlice);
+        
+        uint32_t validConditions[] = {
+            !fromResTraits.hasSideEffects(),
+            rag.expiredValues.find(toResName) == rag.expiredValues.end() && expiredValues.find(toResName) == expiredValues.end(),
+            targetRangeValid,
+            fromResTraits.residency != ResourceResidency::MEMORYLESS && toResTraits.residency != ResourceResidency::MEMORYLESS,
+            fromResDesc.dimension == toResDesc.dimension,
+            fromResDesc.width == toResDesc.width,
+            fromResDesc.height == toResDesc.height,
+            fromResDesc.format == toResDesc.format,
+            fromResDesc.sampleCount == toResDesc.sampleCount,
+            (fromResDesc.depthOrArraySize == toResDesc.depthOrArraySize ) || (toResDesc.dimension != ResourceDimension::BUFFER), // full move if resource is buffer 
+        };
+        expiredValues.emplace(fromResName, toResID);
+        bool val = std::min_element(std::begin(validConditions), std::end(validConditions));
+        check &= val;
+    }
+
+    // full destination
+    check &= std::all_of(targetCheck.begin(), targetCheck.end(), [](const TextureNode &node) { return node.full; });
+
+    return check;
+}
+
+void processMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) {
+    const auto &[ignore, resourceGraph, layoutGraphData, resourceAccessGraph, relationGraph] = graphs;
+    auto &rescGraph = resourceGraph;
+    auto &rag = resourceAccessGraph;
+    PmrFlatMap<PmrString, ResourceGraph::Vertex> expiredValues(resourceAccessGraph.get_allocator());
+    if (moveValidation(passID, pass, rescGraph, rag, expiredValues)) {
+        
+    } else {
+        for (const auto &pair : pass.movePairs) {
+            // copy
+            CopyPass copyPass(rag.get_allocator());
+            copyPass.copyPairs.emplace_back(CopyPair(
+                pair.source,
+                pair.target,
+                1, 1,
+                0, 0, 0,
+                pair.targetMostDetailedMip, pair.targetFirstSlice, pair.targetPlaneSlice));
+            processCopyPass(graphs, passID, copyPass);
+        }
     }
 }
 
