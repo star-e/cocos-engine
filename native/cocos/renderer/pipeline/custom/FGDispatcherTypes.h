@@ -82,27 +82,40 @@ inline bool operator<(const TextureRange& lhs, const TextureRange& rhs) noexcept
            std::forward_as_tuple(rhs.firstSlice, rhs.numSlices, rhs.mipLevel, rhs.levelCount);
 }
 
-using Range = ccstd::variant<BufferRange, TextureRange>;
-
 using ResourceUsage = ccstd::variant<gfx::BufferUsageBit, gfx::TextureUsageBit>;
 
+struct ResourceRange {
+    uint32_t width{0};
+    uint32_t height{0};
+    uint32_t firstSlice{0};
+    uint32_t numSlices{1};
+    uint32_t mipLevel{0};
+    uint32_t levelCount{1};
+    uint32_t planeSlice{0};
+};
+
 struct AccessStatus {
-    uint32_t vertID{0xFFFFFFFF};
-    gfx::ShaderStageFlagBit visibility{gfx::ShaderStageFlagBit::NONE};
-    gfx::MemoryAccessBit access{gfx::MemoryAccessBit::NONE};
-    gfx::PassType passType{gfx::PassType::RASTER};
-    gfx::AccessFlagBit accessFlag{gfx::AccessFlagBit::NONE};
-    ResourceUsage usage;
-    Range range;
+    ResourceRange range;
+    gfx::AccessFlags accessFlag{gfx::AccessFlags::NONE};
+};
+
+struct ResourceStatus {
+    ccstd::pmr::string resName;
+    AccessStatus access;
+};
+
+struct TransitionStatus {
+    uint32_t ragVertID{0xFFFFFFFF};
+    AccessStatus access;
 };
 
 struct ResourceTransition {
-    AccessStatus lastStatus;
-    AccessStatus currStatus;
+    TransitionStatus lastStatus;
+    TransitionStatus currStatus;
 };
 
 struct ResourceAccessNode {
-    std::vector<AccessStatus> attachmentStatus;
+    std::vector<ResourceStatus> attachmentStatus;
     struct ResourceAccessNode* nextSubpass{nullptr};
 };
 
@@ -256,9 +269,13 @@ struct ResourceAccessGraph {
     PmrFlatSet<vertex_descriptor> culledPasses;
     PmrFlatMap<uint32_t, ResourceTransition> accessRecord;
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
+    std::map<ccstd::pmr::string, ResourceStatus> subResources;
+    std::map<ccstd::pmr::string, ccstd::pmr::string> movedPairs;
+    PmrFlatSet<ResourceGraph::vertex_descriptor> writtenResource;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
     PmrFlatMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
-    PmrFlatSet<PmrString> expiredValues;
+    PmrFlatSet<ccstd::pmr::string> expiredValues;
+    //PmrFlatMap<ResourceGraph::vertex_descriptor, > moveInfo;
 };
 
 struct RelationGraph {
@@ -382,8 +399,8 @@ struct Barrier {
     ResourceGraph::vertex_descriptor resourceID{0xFFFFFFFF};
     gfx::BarrierType type{gfx::BarrierType::FULL};
     gfx::GFXObject* barrier{nullptr};
-    AccessStatus beginStatus;
-    AccessStatus endStatus;
+    TransitionStatus beginStatus;
+    TransitionStatus endStatus;
 };
 
 struct BarrierPair {
