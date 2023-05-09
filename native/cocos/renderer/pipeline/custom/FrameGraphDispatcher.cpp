@@ -202,8 +202,8 @@ constexpr uint32_t filledShift(uint8_t pos) {
     return 0xFFFFFFFF >> (32 - pos);
 }
 
-constexpr uint8_t readPos = highestBitPos<static_cast<uint32_t>(gfx::AccessFlagBit::PRESENT)>() - 1;
-constexpr uint32_t READ_ACCESS = filledShift(readPos) | static_cast<uint32_t>(gfx::AccessFlagBit::SHADING_RATE);
+constexpr uint8_t HIGHEST_READ_POS = highestBitPos<static_cast<uint32_t>(gfx::AccessFlagBit::PRESENT)>() - 1;
+constexpr uint32_t READ_ACCESS = filledShift(HIGHEST_READ_POS) | static_cast<uint32_t>(gfx::AccessFlagBit::SHADING_RATE);
 
 inline bool hasReadAccess(gfx::AccessFlagBit flag) {
     return (static_cast<uint32_t>(flag) & READ_ACCESS) != 0;
