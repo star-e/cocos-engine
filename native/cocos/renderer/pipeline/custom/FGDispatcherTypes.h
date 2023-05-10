@@ -271,11 +271,10 @@ struct ResourceAccessGraph {
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     std::map<ccstd::pmr::string, ResourceStatus> subResources;
     std::map<ccstd::pmr::string, ccstd::pmr::string> movedPairs;
-    PmrFlatSet<ResourceGraph::vertex_descriptor> writtenResource;
+    PmrFlatSet<ccstd::pmr::string> writtenResource;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
-    PmrFlatMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
-    PmrFlatSet<ccstd::pmr::string> expiredValues;
-    //PmrFlatMap<ResourceGraph::vertex_descriptor, > moveInfo;
+    PmrMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
+    PmrFlatMap<ccstd::pmr::string, ResourceStatus> expiredValues;
 };
 
 struct RelationGraph {
