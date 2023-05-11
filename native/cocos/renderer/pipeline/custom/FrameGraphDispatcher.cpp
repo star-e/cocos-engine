@@ -90,6 +90,29 @@ void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
     _paralellExecWeight = clampf(paralellExecWeight, 0.0F, 1.0F);
 }
 
+gfx::Texture* FrameGraphDispatcher::getTexture(const ccstd::pmr::string& name) {
+    auto resID = resourceAccessGraph.resourceIndex.at(name);
+    auto* originTexture = resourceGraph.getTexture(resID);
+    auto iter = resourceAccessGraph.movedResources.find(name);
+    if (iter != resourceAccessGraph.movedResources.end()) {
+        gfx::TextureViewInfo viewInfo;
+        viewInfo.texture = originTexture;
+        viewInfo.type = gfx::TextureType::TEX2D;
+        viewInfo.format = originTexture->getFormat();
+        viewInfo.baseLevel = iter->second.access.range.mipLevel;
+        viewInfo.levelCount = iter->second.access.range.levelCount;
+        viewInfo.baseLayer = iter->second.access.range.firstSlice;
+        viewInfo.layerCount = iter->second.access.range.numSlices;
+        return gfx::Device::getInstance()->createTexture(viewInfo);
+    } else {
+        return originTexture;
+    }
+}
+
+gfx::Buffer *FrameGraphDispatcher::getBuffer(const ccstd::pmr::string &name) {
+    return nullptr;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////INTERNAL⚡IMPLEMENTATION/////////////////////////////////////////////////////////////////////////////////////////////
 
 //---------------------------------------------------------------predefine------------------------------------------------------------------

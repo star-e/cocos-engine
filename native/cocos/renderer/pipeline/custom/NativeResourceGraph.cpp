@@ -296,6 +296,22 @@ gfx::Texture* ResourceGraph::getTexture(vertex_descriptor resID) {
     return texture;
 }
 
+void ResourceGraph::import(gfx::Texture* texture, vertex_descriptor resID) {
+    visitObject(
+        resID, *this,
+        [&](ManagedTexture& res) {
+            CC_EXPECTS(!res.texture);
+            res.texture = texture;
+        },
+        [&](IntrusivePtr<gfx::Texture>& tex) {
+            CC_EXPECTS(!tex.get());
+            tex = texture;
+        },
+        [&](auto& rest) {
+            CC_EXPECTS(false);
+        });
+}
+
 void ResourceGraph::invalidatePersistentRenderPassAndFramebuffer(gfx::Texture* pTexture) {
     if (!pTexture) {
         return;

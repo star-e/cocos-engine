@@ -436,6 +436,10 @@ struct FrameGraphDispatcher {
 
     void run();
 
+    gfx::Texture* getTexture(const ccstd::pmr::string& name);
+    
+    gfx::Buffer* getBuffer(const ccstd::pmr::string& name);
+
     inline const BarrierMap& getBarriers() const { return barrierMap; }
 
     BarrierMap barrierMap;

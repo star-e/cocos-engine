@@ -489,6 +489,7 @@ struct ResourceGraph {
     void unmount(uint64_t completedFenceValue);
     gfx::Texture* getTexture(vertex_descriptor resID);
     gfx::Buffer* getBuffer(vertex_descriptor resID);
+    void import(gfx::Texture* texture, vertex_descriptor v);
     void invalidatePersistentRenderPassAndFramebuffer(gfx::Texture* pTexture);
 
     // ContinuousContainer
