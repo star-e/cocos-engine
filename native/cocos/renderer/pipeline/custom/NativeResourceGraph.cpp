@@ -300,12 +300,16 @@ void ResourceGraph::import(gfx::Texture* texture, vertex_descriptor resID) {
     visitObject(
         resID, *this,
         [&](ManagedTexture& res) {
-            CC_EXPECTS(!res.texture);
-            res.texture = texture;
+            if (!res.texture) {
+                res.texture = texture;
+            }
+            CC_EXPECTS(res.texture);
         },
         [&](IntrusivePtr<gfx::Texture>& tex) {
-            CC_EXPECTS(!tex.get());
-            tex = texture;
+            if (!tex.get()) {
+                tex = texture;
+            }
+            CC_EXPECTS(tex.get());
         },
         [&](auto& rest) {
             CC_EXPECTS(false);

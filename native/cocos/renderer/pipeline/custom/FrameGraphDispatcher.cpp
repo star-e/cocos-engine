@@ -946,7 +946,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
     {
         // barrier first meet
         // O(N) actually
-        ccstd::set<ccstd::pmr::string> firstMeet;
+        ccstd::set<ResourceGraph::vertex_descriptor> firstMeet;
         for (size_t i = 0; i < rag.access.size(); ++i) {
             const auto *status = &rag.access[i];
             for (const auto &attachment : status->attachmentStatus) {
@@ -969,8 +969,8 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
                         continue;
                     }
                 }
-                if (firstMeet.find(resName) == firstMeet.end()) {
-                    firstMeet.emplace(resName);
+                if (firstMeet.find(resourceID) == firstMeet.end()) {
+                    firstMeet.emplace(resourceID);
 
                     if (batchedBarriers.find(i) == batchedBarriers.end()) {
                         batchedBarriers.emplace(i, BarrierNode{});
@@ -1955,7 +1955,9 @@ bool checkRasterViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, Pa
     }
 
     // sort for vector intersection
-    std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [](const ResourceStatus &lhs, const ResourceStatus &rhs) { return lhs.resName < rhs.resName; });
+    std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [&](const ResourceStatus &lhs, const ResourceStatus &rhs) {
+        return rasterViews.at(lhs.resName).slotID < rasterViews.at(rhs.resName).slotID;
+    });
 
     return dependent;
 }
@@ -2001,7 +2003,7 @@ bool checkComputeViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, P
     }
 
     // sort for vector intersection
-    std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [](const ResourceStatus &lhs, const ResourceStatus &rhs) { return lhs.resName < rhs.resName; });
+    //std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [](const ResourceStatus &lhs, const ResourceStatus &rhs) { return lhs.resName < rhs.resName; });
 
     return dependent;
 }
@@ -2048,8 +2050,12 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
         fgRenderpassInfo.colorAccesses.resize(size);
         PmrFlatMap<uint32_t, std::pair<ccstd::pmr::string, gfx::AccessFlags>> viewIndex(rag.get_allocator());
         for (const auto &[name, view] : pass.rasterViews) {
-            auto resIter = rag.resourceIndex.find(name);
-            gfx::AccessFlags prevAccess = resIter == rag.resourceIndex.end() ? gfx::AccessFlags::NONE : rag.accessRecord.at(resIter->second).currStatus.access.accessFlag;
+            gfx::AccessFlags prevAccess = gfx::AccessFlags::NONE;
+            auto resID = vertex(name, resourceGraph);
+            auto resIter = rag.accessRecord.find(resID);
+            if (resIter != rag.accessRecord.end()) {
+                prevAccess = resIter->second.currStatus.access.accessFlag;
+            }
             viewIndex.emplace(std::piecewise_construct, std::forward_as_tuple(view.slotID), std::forward_as_tuple(name, prevAccess));
         }
 
@@ -2313,7 +2319,8 @@ void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass
         tryAddEdge(EXPECT_START_ID, vertID, resourceAccessGraph);
         tryAddEdge(EXPECT_START_ID, rlgVertID, relationGraph);
     }
-    std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [](const ResourceStatus &lhs, const ResourceStatus &rhs) { return lhs.resName < rhs.resName; });
+
+    //std::sort(node.attachmentStatus.begin(), node.attachmentStatus.end(), [](const ResourceStatus &lhs, const ResourceStatus &rhs) { return lhs.resName < rhs.resName; });
 }
 
 void processRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass &pass) {
@@ -2378,7 +2385,7 @@ bool rangeCheck(ccstd::pmr::map<PmrString, ResourceNode> &status,
         auto &slices = status[targetName].planes[planeIndex].slices;
         // no spare space in this slice
         check &= !slices[slice].full;
-        for (auto mip = firstMip; slice < firstMip + mipLevels; ++mip) {
+        for (auto mip = firstMip; mip < firstMip + mipLevels; ++mip) {
             auto &mips = slices[slice].mips;
             // this mip has been taken
             check &= mips[mip] == std::numeric_limits<uint32_t>::max();
@@ -2466,8 +2473,15 @@ void processMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass
     PmrFlatMap<PmrString, ResourceStatus> expiredValues(resourceAccessGraph.get_allocator());
     if (moveValidation(passID, pass, rescGraph, rag, expiredValues)) {
         for (const auto &pair : expiredValues) {
+            auto moveSrcResID = rag.resourceIndex[pair.first];
             rag.movedResources[pair.first] = pair.second;
-            rag.resourceIndex[pair.first] = vertex(pair.second.resName, resourceGraph);
+            auto moveDstResID = vertex(pair.second.resName, resourceGraph);
+            rag.resourceIndex[pair.first] = moveDstResID;
+
+            // prepare dst res intiallayout access
+            rag.accessRecord.emplace(
+                moveDstResID,
+                rag.accessRecord.at(moveSrcResID));
         }
     } else {
         for (const auto &pair : pass.movePairs) {

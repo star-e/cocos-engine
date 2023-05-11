@@ -269,7 +269,7 @@ struct ResourceAccessGraph {
     PmrFlatSet<vertex_descriptor> culledPasses;
     PmrFlatMap<uint32_t, ResourceTransition> accessRecord;
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
-    std::map<ccstd::pmr::string, ccstd::pmr::string> movedPairs;
+    std::map<ccstd::pmr::string, ccstd::vector<ccstd::pmr::string>> moveTargets;
     PmrFlatSet<ccstd::pmr::string> writtenResource;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
     PmrMap<vertex_descriptor, FGRenderPassInfo> rpInfos;
