@@ -309,7 +309,7 @@ export interface BasicPipeline extends PipelineRuntime {
     addRasterPass (width: number, height: number, layoutName: string): BasicRenderPassBuilder;
     addRasterPass (width: number, height: number/*, 'default'*/): BasicRenderPassBuilder;
     addMovePass (): MovePassBuilder;
-    addCopyPass (): CopyPassBuilder;
+    addCopyPass (copyPairs: CopyPair[]);
     getDescriptorSetLayout (shaderName: string, freq: UpdateFrequency): DescriptorSetLayout | null;
 }
 

@@ -28,7 +28,8 @@ import { BufferInfo, Buffer, BufferUsageBit, ClearFlagBit, Color, DescriptorSet,
 import { Camera, CSMLevel, DirectionalLight, Light, LightType, ReflectionProbe, ShadowType, SKYBOX_FLAG, SpotLight } from '../../render-scene/scene';
 import { supportsR32FloatTexture } from '../define';
 import { BasicPipeline } from './pipeline';
-import { AccessType, AttachmentType, ComputeView, LightInfo, QueueHint, RasterView, ResourceResidency, SceneFlags, UpdateFrequency } from './types';
+import { AccessType, AttachmentType, ComputeView, CopyPair,
+    LightInfo, QueueHint, RasterView, ResourceResidency, SceneFlags, UpdateFrequency } from './types';
 import { Vec4, macro, geometry, toRadian, cclegacy, assert } from '../../core';
 import { Material } from '../../asset/assets';
 import { getProfilerCamera, SRGBToLinear } from '../pipeline-funcs';
@@ -170,6 +171,10 @@ class FxaaData {
     constructor () {
         this._init();
     }
+}
+
+export function buildCopyPass (ppl: BasicPipeline, inOuts: CopyPair[]) {
+    ppl.addCopyPass(inOuts);
 }
 
 let fxaaData: FxaaData | null = null;
