@@ -1038,6 +1038,9 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
 
     // external res barrier for next frame
     for (const auto &pair : rag.resourceIndex) {
+        if (rag.movedResources.find(pair.first) != rag.movedResources.end()) {
+            continue;
+        }
         auto resID = pair.second;
         const auto &resTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, resID);
         auto &rescStates = get(ResourceGraph::StatesTag{}, resourceGraph, resID);
@@ -2477,6 +2480,19 @@ void processMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass
             rag.movedResources[pair.first] = pair.second;
             auto moveDstResID = vertex(pair.second.resName, resourceGraph);
             rag.resourceIndex[pair.first] = moveDstResID;
+
+             std::function<void(const PmrString &from)> updateRealResID = [&](const PmrString &from) {
+                if (rag.moveTargets.find(from) != rag.moveTargets.end()) {
+                    for (const auto &expiredMove : rag.moveTargets[from]) {
+                        rag.resourceIndex[expiredMove] = rag.resourceIndex[from];
+                        updateRealResID(expiredMove);
+                    }
+                }
+            };
+
+            updateRealResID(pair.first);
+            
+            rag.moveTargets[pair.second.resName].emplace_back(pair.first);
 
             // prepare dst res intiallayout access
             rag.accessRecord.emplace(
