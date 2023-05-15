@@ -25,12 +25,14 @@
 import { Format, LoadOp } from '../../gfx/base/define';
 import { Camera, CameraUsage } from '../../render-scene/scene';
 import { BasicPipeline, PipelineBuilder } from './pipeline';
-import { LightInfo, QueueHint, SceneFlags } from './types';
-import { AntiAliasing, buildBloomPass, buildForwardPass, buildFxaaPass, buildPostprocessPass, buildSSSSPass,
-    buildToneMappingPass, buildTransparencyPass, buildUIPass, hasSkinObject } from './define';
+import { CopyPair, LightInfo, QueueHint, ResourceResidency, SceneFlags } from './types';
+import { AntiAliasing, buildBloomPass, buildCopyPass, buildForwardPass, buildFxaaPass, buildPostprocessPass, buildSSSSPass,
+    buildToneMappingPass, buildTransparencyPass, buildUIPass, getRenderArea, hasSkinObject } from './define';
 import { isUICamera } from './utils';
 import { RenderWindow } from '../../render-scene/core/render-window';
 
+const copyPair = new CopyPair();
+const pairs = [copyPair];
 export class CustomPipelineBuilder implements PipelineBuilder {
     public setup (cameras: Camera[], ppl: BasicPipeline): void {
         for (let i = 0; i < cameras.length; i++) {
@@ -49,8 +51,17 @@ export class CustomPipelineBuilder implements PipelineBuilder {
             if (!isUICamera(camera)) {
                 // forward pass
                 const forwardInfo = buildForwardPass(camera, ppl, isGameView);
+                const area = getRenderArea(camera, camera.window.width, camera.window.height);
+                const width = area.width;
+                const height = area.height;
+                if (!ppl.containsResource('copyTexTest')) {
+                    ppl.addRenderTarget('copyTexTest', Format.RGBA16F, width, height, ResourceResidency.PERSISTENT);
+                }
+                copyPair.source = forwardInfo.rtName;
+                copyPair.target = 'copyTexTest';
+                buildCopyPass(ppl, pairs);
                 // fxaa pass
-                const fxaaInfo = buildFxaaPass(camera, ppl, forwardInfo.rtName, forwardInfo.dsName);
+                const fxaaInfo = buildFxaaPass(camera, ppl, 'copyTexTest', forwardInfo.dsName);
                 // bloom passes
                 const bloomInfo = buildBloomPass(camera, ppl, fxaaInfo.rtName);
                 // tone map pass
