@@ -1434,13 +1434,21 @@ void cmdFuncGLES3CreateRenderPass(GLES3Device * /*device*/, GLES3GPURenderPass *
         // preserves not supported
         CC_ASSERT(sub.preserves.empty());
 
+        std::vector<bool> visited(gpuRenderPass->colorAttachments.size());
+        for (auto &input : sub.inputs) {
+            visited[input] = true;
+            drawBuffer.emplace_back(GL_COLOR_ATTACHMENT0 + input);
+        }
+
         for (auto &color : sub.colors) {
             auto &index = gpuRenderPass->indices[color];
             if (index == INVALID_BINDING) {
                 index = static_cast<uint32_t>(gpuRenderPass->colors.size());
                 gpuRenderPass->colors.emplace_back(color);
             }
-            drawBuffer.emplace_back(GL_COLOR_ATTACHMENT0 + index);
+            if (!visited[color]) {
+                drawBuffer.emplace_back(GL_COLOR_ATTACHMENT0 + color);
+            }
         }
 
         for (auto &resolve : sub.resolves) {
