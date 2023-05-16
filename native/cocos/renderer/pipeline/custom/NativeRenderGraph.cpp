@@ -506,13 +506,15 @@ void addRasterViewImpl(
     RenderGraph &renderGraph) {
     CC_EXPECTS(!name.empty());
     auto &subpass = get(Tag{}, subpassID, renderGraph);
-    const auto slotID = static_cast<uint32_t>(subpass.rasterViews.size());
     const auto passID = parent(subpassID, renderGraph);
     CC_EXPECTS(passID != RenderGraph::null_vertex());
     CC_EXPECTS(holds<RasterPassTag>(passID, renderGraph));
     auto &pass = get(RasterPassTag{}, passID, renderGraph);
     CC_EXPECTS(subpass.subpassID < num_vertices(pass.subpassGraph));
     auto &subpassData = get(SubpassGraph::SubpassTag{}, pass.subpassGraph, subpass.subpassID);
+    auto iter = pass.attachmentIndexMap.find(name);
+    const auto localSlotID = static_cast<uint32_t>(subpassData.rasterViews.size());
+    const auto slotID = iter != pass.attachmentIndexMap.end() ? iter->second : pass.attachmentIndexMap.emplace(name, static_cast<uint32_t>(pass.attachmentIndexMap.size())).first->second;
     CC_EXPECTS(subpass.rasterViews.size() == subpassData.rasterViews.size());
     {
         auto res = subpassData.rasterViews.emplace(
@@ -529,6 +531,7 @@ void addRasterViewImpl(
                 clearColor,
                 gfx::ShaderStageFlagBit::NONE));
         CC_ENSURES(res.second);
+        res.first->second.localSlotID = localSlotID;
         res.first->second.slotID = slotID;
     }
     {
@@ -545,6 +548,7 @@ void addRasterViewImpl(
                 clearColor,
                 gfx::ShaderStageFlagBit::NONE));
         CC_ENSURES(res.second);
+        res.first->second.localSlotID = localSlotID;
         res.first->second.slotID = slotID;
     }
     CC_ENSURES(subpass.rasterViews.size() == subpassData.rasterViews.size());
