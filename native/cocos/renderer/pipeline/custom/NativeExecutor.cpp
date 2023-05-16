@@ -1624,13 +1624,23 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void end(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
 
+    void mountResourceView(const RasterView& view) {
+        if (!view.slotName.empty()) {
+            
+        }
+    }
+
     void mountResources(const Subpass& pass) const {
         auto& resg = ctx.resourceGraph;
         // mount managed resources
         for (const auto& [name, view] : pass.rasterViews) {
             auto resID = findVertex(name, resg);
             CC_EXPECTS(resID != ResourceGraph::null_vertex());
-            resg.mount(ctx.device, resID);
+            if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
+                resg.mount(ctx.device, resID, view.slotName, view.slotName1);
+            } else {
+                resg.mount(ctx.device, resID);   
+            }
         }
         for (const auto& [name, views] : pass.computeViews) {
             auto resID = findVertex(name, resg);
@@ -1645,7 +1655,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         for (const auto& [name, view] : pass.rasterViews) {
             auto resID = findVertex(name, resg);
             CC_EXPECTS(resID != ResourceGraph::null_vertex());
-            resg.mount(ctx.device, resID);
+            resg.mount(ctx.device, resID);            
         }
         for (const auto& [name, views] : pass.computeViews) {
             auto resID = findVertex(name, resg);

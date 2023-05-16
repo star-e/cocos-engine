@@ -159,6 +159,15 @@ gfx::TextureInfo getTextureInfo(const ResourceDesc& desc, bool bCube = false) {
     };
 }
 
+gfx::TextureViewInfo getTextureViewInfo(gfx::Texture* texture, const ResourceDesc& desc, uint32_t planeID) {
+    gfx::TextureViewInfo viewInfo;
+    viewInfo.texture = texture;
+    viewInfo.format = texture->getFormat();
+    viewInfo.type = gfx::TextureType::TEX2D;
+    viewInfo.baseLayer = planeID;
+    return viewInfo;
+};
+
 } // namespace
 
 bool ManagedTexture::checkResource(const ResourceDesc& desc) const {
@@ -223,6 +232,56 @@ void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
             CC_EXPECTS(queue.swapchain);
             std::ignore = queue;
         });
+}
+
+void mountView(gfx::Device* device,
+    ResourceGraph& resg,
+    ResourceGraph::vertex_descriptor vertID,
+    const ccstd::pmr::string& name0,
+    uint32_t planeID) {
+
+    auto* originTexture = resg.getTexture(vertID);
+    const auto& desc = get(ResourceGraph::DescTag{}, resg, vertID);
+    CC_ASSERT(originTexture);
+
+    auto resID = findVertex(name0, resg);
+    if (resID == ResourceGraph::null_vertex()) {
+        resID = addVertex(
+            ManagedTextureTag{},
+            std::forward_as_tuple(name0.c_str()),
+            std::forward_as_tuple(desc),
+            std::forward_as_tuple(ResourceResidency::MANAGED),
+            std::forward_as_tuple(),
+            std::forward_as_tuple(),
+            std::forward_as_tuple(),
+            resg);
+        visitObject(
+            resID, resg,
+            [&](ManagedTexture& texture) {
+                CC_EXPECTS(!texture.texture);
+                auto& viewInfo = getTextureViewInfo(originTexture, desc, planeID);
+                texture.texture = device->createTexture(viewInfo);
+                texture.fenceValue = resg.nextFenceValue;
+            },
+            [&](const auto& res) {
+                CC_EXPECTS(false);
+                std::ignore = res;
+            });
+    }
+}
+
+void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID, const ccstd::pmr::string& name0, const ccstd::pmr::string& name1) {
+    mount(device, vertID);
+    auto* texture = getTexture(vertID);
+    const auto& desc = get(ResourceGraph::DescTag{}, *this, vertID);
+    CC_ASSERT(texture);
+
+    if (!name0.empty() && name0 != "_") {
+        mountView(device, *this, vertID, name0, 0);
+    }
+    if (!name1.empty() && name1 != "_") {
+        mountView(device, *this, vertID, name1, 1);
+    }
 }
 
 void ResourceGraph::unmount(uint64_t completedFenceValue) {

@@ -2320,6 +2320,11 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             }
             fgRenderpassInfo.colorAccesses[slot].nextAccess = nextAccess;
         } else {
+            if (!(view.slotName.empty() && view.slotName1.empty())) {
+                CC_ASSERT(view.accessType != AccessType::WRITE);
+                subpassInfo.inputs.emplace_back(fgRenderpassInfo.colorAccesses.size());
+            }
+
             fgRenderpassInfo.dsAccess.nextAccess = nextAccess;
             subpassInfo.depthStencil = rpInfo.colorAttachments.size();
         }

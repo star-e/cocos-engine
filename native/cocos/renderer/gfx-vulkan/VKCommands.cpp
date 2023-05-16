@@ -202,14 +202,24 @@ void cmdFuncCCVKCreateTextureView(CCVKDevice *device, CCVKGPUTextureView *gpuTex
     if (!gpuTextureView->gpuTexture) return;
 
     auto createFn = [device, gpuTextureView](VkImage vkImage, VkImageView *pVkImageView) {
+
+        auto mapAspect = [gpuTextureView](uint32_t planeIndex) {
+            auto aspectMask = gpuTextureView->gpuTexture->aspectMask;
+            if (gpuTextureView->format == Format::DEPTH_STENCIL) {
+                aspectMask = planeIndex == 0 ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_STENCIL_BIT;
+            }
+            return aspectMask;
+        };
+
+        auto plane = gpuTextureView->format == Format::DEPTH_STENCIL ? gpuTextureView->baseLayer : 0;
         VkImageViewCreateInfo createInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         createInfo.image = vkImage;
         createInfo.viewType = mapVkImageViewType(gpuTextureView->type);
         createInfo.format = mapVkFormat(gpuTextureView->format, device->gpuDevice());
-        createInfo.subresourceRange.aspectMask = gpuTextureView->gpuTexture->aspectMask;
+        createInfo.subresourceRange.aspectMask = mapAspect(plane);
         createInfo.subresourceRange.baseMipLevel = gpuTextureView->baseLevel;
         createInfo.subresourceRange.levelCount = gpuTextureView->levelCount;
-        createInfo.subresourceRange.baseArrayLayer = gpuTextureView->baseLayer;
+        createInfo.subresourceRange.baseArrayLayer = gpuTextureView->format == Format::DEPTH_STENCIL ? 0 : gpuTextureView->baseLayer;
         createInfo.subresourceRange.layerCount = gpuTextureView->layerCount;
 
         VK_CHECK(vkCreateImageView(device->gpuDevice()->vkDevice, &createInfo, nullptr, pVkImageView));
