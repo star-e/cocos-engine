@@ -2150,7 +2150,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
                 fgRenderpassInfo.colorAccesses[slotID].prevAccess = prevAccess;
                 fgRenderpassInfo.colorAccesses[slotID].nextAccess = nextAccess;
             } else {
-                subpassInfo.depthStencil = slotID;
+                subpassInfo.depthStencil = pass.rasterViews.size() - 1;
                 fgRenderpassInfo.dsAccess.prevAccess = prevAccess;
                 fgRenderpassInfo.dsAccess.nextAccess = nextAccess;
             }
@@ -2241,11 +2241,12 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
 
     resourceAccessGraph.passIndex[passID] = parentRagVert;
 
+    uint32_t dsIndex = INVALID_ID;
     PmrFlatMap<uint32_t, std::pair<ccstd::pmr::string, gfx::AccessFlags>> viewIndex(rag.get_allocator());
     for (const auto &[name, view] : pass.rasterViews) {
         auto resIter = rag.resourceIndex.find(name);
         gfx::AccessFlags prevAccess = resIter == rag.resourceIndex.end() ? gfx::AccessFlags::NONE : rag.accessRecord.at(resIter->second).currStatus.accessFlag;
-        viewIndex.emplace(std::piecewise_construct, std::forward_as_tuple(view.localSlotID), std::forward_as_tuple(name, prevAccess));
+        viewIndex.emplace(std::piecewise_construct, std::forward_as_tuple(view.slotID), std::forward_as_tuple(name, prevAccess));
     }
 
     auto &node = get(RAG::AccessNodeTag{}, resourceAccessGraph, parentRagVert);
@@ -2278,6 +2279,7 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
         const auto &viewDesc = get(ResourceGraph::DescTag{}, resg, rag.resourceIndex.at(resName));
         CC_ASSERT(uberPass.attachmentIndexMap.count(pair.first));
         uint32_t slot = uberPass.attachmentIndexMap.at(pair.first);
+        slot = slot > dsIndex ? slot - 1 : slot;
         auto localSlot = slotID;
 
         // TD:remove find
@@ -2298,8 +2300,9 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             }
             fgRenderpassInfo.colorAccesses[slot].nextAccess = nextAccess;
         } else {
+            dsIndex = slotID;
             fgRenderpassInfo.dsAccess.nextAccess = nextAccess;
-            subpassInfo.depthStencil = view.slotID;
+            subpassInfo.depthStencil = rpInfo.colorAttachments.size();
         }
 
         if (iter == node.attachmentStatus.end()) {
