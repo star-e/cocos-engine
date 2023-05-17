@@ -78,8 +78,6 @@ void GLES3PrimaryCommandBuffer::endRenderPass() {
 
 void GLES3PrimaryCommandBuffer::nextSubpass() {
     ++_curSubpassIdx;
-    auto *framebuffer = GLES3Device::getInstance()->stateCache()->gfxStateCache.gpuFramebuffer;
-    cmdFuncGLES3DrawBuffers(framebuffer, _curSubpassIdx);
 }
 
 void GLES3PrimaryCommandBuffer::draw(const DrawInfo &info) {

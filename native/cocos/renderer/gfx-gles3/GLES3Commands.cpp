@@ -1430,13 +1430,10 @@ void cmdFuncGLES3CreateRenderPass(GLES3Device * /*device*/, GLES3GPURenderPass *
         auto &sub = subPasses[i];
         auto &drawBuffer = drawBuffers[i];
 
-        // preserves not supported
-        CC_ASSERT(sub.preserves.empty());
-
         std::vector<bool> visited(gpuRenderPass->colorAttachments.size());
         for (auto &input : sub.inputs) {
             visited[input] = true;
-            drawBuffer.emplace_back(GL_COLOR_ATTACHMENT0 + input);
+            drawBuffer.emplace_back(input);
         }
 
         for (auto &color : sub.colors) {
@@ -1446,7 +1443,7 @@ void cmdFuncGLES3CreateRenderPass(GLES3Device * /*device*/, GLES3GPURenderPass *
                 gpuRenderPass->colors.emplace_back(color);
             }
             if (!visited[color]) {
-                drawBuffer.emplace_back(GL_COLOR_ATTACHMENT0 + color);
+                drawBuffer.emplace_back(color);
             }
         }
 
@@ -1856,16 +1853,6 @@ void cmdFuncGLES3Query(GLES3Device * /*device*/, GLES3QueryPool *queryPool, GLES
     }
 }
 
-void cmdFuncGLES3DrawBuffers(GLES3GPUFramebuffer *gpuFrameBuffer, uint32_t subpassIdx) {
-    auto *gpuRenderPass = gpuFrameBuffer->gpuRenderPass;
-    CC_ASSERT(subpassIdx <= gpuRenderPass->drawBuffers.size());
-    const auto &drawBuffers = gpuRenderPass->drawBuffers[subpassIdx];
-
-    if (gpuFrameBuffer->frameBuffer.framebuffer.getFramebuffer()) {
-        GL_CHECK(glDrawBuffers(utils::toUint(drawBuffers.size()), drawBuffers.data()));
-    }
-}
-
 void cmdFuncGLES3BeginRenderPass(GLES3Device *device, GLES3GPURenderPass *gpuRenderPass, GLES3GPUFramebuffer *gpuFramebuffer,
                                  const Rect *renderArea, const Color *clearColors, float clearDepth, uint32_t clearStencil) {
     ccstd::vector<GLenum> invalidAttachments;
@@ -1889,7 +1876,6 @@ void cmdFuncGLES3BeginRenderPass(GLES3Device *device, GLES3GPURenderPass *gpuRen
             GL_CHECK(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, glFramebuffer));
             cache->glDrawFramebuffer = glFramebuffer;
         }
-        cmdFuncGLES3DrawBuffers(gpuFramebuffer, 0);
 
         if (cache->viewport.left != renderArea->x ||
             cache->viewport.top != renderArea->y ||
@@ -2151,11 +2137,11 @@ void cmdFuncGLES3EndRenderPass(GLES3Device *device) {
         performStoreOp(i, indices[i]);
     }
     performDepthStencilStoreOp(gpuRenderPass->depthStencil);
-    if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_EXT) {
-        GL_CHECK(glFramebufferFetchBarrierEXT());
-    } else if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_QCOM) {
-        GL_CHECK(glFramebufferFetchBarrierQCOM());
-    }
+//    if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_EXT) {
+//        GL_CHECK(glFramebufferFetchBarrierEXT());
+//    } else if (device->constantRegistry()->mFBF == FBFSupportLevel::NON_COHERENT_QCOM) {
+//        GL_CHECK(glFramebufferFetchBarrierQCOM());
+//    }
 }
 
 // NOLINTNEXTLINE(google-readability-function-size, readability-function-size)
