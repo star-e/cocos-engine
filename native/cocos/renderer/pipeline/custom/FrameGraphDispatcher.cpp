@@ -2118,6 +2118,7 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
             tryAddEdge(EXPECT_START_ID, rlgVertID, relationGraph);
         }
 
+        uint32_t index = 0;
         // initial layout(accessrecord.laststatus) and final layout(accessrecord.currstatus) can be filled here
         for (const auto &[slotID, pair] : viewIndex) {
             const auto &name = pair.first;
@@ -2138,23 +2139,23 @@ void processRasterPass(const Graphs &graphs, uint32_t passID, const RasterPass &
             auto &subpassInfo = rpInfo.subpasses.front();
             if (view.attachmentType != AttachmentType::DEPTH_STENCIL) {
                 if (view.attachmentType == AttachmentType::SHADING_RATE) {
-                    subpassInfo.shadingRate = slotID;
+                    subpassInfo.shadingRate = index;
                 } else {
                     if (view.accessType != AccessType::READ) {
-                        subpassInfo.colors.emplace_back(slotID);
+                        subpassInfo.colors.emplace_back(index);
                     }
                     if (view.accessType != AccessType::WRITE) {
-                        subpassInfo.inputs.emplace_back(slotID);
+                        subpassInfo.inputs.emplace_back(index);
                     }
                 }
-                fgRenderpassInfo.colorAccesses[slotID].prevAccess = prevAccess;
-                fgRenderpassInfo.colorAccesses[slotID].nextAccess = nextAccess;
+                fgRenderpassInfo.colorAccesses[index].prevAccess = prevAccess;
+                fgRenderpassInfo.colorAccesses[index].nextAccess = nextAccess;
             } else {
                 subpassInfo.depthStencil = pass.rasterViews.size() - 1;
                 fgRenderpassInfo.dsAccess.prevAccess = prevAccess;
                 fgRenderpassInfo.dsAccess.nextAccess = nextAccess;
             }
-            fillRenderPassInfo(view, rpInfo, slotID, viewDesc);
+            fillRenderPassInfo(view, rpInfo, index, viewDesc);
         }
     } else {
         PmrFlatSet<PmrString> viewSet(resourceAccessGraph.get_allocator());
@@ -2279,8 +2280,10 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
         const auto &viewDesc = get(ResourceGraph::DescTag{}, resg, rag.resourceIndex.at(resName));
         CC_ASSERT(uberPass.attachmentIndexMap.count(pair.first));
         uint32_t slot = uberPass.attachmentIndexMap.at(pair.first);
-        slot = slot > dsIndex ? slot - 1 : slot;
-        auto localSlot = slotID;
+        if (slot > dsIndex || slot == fgRenderpassInfo.colorAccesses.size()) {
+            slot = slot - 1;
+        }
+        auto localSlot = pass.rasterViews.at(resName).localSlotID;
 
         // TD:remove find
         auto nodeIter = std::find_if(head->attachmentStatus.begin(), head->attachmentStatus.end(), [resID](const AccessStatus &status) {
