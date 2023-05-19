@@ -218,7 +218,6 @@ struct RasterView {
     gfx::StoreOp storeOp{gfx::StoreOp::STORE};
     gfx::ClearFlagBit clearFlags{gfx::ClearFlagBit::ALL};
     gfx::Color clearColor;
-    uint32_t localSlotID{0};
     uint32_t slotID{0};
     gfx::ShaderStageFlagBit shaderStageFlags{gfx::ShaderStageFlagBit::NONE};
 };

@@ -491,6 +491,16 @@ void NativeRenderPassBuilder::setShowStatistics(bool enable) {
 
 namespace {
 
+uint32_t getSlotID(RasterPass &pass, std::string_view name, AttachmentType type) {
+    if (type == AttachmentType::DEPTH_STENCIL) {
+        return 0xFF;
+    }
+
+    const auto newID = static_cast<uint32_t>(pass.attachmentIndexMap.size());
+    auto iter = pass.attachmentIndexMap.find(name);
+    return iter != pass.attachmentIndexMap.end() ? iter->second : pass.attachmentIndexMap.emplace(name, newID).first->second;
+}
+
 template <class Tag>
 void addRasterViewImpl(
     std::string_view name,
@@ -512,9 +522,7 @@ void addRasterViewImpl(
     auto &pass = get(RasterPassTag{}, passID, renderGraph);
     CC_EXPECTS(subpass.subpassID < num_vertices(pass.subpassGraph));
     auto &subpassData = get(SubpassGraph::SubpassTag{}, pass.subpassGraph, subpass.subpassID);
-    auto iter = pass.attachmentIndexMap.find(name);
-    const auto localSlotID = static_cast<uint32_t>(subpassData.rasterViews.size());
-    const auto slotID = iter != pass.attachmentIndexMap.end() ? iter->second : pass.attachmentIndexMap.emplace(name, static_cast<uint32_t>(pass.attachmentIndexMap.size())).first->second;
+    const auto slotID = getSlotID(pass, name, attachmentType);
     CC_EXPECTS(subpass.rasterViews.size() == subpassData.rasterViews.size());
     {
         auto res = subpassData.rasterViews.emplace(
@@ -531,7 +539,6 @@ void addRasterViewImpl(
                 clearColor,
                 gfx::ShaderStageFlagBit::NONE));
         CC_ENSURES(res.second);
-        res.first->second.localSlotID = localSlotID;
         res.first->second.slotID = slotID;
     }
     {
@@ -548,7 +555,6 @@ void addRasterViewImpl(
                 clearColor,
                 gfx::ShaderStageFlagBit::NONE));
         CC_ENSURES(res.second);
-        res.first->second.localSlotID = localSlotID;
         res.first->second.slotID = slotID;
     }
     CC_ENSURES(subpass.rasterViews.size() == subpassData.rasterViews.size());
