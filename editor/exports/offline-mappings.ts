@@ -96,6 +96,8 @@ typeMap.isamplerCube = Type.SAMPLER_CUBE;
 typeMap.usamplerCube = Type.SAMPLER_CUBE;
 typeMap.samplerCubeShadow = Type.SAMPLER_CUBE;
 typeMap.uimage2D = Type.IMAGE2D;
+typeMap.usubpassInput = Type.SUBPASS_INPUT;
+typeMap.isubpassInput = Type.SUBPASS_INPUT;
 
 const isSampler = (type) => type >= Type.SAMPLER1D;
 const isPaddedMatrix = (type) => type >= Type.MAT2 && type < Type.MAT4;
