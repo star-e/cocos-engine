@@ -52,17 +52,19 @@ const GLenum GLE_S3_PRIMITIVES[] = {
 };
 
 namespace {
-void updateGPUShaderSourceByRenderPass(GLES3GPUShader *gpuShader, GLES3GPURenderPass &renderPass, uint32_t subpassIndex) {
-    CC_ASSERT(subpassIndex < renderPass.subpasses.size());
-    if (renderPass.subpasses[subpassIndex].inputs.empty()) {
-        return;
-    }
-    auto &drawBuffers = renderPass.drawBuffers.at(subpassIndex);
-
+void updateGPUShaderSourceByRenderPass(GLES3GPUShader *gpuShader, GLES3GPURenderPass *renderPass, uint32_t subpassIndex) {
     auto iter = std::find_if(gpuShader->gpuStages.begin(), gpuShader->gpuStages.end(), [](const GLES3GPUShaderStage &stage) {
         return stage.type == ShaderStageFlagBit::FRAGMENT;
     });
-    CC_ASSERT(iter != gpuShader->gpuStages.end());
+    if (iter == gpuShader->gpuStages.end()) {
+        return;
+    }
+
+    CC_ASSERT(subpassIndex < renderPass->subpasses.size());
+    if (renderPass->subpasses[subpassIndex].inputs.empty()) {
+        return;
+    }
+    auto &drawBuffers = renderPass->drawBuffers.at(subpassIndex);
 
     for (uint32_t i = 0; i < drawBuffers.size(); ++i) {
         const char* LAYOUT_PREFIX = "layout(location = ";
@@ -86,7 +88,7 @@ void updateGPUShaderSourceByRenderPass(GLES3GPUShader *gpuShader, GLES3GPURender
     }
 }
 
-void initGpuShader(GLES3GPUShader *gpuShader, GLES3GPUPipelineLayout *gpuPipelineLayout, GLES3GPURenderPass &renderPass, uint32_t subpassIndex) {
+void initGpuShader(GLES3GPUShader *gpuShader, GLES3GPUPipelineLayout *gpuPipelineLayout, GLES3GPURenderPass *renderPass, uint32_t subpassIndex) {
     updateGPUShaderSourceByRenderPass(gpuShader, renderPass, subpassIndex);
     cmdFuncGLES3CreateShader(GLES3Device::getInstance(), gpuShader, gpuPipelineLayout);
     CC_ASSERT(gpuShader->glProgram);
@@ -116,9 +118,9 @@ void GLES3PipelineState::doInit(const PipelineStateInfo & /*info*/) {
     _gpuPipelineState->bs = _blendState;
     _gpuPipelineState->gpuPipelineLayout = static_cast<GLES3PipelineLayout *>(_pipelineLayout)->gpuPipelineLayout();
     _gpuPipelineState->gpuShader = static_cast<GLES3Shader *>(_shader)->gpuShader();
-    _gpuPipelineState->gpuRenderPass = static_cast<GLES3RenderPass *>(_renderPass)->gpuRenderPass();
+    if (_renderPass) _gpuPipelineState->gpuRenderPass = static_cast<GLES3RenderPass *>(_renderPass)->gpuRenderPass();
     if (_gpuPipelineState->gpuShader->glProgram == 0) {
-        initGpuShader(_gpuPipelineState->gpuShader, _gpuPipelineState->gpuPipelineLayout, *_gpuPipelineState->gpuRenderPass, _subpass);
+        initGpuShader(_gpuPipelineState->gpuShader, _gpuPipelineState->gpuPipelineLayout, _gpuPipelineState->gpuRenderPass, _subpass);
     }
 
     if (_renderPass) _gpuPipelineState->gpuRenderPass = static_cast<GLES3RenderPass *>(_renderPass)->gpuRenderPass();

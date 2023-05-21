@@ -1394,7 +1394,7 @@ void cmdFuncGLES3CreateShader(GLES3Device *device, GLES3GPUShader *gpuShader, GL
                 gpuImage.name = image.name;
                 gpuImage.type = image.type;
                 gpuImage.count = image.count;
-                gpuImage.glMemoryAccess = GL_MEMORY_ACCESS[toNumber(image.memoryAccess)];
+                gpuImage.glMemoryAccess = GL_MEMORY_ACCESS[toNumber(image.memoryAccess) - 1];
                 gpuImage.units.resize(gpuImage.count);
                 gpuImage.glLoc = glLoc;
                 // storage image units are immutable
