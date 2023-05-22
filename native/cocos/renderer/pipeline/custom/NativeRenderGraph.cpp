@@ -797,10 +797,11 @@ void NativeMultisampleRenderSubpassBuilder::resolveRenderTarget(
     const ccstd::string &source, const ccstd::string &target) { // NOLINT(bugprone-easily-swappable-parameters)
     auto &subpass = get(RasterSubpassTag{}, nodeID, *renderGraph);
     subpass.resolvePairs.emplace_back(
-        std::string_view{source},
-        std::string_view{target},
+        ccstd::pmr::string(source.data(), renderGraph->get_allocator()),
+        ccstd::pmr::string(target.data(), renderGraph->get_allocator()),
         ResolveFlags::COLOR,
-        gfx::ResolveMode::AVERAGE);
+        gfx::ResolveMode::AVERAGE,
+        gfx::ResolveMode::SAMPLE_ZERO);
 }
 
 void NativeMultisampleRenderSubpassBuilder::resolveDepthStencil(
@@ -815,8 +816,8 @@ void NativeMultisampleRenderSubpassBuilder::resolveDepthStencil(
         flags |= ResolveFlags::STENCIL;
     }
     subpass.resolvePairs.emplace_back(
-        std::string_view{source},
-        std::string_view{target},
+        ccstd::pmr::string(source.data(), renderGraph->get_allocator()),
+        ccstd::pmr::string(target.data(), renderGraph->get_allocator()),
         flags,
         depthMode,
         stencilMode);
