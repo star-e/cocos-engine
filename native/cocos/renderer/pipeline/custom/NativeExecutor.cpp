@@ -268,7 +268,6 @@ PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
         data.clearColors.reserve(numColors);
         rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID).rpInfo;
         fillFrameBufferInfo(pass);
-
     } else {
         rpInfo = ctx.fgd.resourceAccessGraph.rpInfos.at(ragVertID).rpInfo;
         for (const auto& subpass : pass.subpassGraph.subpasses) {
@@ -1624,20 +1623,15 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void end(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
 
-    void mountResourceView(const RasterView& view) {
-        if (!view.slotName.empty()) {
-            
-        }
-    }
-
     void mountResources(const Subpass& pass) const {
         auto& resg = ctx.resourceGraph;
         // mount managed resources
-        for (const auto& [name, view] : pass.rasterViews) {
+        for (const auto& [viewName, view] : pass.rasterViews) {
+            const char* name = resg.getViewLocalName(viewName);
             auto resID = findVertex(name, resg);
             CC_EXPECTS(resID != ResourceGraph::null_vertex());
             if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
-                resg.mount(ctx.device, resID, view.slotName, view.slotName1);
+                resg.mount(ctx.device, resID, viewName, view.slotName, view.slotName1);
             } else {
                 resg.mount(ctx.device, resID);   
             }

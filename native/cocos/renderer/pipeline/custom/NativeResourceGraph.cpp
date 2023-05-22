@@ -255,32 +255,48 @@ void mountView(gfx::Device* device,
             std::forward_as_tuple(),
             std::forward_as_tuple(),
             resg);
-        visitObject(
-            resID, resg,
-            [&](ManagedTexture& texture) {
-                CC_EXPECTS(!texture.texture);
+    }
+    visitObject(
+        resID, resg,
+        [&](ManagedTexture& texture) {
+            if (!texture.texture) {
                 auto& viewInfo = getTextureViewInfo(originTexture, desc, planeID);
                 texture.texture = device->createTexture(viewInfo);
-                texture.fenceValue = resg.nextFenceValue;
-            },
-            [&](const auto& res) {
-                CC_EXPECTS(false);
-                std::ignore = res;
-            });
-    }
+            }
+            texture.fenceValue = resg.nextFenceValue;
+        },
+        [&](const auto& res) {
+            CC_EXPECTS(false);
+            std::ignore = res;
+        });
 }
 
-void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID, const ccstd::pmr::string& name0, const ccstd::pmr::string& name1) {
+const char* ResourceGraph::getViewLocalName(const ccstd::pmr::string& name) const {
+    auto index = name.find_first_of("_$_");
+    std::string_view view;
+    if (index == name.npos) {
+        view = std::string_view(name);
+    } else {
+        view = std::string_view{name.c_str(), index};
+    }
+
+    thread_local char localChars[256];
+    memcpy(localChars, view.data(), view.length());
+    localChars[view.length()] = '\0';
+    return localChars;
+}
+
+void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID, const ccstd::pmr::string& name, const ccstd::pmr::string& name0, const ccstd::pmr::string& name1) {
     mount(device, vertID);
     auto* texture = getTexture(vertID);
     const auto& desc = get(ResourceGraph::DescTag{}, *this, vertID);
     CC_ASSERT(texture);
 
     if (!name0.empty() && name0 != "_") {
-        mountView(device, *this, vertID, name0, 0);
+        mountView(device, *this, vertID, name, 0);
     }
     if (!name1.empty() && name1 != "_") {
-        mountView(device, *this, vertID, name1, 1);
+        mountView(device, *this, vertID, name, 1);
     }
 }
 

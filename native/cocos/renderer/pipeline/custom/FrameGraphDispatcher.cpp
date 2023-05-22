@@ -1782,7 +1782,8 @@ auto getResourceStatus(PassType passType, const PmrString &name, gfx::MemoryAcce
     gfx::ShaderStageFlags vis{gfx::ShaderStageFlags::NONE};
     vis |= visibility;
     gfx::AccessFlags accesFlag;
-    auto vertex = resourceGraph.valueIndex.at(name);
+    const auto &localName = resourceGraph.getViewLocalName(name);
+    auto vertex = resourceGraph.valueIndex.at(localName);
     const auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, vertex);
     if (desc.dimension == ResourceDimension::BUFFER) {
         gfx::BufferUsage bufferUsage{gfx::BufferUsage::NONE};
@@ -1876,7 +1877,8 @@ void addCopyAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &
 
 PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status) {
     const auto &[name, passType, visibility, access, accessFlag, usage] = status;
-    uint32_t rescID = rg.valueIndex.at(name);
+    const auto resName = rg.getViewLocalName(name);
+    uint32_t rescID = rg.valueIndex.at(resName);
     const auto &resourceDesc = get(ResourceGraph::DescTag{}, rg, rescID);
     const auto &traits = get(ResourceGraph::TraitsTag{}, rg, rescID);
     // const PmrString *resName = &name;
@@ -1888,7 +1890,7 @@ PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode 
         range = TextureRange{0, 1, 0, resourceDesc.mipLevels};
     }
 
-    CC_EXPECTS(rg.valueIndex.find(name) != rg.valueIndex.end());
+    CC_EXPECTS(rg.valueIndex.find(resName) != rg.valueIndex.end());
     if (std::find(rag.resourceNames.begin(), rag.resourceNames.end(), name) == rag.resourceNames.end()) {
         rag.resourceIndex.emplace(name, rescID);
         rag.resourceNames.emplace_back(name);
@@ -2000,9 +2002,8 @@ gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, 
         }
     }
 
-    // unreachable
-    CC_EXPECTS(false);
-    return gfx::ShaderStageFlagBit::NONE;
+    auto subpassSlotVis = getVisibilityByDescName(renderGraph, lgd, passID, "__in" + resName);
+    return subpassSlotVis;
 };
 
 bool checkRasterViews(const Graphs &graphs, uint32_t vertID, uint32_t passID, PassType passType, ResourceAccessNode &node, const RasterViewsMap &rasterViews) {
@@ -2320,7 +2321,8 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             }
             fgRenderpassInfo.colorAccesses[slot].nextAccess = nextAccess;
         } else {
-            if (!(view.slotName.empty() && view.slotName1.empty())) {
+            if (!(view.slotName.empty() || view.slotName != "_") &&
+                  !(view.slotName1.empty() || view.slotName1 != "_")) {
                 CC_ASSERT(view.accessType != AccessType::WRITE);
                 subpassInfo.inputs.emplace_back(fgRenderpassInfo.colorAccesses.size());
             }

@@ -494,9 +494,10 @@ struct ResourceGraph {
 
     void validateSwapchains();
     void mount(gfx::Device* device, vertex_descriptor vertID);
-    void mount(gfx::Device* device, vertex_descriptor vertID, const ccstd::pmr::string& name0, const ccstd::pmr::string& name1);
+    void mount(gfx::Device* device, vertex_descriptor vertID, const ccstd::pmr::string& name, const ccstd::pmr::string& name0, const ccstd::pmr::string& name1);
     void unmount(uint64_t completedFenceValue);
     bool isTexture(vertex_descriptor resID) const noexcept;
+    const char* getViewLocalName(const ccstd::pmr::string&) const;
     gfx::Texture* getTexture(vertex_descriptor resID);
     gfx::Buffer* getBuffer(vertex_descriptor resID);
     void invalidatePersistentRenderPassAndFramebuffer(gfx::Texture* pTexture);

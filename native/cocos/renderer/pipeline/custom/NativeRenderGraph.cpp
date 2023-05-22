@@ -540,11 +540,12 @@ void addRasterViewImpl(
         res.first->second.slotID = slotID;
     }
     {
+        const auto& slot = slotName.empty() ? slotName1 : slotName;
         auto res = subpass.rasterViews.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(name),
             std::forward_as_tuple(
-                ccstd::pmr::string(slotName, subpassData.get_allocator()),
+                ccstd::pmr::string(slot, subpassData.get_allocator()),
                 accessType,
                 attachmentType,
                 loadOp,
@@ -633,8 +634,15 @@ void NativeRenderSubpassBuilderImpl::addDepthStencil(
     const ccstd::string &stencilSlotName,
     gfx::LoadOp loadOp, gfx::StoreOp storeOp,
     float depth, uint8_t stencil, gfx::ClearFlagBit clearFlags) {
+    auto viewName = name;
+    if (!depthSlotName.empty() && depthSlotName != "_") {
+        viewName += "_$_" + depthSlotName; 
+    }
+    if (!stencilSlotName.empty() && stencilSlotName != "_") {
+        viewName += "_$_" + stencilSlotName;
+    }
     addRasterViewImpl<RasterSubpassTag>(
-        name,
+        viewName,
         depthSlotName,
         stencilSlotName,
         accessType,
