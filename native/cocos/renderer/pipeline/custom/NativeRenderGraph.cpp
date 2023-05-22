@@ -801,7 +801,7 @@ void NativeMultisampleRenderSubpassBuilder::resolveRenderTarget(
         ccstd::pmr::string(target.data(), renderGraph->get_allocator()),
         ResolveFlags::COLOR,
         gfx::ResolveMode::AVERAGE,
-        gfx::ResolveMode::SAMPLE_ZERO);
+        gfx::ResolveMode::NONE);
 }
 
 void NativeMultisampleRenderSubpassBuilder::resolveDepthStencil(
