@@ -40,6 +40,7 @@ export {
     ConstantForce,
     PhysicsMaterial,
     PhysicsRayResult,
+    PhysicsLineStripCastResult,
 
     Collider,
     BoxCollider,
@@ -54,6 +55,8 @@ export {
 
     Constraint,
     HingeConstraint,
+    ConfigurableConstraint,
+    FixedConstraint,
     PointToPointConstraint,
 
     CapsuleCharacterController,

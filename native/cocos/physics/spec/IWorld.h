@@ -142,11 +142,25 @@ public:
     virtual bool raycastClosest(RaycastOptions &opt) = 0;
     virtual ccstd::vector<RaycastResult> &raycastResult() = 0;
     virtual RaycastResult &raycastClosestResult() = 0;
+    virtual bool sweepBox(RaycastOptions &opt, float halfExtentX, float halfExtentY, float halfExtentZ,
+        float orientationW, float orientationX, float orientationY, float orientationZ) = 0;
+    virtual bool sweepBoxClosest(RaycastOptions &opt, float halfExtentX, float halfExtentY, float halfExtentZ,
+        float orientationW, float orientationX, float orientationY, float orientationZ) = 0;
+    virtual bool sweepSphere(RaycastOptions &opt, float radius) = 0;
+    virtual bool sweepSphereClosest(RaycastOptions &opt, float radius) = 0;
+    virtual bool sweepCapsule(RaycastOptions &opt, float radius, float height,
+        float orientationW, float orientationX, float orientationY, float orientationZ) = 0;
+    virtual bool sweepCapsuleClosest(RaycastOptions &opt, float radius, float height,
+        float orientationW, float orientationX, float orientationY, float orientationZ) = 0;
+    virtual RaycastResult &sweepClosestResult() = 0;
+    virtual ccstd::vector<RaycastResult> &sweepResult() = 0;
     virtual uint32_t createConvex(ConvexDesc &desc) = 0;
     virtual uint32_t createTrimesh(TrimeshDesc &desc) = 0;
     virtual uint32_t createHeightField(HeightFieldDesc &desc) = 0;
     virtual bool createMaterial(uint16_t id, float f, float df, float r,
                                 uint8_t m0, uint8_t m1) = 0;
+    virtual void setFixedTimeStep(float v) = 0;
+    virtual float getFixedTimeStep() const = 0;
 };
 
 } // namespace physics

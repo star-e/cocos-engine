@@ -24,7 +24,7 @@
 
 import { PhysicsSystem } from './physics-system';
 import { PhysicsMaterial } from './assets/physics-material';
-import { PhysicsRayResult } from './physics-ray-result';
+import { PhysicsRayResult, PhysicsLineStripCastResult } from './physics-ray-result';
 import { BoxCollider } from './components/colliders/box-collider';
 import { Collider } from './components/colliders/collider';
 import { SphereCollider } from './components/colliders/sphere-collider';
@@ -42,6 +42,7 @@ import { PlaneCollider } from './components/colliders/plane-collider';
 import { Constraint } from './components/constraints/constraint';
 import { HingeConstraint } from './components/constraints/hinge-constraint';
 import { FixedConstraint } from './components/constraints/fixed-constraint';
+import { ConfigurableConstraint } from './components/constraints/configurable-constraint';
 
 import { PointToPointConstraint } from './components/constraints/point-to-point-constraint';
 
@@ -56,6 +57,7 @@ import * as utils from '../utils/util';
 export {
     PhysicsSystem,
     PhysicsRayResult,
+    PhysicsLineStripCastResult,
 
     Collider,
     BoxCollider,
@@ -72,6 +74,7 @@ export {
     HingeConstraint,
     FixedConstraint,
     PointToPointConstraint,
+    ConfigurableConstraint,
 
     RigidBody,
     PhysicsMaterial,
