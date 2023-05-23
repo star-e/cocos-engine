@@ -257,7 +257,7 @@ bool ResourceGraph::isTexture(vertex_descriptor resID) const noexcept {
             return false;
         },
         [&](const IntrusivePtr<gfx::Buffer>&) {
-            return false
+            return false;
         },
         [&](const auto&) {
             return true;
