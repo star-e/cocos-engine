@@ -2321,14 +2321,15 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
             }
             fgRenderpassInfo.colorAccesses[slot].nextAccess = nextAccess;
         } else {
-            if (!(view.slotName.empty() || view.slotName != "_") &&
-                  !(view.slotName1.empty() || view.slotName1 != "_")) {
+            if ((!view.slotName.empty() && view.slotName != "_") ||
+                  (!view.slotName1.empty() && view.slotName1 != "_")) {
                 CC_ASSERT(view.accessType != AccessType::WRITE);
                 subpassInfo.inputs.emplace_back(fgRenderpassInfo.colorAccesses.size());
+            } else {
+                subpassInfo.depthStencil = rpInfo.colorAttachments.size();
             }
 
             fgRenderpassInfo.dsAccess.nextAccess = nextAccess;
-            subpassInfo.depthStencil = rpInfo.colorAttachments.size();
         }
 
         if (iter == node.attachmentStatus.end()) {
