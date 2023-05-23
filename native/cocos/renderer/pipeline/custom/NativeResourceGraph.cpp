@@ -260,7 +260,7 @@ void mountView(gfx::Device* device,
         resID, resg,
         [&](ManagedTexture& texture) {
             if (!texture.texture) {
-                auto& viewInfo = getTextureViewInfo(originTexture, desc, planeID);
+                auto viewInfo = getTextureViewInfo(originTexture, desc, planeID);
                 texture.texture = device->createTexture(viewInfo);
             }
             texture.fenceValue = resg.nextFenceValue;
