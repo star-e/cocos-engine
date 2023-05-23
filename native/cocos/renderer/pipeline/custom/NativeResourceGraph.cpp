@@ -164,7 +164,7 @@ gfx::TextureViewInfo getTextureViewInfo(gfx::Texture* texture, const ResourceDes
     viewInfo.texture = texture;
     viewInfo.format = texture->getFormat();
     viewInfo.type = gfx::TextureType::TEX2D;
-    viewInfo.baseLayer = planeID;
+    viewInfo.mask = planeID;
     return viewInfo;
 };
 
