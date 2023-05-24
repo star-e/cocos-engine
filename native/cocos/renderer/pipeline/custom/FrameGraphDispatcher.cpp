@@ -1978,7 +1978,7 @@ AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGra
     return lastVertID;
 }
 
-gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName, bool fallbk) {
+gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName, bool fallbk) {// NOLINT
     auto iter = lgd.attributeIndex.find(resName);
     if (iter == lgd.attributeIndex.end()) {
         iter = lgd.constantIndex.find(resName);

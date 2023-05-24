@@ -271,7 +271,7 @@ void mountView(gfx::Device* device,
         });
 }
 
-const char* ResourceGraph::getViewLocalName(const ccstd::pmr::string& name) const { // NO_LINT
+const char* ResourceGraph::getViewLocalName(const ccstd::pmr::string& name) const { // NOLINT
     auto index = name.find_first_of("_$_");
     std::string_view view;
     if (index == std::string::npos) {
