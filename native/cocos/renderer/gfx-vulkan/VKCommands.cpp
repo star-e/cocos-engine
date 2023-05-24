@@ -644,7 +644,7 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
                 dependencyManager.append(vkDependency);
             };
             if (vkDependency.srcStageMask == 0) {
-                vkDependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                vkDependency.srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             }
             addStageAccessMask(dependency);
         }
