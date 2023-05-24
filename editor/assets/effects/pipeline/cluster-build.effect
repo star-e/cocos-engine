@@ -11,7 +11,7 @@ CCEffect %{
 
 CCProgram cluster-main %{
   precision highp float;
-  #define LOCAL_SIZE_Z 4
+  #define LOCAL_SIZE_Z 1
 
   layout (local_size_x = 16, local_size_y = 8, local_size_z = LOCAL_SIZE_Z) in;
 
