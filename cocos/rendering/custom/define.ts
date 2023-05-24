@@ -2264,6 +2264,14 @@ export function buildLightClusterCullingPass (camera: Camera, clusterData: Clust
     clusterPass.addStorageBuffer(clusterGlobalIndexBufferName, AccessType.WRITE, 'b_globalIndexBuffer');
     clusterPass.addQueue()
         .addDispatch(clusterData.dispatchX, clusterData.dispatchY, clusterData.dispatchZ, clusterData.clusterLightCullingCS, 0);
+
+    const width = camera.width * ppl.pipelineSceneData.shadingScale;
+    const height = camera.height * ppl.pipelineSceneData.shadingScale;
+    clusterPass.setVec4('cc_nearFar', new Vec4(camera.nearClip, camera.farClip, 0, 0));
+    clusterPass.setVec4('cc_viewPort', new Vec4(width, height, width, height));
+    clusterPass.setVec4('cc_workGroup', new Vec4(CLUSTERS_X, CLUSTERS_Y, CLUSTERS_Z, 0));
+    clusterPass.setMat4('cc_matView', camera.matView);
+    clusterPass.setMat4('cc_matProjInv', camera.matProjInv);
 }
 
 export function buildLightData (camera: Camera, pipeline: BasicPipeline) {
