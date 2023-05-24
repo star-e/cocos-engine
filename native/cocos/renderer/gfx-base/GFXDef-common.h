@@ -1254,7 +1254,7 @@ struct ShaderInfo {
     UniformTextureList textures;
     UniformStorageImageList images;
     UniformInputAttachmentList subpassInputs;
-    ccstd::hash_t hash = INVALID_SHADER_HASH;
+    ccstd::hash_t hash{INVALID_SHADER_HASH};
 
     EXPOSE_COPY_FN(ShaderInfo)
 };

@@ -171,7 +171,7 @@ gfx::GeneralBarrier *getGeneralBarrier(gfx::Device *device, gfx::AccessFlagBit p
 
 // AccessStatus.vertID : in resourceNode it's resource ID; in barrierNode it's pass ID.
 AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGraph &rg, const ViewStatus &status);
-gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName);
+gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName, bool fallbk = false);
 
 PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status);
 void addCopyAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status, const Range &range);
@@ -1877,7 +1877,7 @@ void addCopyAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &
 
 PmrString addAccessStatus(RAG &rag, const ResourceGraph &rg, ResourceAccessNode &node, const ViewStatus &status) {
     const auto &[name, passType, visibility, access, accessFlag, usage] = status;
-    const auto resName = rg.getViewLocalName(name);
+    const auto *const resName = rg.getViewLocalName(name);
     uint32_t rescID = rg.valueIndex.at(resName);
     const auto &resourceDesc = get(ResourceGraph::DescTag{}, rg, rescID);
     const auto &traits = get(ResourceGraph::TraitsTag{}, rg, rescID);
@@ -1978,7 +1978,7 @@ AccessVertex dependencyCheck(RAG &rag, AccessVertex curVertID, const ResourceGra
     return lastVertID;
 }
 
-gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName) {
+gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, const LGD &lgd, uint32_t passID, const PmrString &resName, bool fallbk) {
     auto iter = lgd.attributeIndex.find(resName);
     if (iter == lgd.attributeIndex.end()) {
         iter = lgd.constantIndex.find(resName);
@@ -2002,7 +2002,10 @@ gfx::ShaderStageFlagBit getVisibilityByDescName(const RenderGraph &renderGraph, 
         }
     }
 
-    auto subpassSlotVis = getVisibilityByDescName(renderGraph, lgd, passID, "__in" + resName);
+    auto subpassSlotVis = gfx::ShaderStageFlagBit::NONE;
+    if(!fallbk) {
+        subpassSlotVis = getVisibilityByDescName(renderGraph, lgd, passID, "__in" + resName, true);
+    }
     return subpassSlotVis;
 };
 

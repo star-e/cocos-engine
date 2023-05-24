@@ -159,7 +159,7 @@ gfx::TextureInfo getTextureInfo(const ResourceDesc& desc, bool bCube = false) {
     };
 }
 
-gfx::TextureViewInfo getTextureViewInfo(gfx::Texture* texture, const ResourceDesc& desc, uint32_t planeID) {
+gfx::TextureViewInfo getTextureViewInfo(gfx::Texture* texture, const ResourceDesc& /*desc*/, uint32_t planeID) {
     gfx::TextureViewInfo viewInfo;
     viewInfo.texture = texture;
     viewInfo.format = texture->getFormat();
@@ -271,10 +271,10 @@ void mountView(gfx::Device* device,
         });
 }
 
-const char* ResourceGraph::getViewLocalName(const ccstd::pmr::string& name) const {
+const char* ResourceGraph::getViewLocalName(const ccstd::pmr::string& name) const { // NO_LINT
     auto index = name.find_first_of("_$_");
     std::string_view view;
-    if (index == name.npos) {
+    if (index == std::string::npos) {
         view = std::string_view(name);
     } else {
         view = std::string_view{name.c_str(), index};

@@ -143,7 +143,7 @@ const replaceConstants = (() => {
         nullptr: 'null!',
         '::': '.',
     };
-    const constexprRE = /constexpr\s+\w+\s+(\w+)\s*=\s*(.*);/g;
+    const constexprRE = /constexpr\s+\S+\s+(\w+)\s*=\s*(.*);/g;
     let constexprCap = constexprRE.exec(header);
     while (constexprCap) {
         let val = constexprCap[2];
@@ -185,6 +185,7 @@ while (structCap) {
             type = type.replace(/(\b)(?:bool)(\b)/, '$1boolean$2');
             type = type.replace(/(\b)(?:String)(\b)/, '$1string$2');
             type = type.replace(/(\b)(?:ccstd::string)(\b)/, '$1string$2');
+            type = type.replace(/(\b)(?:ccstd::hash_t)(\b)/, '$1number$1');
             if (memberCap[1]) {readonly = true;}
             const isArray = type.endsWith('[]');
             const decayedType = isArray ? type.slice(0, -2) : type;

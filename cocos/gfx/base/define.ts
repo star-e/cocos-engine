@@ -1462,7 +1462,7 @@ export class ShaderInfo {
         public textures: UniformTexture[] = [],
         public images: UniformStorageImage[] = [],
         public subpassInputs: UniformInputAttachment[] = [],
-        public hash: ccstd::hash_t = INVALID_SHADER_HASH,
+        public hash: number = 0xFFFFFFFF,
     ) {}
 
     public copy (info: Readonly<ShaderInfo>) {
