@@ -28,8 +28,10 @@ import { BufferInfo, Buffer, BufferUsageBit, ClearFlagBit, Color, DescriptorSet,
 import { Camera, CSMLevel, DirectionalLight, Light, LightType, ProbeType, ReflectionProbe, ShadowType, SKYBOX_FLAG, SpotLight, PointLight, RangedDirectionalLight, SphereLight } from '../../render-scene/scene';
 import { supportsR32FloatTexture, supportsRGBA16FloatTexture } from '../define';
 import { BasicPipeline, Pipeline } from './pipeline';
-import { AccessType, AttachmentType, ComputeView, CopyPair, LightInfo,
-    QueueHint, RasterView, ResourceResidency, SceneFlags, UpdateFrequency } from './types';
+import {
+    AccessType, AttachmentType, ComputeView, CopyPair, LightInfo,
+    QueueHint, RasterView, ResourceResidency, SceneFlags, UpdateFrequency, UploadPair,
+} from './types';
 import { Vec2, Vec3, Vec4, macro, geometry, toRadian, cclegacy, assert, nextPow2 } from '../../core';
 import { ImageAsset, Material, Texture2D } from '../../asset/assets';
 import { getProfilerCamera, SRGBToLinear } from '../pipeline-funcs';
@@ -2269,10 +2271,10 @@ export function buildLightData (camera: Camera, pipeline: BasicPipeline) {
 
     // build cluster light data
     const data = pipeline.pipelineSceneData;
-    const validLightCount = nextPow2(Math.max(data.validPunctualLights.length, 1));
+    const validLightCountForBuffer = nextPow2(Math.max(data.validPunctualLights.length, 1));
 
     const lightBufferStride = 16; // 4 * vec4
-    const clusterLightBufferSize = validLightCount * 4 * lightBufferStride;
+    const clusterLightBufferSize = validLightCountForBuffer * 4 * lightBufferStride;
 
     const lightMeterScale = 10000.0;
     const exposure = camera.exposure;
@@ -2382,7 +2384,16 @@ export function buildLightData (camera: Camera, pipeline: BasicPipeline) {
         index++;
     }
     // last float of first light data
-    view[3 * 4 + 3] = validLightCount;
+    view[3 * 4 + 3] = data.validPunctualLights.length;
+
+    // global index buffer
+    const globalIndexBuffer = new ArrayBuffer(4);
+    const globalIndexBufferView = new Uint32Array(globalIndexBuffer);
+    globalIndexBufferView[0] = 0;
+
+    const uploadPair1 = new UploadPair(new Uint8Array(buffer), clusterLightBufferName);
+    const uploadPair2 = new UploadPair(new Uint8Array(globalIndexBuffer), clusterGlobalIndexBufferName);
+    ppl.addUploadPass([uploadPair1, uploadPair2]);
 }
 
 export function buildClusterPasses (camera: Camera, pipeline: BasicPipeline) {
