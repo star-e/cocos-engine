@@ -186,7 +186,8 @@ while (structCap) {
             type = type.replace(/(\b)(?:String)(\b)/, '$1string$2');
             type = type.replace(/(\b)(?:ccstd::string)(\b)/, '$1string$2');
             type = type.replace(/(\b)(?:ccstd::hash_t)(\b)/, '$1number$1');
-            if (memberCap[1]) {readonly = true;}
+            // const xxxx maybe set by other logic, not real read-only attribute. eg. dsinfo.layout in batcher-2d
+            // if (memberCap[1]) {readonly = true;}
             const isArray = type.endsWith('[]');
             const decayedType = isArray ? type.slice(0, -2) : type;
 

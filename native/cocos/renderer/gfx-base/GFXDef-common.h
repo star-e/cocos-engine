@@ -1418,7 +1418,7 @@ struct DescriptorSetLayoutInfo {
 };
 
 struct DescriptorSetInfo {
-    DescriptorSetLayout *layout{nullptr};
+    const DescriptorSetLayout *layout{nullptr};
 
     EXPOSE_COPY_FN(DescriptorSetInfo)
 };
