@@ -2385,6 +2385,26 @@ void processCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass
 
     auto &node = get(RAG::AccessNodeTag{}, resourceAccessGraph, vertID);
     bool dependent = false;
+    for (const auto &pair : pass.uploadPairs) {
+        auto targetRange = Range{
+            TextureRange{
+                pair.targetFirstSlice,
+                pair.targetPlaneSlice,
+                pair.mipLevels,
+                pair.numSlices,
+            }};
+        ResourceUsage dstUsage = gfx::TextureUsage::TRANSFER_DST;
+        ViewStatus dstViewStatus{pair.target, PassType::COPY, defaultVisibility, gfx::MemoryAccessBit::WRITE_ONLY, gfx::AccessFlags::TRANSFER_WRITE, dstUsage};
+        addCopyAccessStatus(resourceAccessGraph, resourceGraph, node, dstViewStatus, targetRange);
+
+        uint32_t lastVertDst = dependencyCheck(resourceAccessGraph, vertID, resourceGraph, dstViewStatus);
+        if (lastVertDst != INVALID_ID) {
+            tryAddEdge(lastVertDst, vertID, resourceAccessGraph);
+            tryAddEdge(lastVertDst, rlgVertID, relationGraph);
+            dependent = true;
+        }
+    }
+
     for (const auto &pair : pass.copyPairs) {
         auto sourceRange = Range{
             TextureRange{
