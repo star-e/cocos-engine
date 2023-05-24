@@ -25,7 +25,10 @@
 import { EDITOR } from 'internal:constants';
 import { BufferInfo, Buffer, BufferUsageBit, ClearFlagBit, Color, DescriptorSet, LoadOp,
     Format, Rect, Sampler, StoreOp, Texture, Viewport, MemoryUsageBit, Filter, Address } from '../../gfx';
-import { Camera, CSMLevel, DirectionalLight, Light, LightType, ProbeType, ReflectionProbe, ShadowType, SKYBOX_FLAG, SpotLight, PointLight, RangedDirectionalLight, SphereLight } from '../../render-scene/scene';
+import {
+    Camera, CSMLevel, DirectionalLight, Light, LightType, ProbeType, ReflectionProbe,
+    ShadowType, SKYBOX_FLAG, SpotLight, PointLight, RangedDirectionalLight, SphereLight,
+} from '../../render-scene/scene';
 import { supportsR32FloatTexture, supportsRGBA16FloatTexture } from '../define';
 import { BasicPipeline, Pipeline } from './pipeline';
 import {

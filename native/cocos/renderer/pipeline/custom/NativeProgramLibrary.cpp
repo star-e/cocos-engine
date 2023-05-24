@@ -845,11 +845,11 @@ void overwriteShaderSourceBinding(
     ccstd::string &source,
     boost::container::pmr::memory_resource *scratch) {
 
-    static const char* DESCRIPTOR_KEYWORDS[] = {
+    const char* keyWords[] = {
         " uniform ", " buffer "
     };
 
-    for (auto &keyword : DESCRIPTOR_KEYWORDS) {
+    for (auto &keyword : keyWords) {
         // find first uniform
         auto pos = source.find(keyword);
         while (pos != ccstd::string::npos) {
