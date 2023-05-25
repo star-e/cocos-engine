@@ -945,6 +945,19 @@ public:
             }
         }
     }
+
+    void update(const CCVKGPUTextureView *texture, VkDescriptorImageInfo *descriptor, DescriptorSetBindFlags flags) {
+        auto it = _gpuTextureViewSet.find(texture);
+        if (it == _gpuTextureViewSet.end()) return;
+        auto &descriptors = it->second.descriptors;
+        for (uint32_t i = 0U; i < descriptors.size(); i++) {
+            if (descriptors[i] == descriptor) {
+                doUpdate(texture, descriptor, flags);
+                break;
+            }
+        }
+    }
+
     void update(const CCVKGPUSampler *sampler, VkDescriptorImageInfo *descriptor) {
         auto it = _samplers.find(sampler);
         if (it == _samplers.end()) return;
@@ -1028,10 +1041,16 @@ private:
 
     static void doUpdate(const CCVKGPUTextureView *texture, VkDescriptorImageInfo *descriptor) {
         descriptor->imageView = texture->vkImageView;
+    }
+
+    static void doUpdate(const CCVKGPUTextureView *texture, VkDescriptorImageInfo *descriptor, DescriptorSetBindFlags flags) {
+        descriptor->imageView = texture->vkImageView;
         if (hasFlag(texture->gpuTexture->flags, TextureFlagBit::GENERAL_LAYOUT)) {
             descriptor->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         } else {
-            if (hasFlag(texture->gpuTexture->usage, TextureUsage::DEPTH_STENCIL_ATTACHMENT)) {
+            if (hasFlag(flags, DescriptorSetBindFlagBit::FEEDBACK_LOOP)) {
+                descriptor->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+            } else if (hasFlag(texture->gpuTexture->usage, TextureUsage::DEPTH_STENCIL_ATTACHMENT)) {
                 descriptor->imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
             } else {
                 descriptor->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

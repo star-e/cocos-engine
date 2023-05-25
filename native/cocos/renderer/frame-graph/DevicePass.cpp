@@ -298,9 +298,6 @@ void DevicePass::append(const FrameGraph &graph, const RenderTargetAttachment &a
                 output->storeOp = attachment.storeOp;
                 output->desc.endAccesses = attachment.desc.endAccesses;
             }
-            if (std::find(reads.begin(), reads.end(), output->textureHandle) != reads.end()) {
-                output->isGeneralLayout = true; // it's an 'inout' attachment
-            }
         } else {
             CC_ASSERT(attachment.desc.usage == RenderTargetAttachment::Usage::COLOR);
             attachments->emplace_back(attachment);
@@ -371,7 +368,6 @@ void DevicePass::begin(gfx::CommandBuffer *cmdBuff) {
             attachmentInfo.loadOp = attachElem.attachment.desc.loadOp;
             attachmentInfo.storeOp = attachElem.attachment.storeOp;
             attachmentInfo.barrier = gfx::Device::getInstance()->getGeneralBarrier({attachElem.attachment.desc.beginAccesses, attachElem.attachment.desc.endAccesses});
-            attachmentInfo.isGeneralLayout = attachElem.attachment.isGeneralLayout;
             fboInfo.colorTextures.push_back(attachElem.renderTarget);
             clearColors.emplace_back(attachElem.attachment.desc.clearColor);
         } else {
@@ -382,7 +378,6 @@ void DevicePass::begin(gfx::CommandBuffer *cmdBuff) {
             attachmentInfo.depthStoreOp = attachElem.attachment.storeOp;
             attachmentInfo.stencilStoreOp = attachElem.attachment.storeOp;
             attachmentInfo.barrier = gfx::Device::getInstance()->getGeneralBarrier({attachElem.attachment.desc.beginAccesses, attachElem.attachment.desc.endAccesses});
-            attachmentInfo.isGeneralLayout = attachElem.attachment.isGeneralLayout;
             fboInfo.depthStencilTexture = attachElem.renderTarget;
             clearDepth = attachElem.attachment.desc.clearDepth;
             clearStencil = attachElem.attachment.desc.clearStencil;
