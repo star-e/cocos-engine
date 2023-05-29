@@ -150,28 +150,15 @@ ui-section {
     line-height: 1.7;
     color: var(--color-warn-fill);
 }
-.mesh-optimizer .algorithm {
-    margin-top: 10px;
-    padding-left: 20px;
-}
-.mesh-optimizer .simplify-options > ui-prop {
-    padding-left: 20px;
-}
 .mesh-optimizer ui-section > ui-prop,
 .lods ui-section > ui-prop {
     padding-left: 10px;
-}
-.mesh-optimizer .warn-words {
-    padding-left: 20px;
 }
 .mesh-optimizer .gltfpack-options .warn-words {
     padding-left: 10px;
     margin-top: 0;
 }
 
-.lod-item {
-    padding-left: 20px;
-}
 .lod-item .lod-item-header {
     flex: 1;
     display: flex;
@@ -238,9 +225,7 @@ ui-section {
     color: var(--color-focus-contrast-emphasis);
 }
 .lods .no-lod-label {
-    padding-left: 20px;
-    text-align: center;
-    margin-top: 4px;
+    color: var(--color-default-fill-weakest)
 }
 .lods .no-lod-label[hidden] {
     display: none;
@@ -826,58 +811,6 @@ const Elements = {
                         break;
                 }
             });
-            // Listening to the addition and removal of the lod hierarchy
-            panel.$.lodItems.addEventListener('click', (event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                const path = event.target.getAttribute('path');
-                const index = Number(event.target.getAttribute('key'));
-                const lods = panel.meta.userData.lods;
-                if (!lods) {
-                    return;
-                }
-                if (path === 'insertLod') {
-                    if (Object.keys(lods.options).length >= 8) {
-                        console.warn('Maximum 8 LOD, Can\'t add more LOD');
-                        return;
-                    }
-                    const preScreenRatio = lods.options[index].screenRatio;
-                    const nextScreenRatio = lods.options[index + 1] ? lods.options[index + 1].screenRatio : 0;
-                    const preFaceCount = lods.options[index].faceCount;
-                    const nextFaceCount = lods.options[index + 1] ? lods.options[index + 1].faceCount : 0;
-                    const option = {
-                        screenRatio: (preScreenRatio + nextScreenRatio) / 2,
-                        faceCount: (preFaceCount + nextFaceCount) / 2,
-                    };
-                    // Insert the specified lod level
-                    for (let keyIndex = Object.keys(lods.options).length - 1; keyIndex > index; keyIndex--) {
-                        lods.options[keyIndex + 1] = lods.options[keyIndex];
-                        panel.LODTriangleCounts[keyIndex + 1] = panel.LODTriangleCounts[keyIndex];
-                    }
-                    lods.options[index + 1] = option;
-                    panel.LODTriangleCounts[index + 1] = 0;
-                    // update panel
-                    Elements.lods.update.call(panel);
-                    panel.dispatch('change');
-                    panel.dispatch('snapshot');
-                } else if (path === 'deleteLod') {
-                    if (Object.keys(lods.options).length <= 1) {
-                        console.warn('At least one LOD, Can\'t delete any more');
-                        return;
-                    }
-                    // Delete the specified lod level
-                    for (let key = index; key < Object.keys(lods.options).length; key++) {
-                        lods.options[key] = lods.options[key + 1];
-                        panel.LODTriangleCounts[key] = panel.LODTriangleCounts[key + 1];
-                    }
-                    lods.options.pop();
-                    panel.LODTriangleCounts.pop();
-                    // update panel
-                    Elements.lods.update.call(panel);
-                    panel.dispatch('change');
-                    panel.dispatch('snapshot');
-                }
-            });
             panel.$.lodItems.addEventListener('confirm', () => {
                 panel.dispatch('snapshot');
             });
@@ -893,6 +826,61 @@ const Elements = {
             if (panel.$.loadMask.style.display === 'block' && this.asset.imported) {
                 panel.$.loadMask.style.display = 'none';
             }
+            // Listening to the addition and removal of the lod hierarchy
+            const uiIcons = panel.$.lodItems.querySelectorAll('ui-icon[value="add"], .lod-items ui-icon[value="reduce"]');
+            uiIcons.forEach((uiIcon) => {
+                uiIcon.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const path = event.target.getAttribute('path');
+                    const index = Number(event.target.getAttribute('key'));
+                    const lods = panel.meta.userData.lods;
+                    if (!lods) {
+                        return;
+                    }
+
+                    if (path === 'insertLod') {
+                        if (Object.keys(lods.options).length >= 8) {
+                            console.warn('Maximum 8 LOD, Can\'t add more LOD');
+                            return;
+                        }
+                        const preScreenRatio = lods.options[index].screenRatio;
+                        const nextScreenRatio = lods.options[index + 1] ? lods.options[index + 1].screenRatio : 0;
+                        const preFaceCount = lods.options[index].faceCount;
+                        const nextFaceCount = lods.options[index + 1] ? lods.options[index + 1].faceCount : 0;
+                        const option = {
+                            screenRatio: (preScreenRatio + nextScreenRatio) / 2,
+                            faceCount: (preFaceCount + nextFaceCount) / 2,
+                        };
+                        // Insert the specified lod level
+                        for (let keyIndex = Object.keys(lods.options).length - 1; keyIndex > index; keyIndex--) {
+                            lods.options[keyIndex + 1] = lods.options[keyIndex];
+                            panel.LODTriangleCounts[keyIndex + 1] = panel.LODTriangleCounts[keyIndex];
+                        }
+                        lods.options[index + 1] = option;
+                        panel.LODTriangleCounts[index + 1] = 0;
+                        // update panel
+                        Elements.lods.update.call(panel);
+                        panel.dispatch('change');
+                        panel.dispatch('snapshot');
+                    } else if (path === 'deleteLod') {
+                        if (Object.keys(lods.options).length <= 1) {
+                            console.warn('At least one LOD, Can\'t delete any more');
+                            return;
+                        }
+                        // Delete the specified lod level
+                        for (let key = index; key < Object.keys(lods.options).length; key++) {
+                            lods.options[key] = lods.options[key + 1];
+                            panel.LODTriangleCounts[key] = panel.LODTriangleCounts[key + 1];
+                        }
+                        lods.options.pop();
+                        panel.LODTriangleCounts.pop();
+                        // update panel
+                        Elements.lods.update.call(panel);
+                        panel.dispatch('change');
+                        panel.dispatch('snapshot');
+                    }
+                });
+            });
 
             updateElementInvalid.call(panel, panel.$.lodsCheckbox, 'lods.enable');
             updateElementReadonly.call(panel, panel.$.lodsCheckbox, hasBuiltinLOD);
@@ -913,7 +901,7 @@ exports.methods = {
     },
     apply() {
         this.$.loadMask.style.display = 'block';
-    }
+    },
 };
 
 exports.ready = function() {

@@ -28,7 +28,7 @@ import { LightInfo, QueueHint, SceneFlags } from '../../custom';
 import { getCameraUniqueID } from '../../custom/define';
 import { Pipeline } from '../../custom/pipeline';
 import { passContext } from '../utils/pass-context';
-import { BasePass } from './base-pass';
+import { BasePass, GetRTFormatBeforeToneMapping } from './base-pass';
 import { ShadowPass } from './shadow-pass';
 
 export class ForwardTransparencyPass extends BasePass {
@@ -45,14 +45,14 @@ export class ForwardTransparencyPass extends BasePass {
         passContext.clearFlag = ClearFlagBit.NONE;
 
         const output = this.lastPass!.slotName(camera, 0);
-        const outputDS = this.lastPass!.slotName(camera, 1);
+        const outputDS = passContext.depthSlotName;
 
         const cameraID = getCameraUniqueID(camera);
         const isOffScreen = true;
         passContext
             .updatePassViewPort()
             .addRenderPass('default', `${this.name}_${cameraID}`)
-            .addRasterView(output, Format.RGBA16F, isOffScreen)
+            .addRasterView(output, GetRTFormatBeforeToneMapping(ppl), isOffScreen)
             .addRasterView(outputDS, Format.DEPTH_STENCIL, isOffScreen)
             .version();
 
@@ -75,7 +75,5 @@ export class ForwardTransparencyPass extends BasePass {
             .addSceneOfCamera(camera,
                 new LightInfo(),
                 SceneFlags.UI | SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY);
-
-        passContext.forwardPass = this;
     }
 }
