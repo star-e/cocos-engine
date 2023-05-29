@@ -90,6 +90,23 @@ void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
     _paralellExecWeight = clampf(paralellExecWeight, 0.0F, 1.0F);
 }
 
+const ResourceAccessNode& FrameGraphDispatcher::getAttachmentStatus(RenderGraph::vertex_descriptor renderGraphVertID) {
+    auto iter = resourceAccessGraph.subpassIndex.find(renderGraphVertID);
+    auto ragVertID = resourceAccessGraph.passIndex.at(renderGraphVertID);
+    const ResourceAccessNode* accessNode = &resourceAccessGraph.access.at(ragVertID);
+    if( iter != resourceAccessGraph.subpassIndex.end()) {
+        auto subpassIndex = iter->second;
+        accessNode = accessNode->nextSubpass;
+        CC_ASSERT(accessNode);
+        while(subpassIndex) {
+            accessNode = accessNode->nextSubpass;
+            --subpassIndex;
+            CC_ASSERT(accessNode);
+        }
+    }
+    return *accessNode;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////INTERNAL⚡IMPLEMENTATION/////////////////////////////////////////////////////////////////////////////////////////////
 
 //---------------------------------------------------------------predefine------------------------------------------------------------------
@@ -2268,10 +2285,13 @@ void processRasterSubpass(const Graphs &graphs, uint32_t passID, const RasterSub
     auto &rpInfo = fgRenderpassInfo.rpInfo;
     auto &subpassInfo = rpInfo.subpasses.emplace_back();
     auto *lastNode = &node;
+    uint32_t subpassIndex = 0;
     while (lastNode->nextSubpass) {
         lastNode = lastNode->nextSubpass;
+        ++subpassIndex;
     }
     lastNode->nextSubpass = new ResourceAccessNode;
+    resourceAccessGraph.subpassIndex.emplace(passID, subpassIndex);
     auto *head = lastNode->nextSubpass;
     bool dependent{false};
     dependent |= checkRasterViews(graphs, parentRagVert, passID, PassType::RASTER, *head, pass.rasterViews);
