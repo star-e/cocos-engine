@@ -351,7 +351,8 @@ private:
 };
 
 std::pair<VkImageLayout, VkImageLayout> getInitialFinalLayout(CCVKDevice *device, CCVKGeneralBarrier *barrier, bool depthSetncil) {
-    auto *gpuBarrier = barrier ? barrier->gpuBarrier() : (depthSetncil ? &device->gpuDevice()->defaultDepthStencilBarrier : &device->gpuDevice()->defaultColorBarrier);
+    const auto *gpuBarrier = barrier ? barrier->gpuBarrier() :
+        (depthSetncil ? &device->gpuDevice()->defaultDepthStencilBarrier : &device->gpuDevice()->defaultColorBarrier);
 
     ThsvsImageBarrier imageBarrier = {};
     imageBarrier.prevAccessCount = utils::toUint(gpuBarrier->prevAccesses.size());

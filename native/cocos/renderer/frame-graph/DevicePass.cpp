@@ -261,6 +261,7 @@ void DevicePass::append(const FrameGraph &graph, const PassNode *passNode, ccstd
 
 void DevicePass::append(const FrameGraph &graph, const RenderTargetAttachment &attachment,
                         ccstd::vector<RenderTargetAttachment> *attachments, gfx::SubpassInfo *subpass, const ccstd::vector<Handle> &reads) {
+    std::ignore = reads;
     RenderTargetAttachment::Usage usage{attachment.desc.usage};
     uint32_t slot{attachment.desc.slot};
     if (attachment.desc.usage == RenderTargetAttachment::Usage::COLOR) {

@@ -43,10 +43,9 @@ public:
 
     virtual void bindBuffer(uint32_t binding, Buffer *buffer, uint32_t index);
     virtual void bindSampler(uint32_t binding, Sampler *sampler, uint32_t index);
+    virtual void bindTexture(uint32_t binding, Texture *texture, uint32_t index, AccessFlags flags);
+
     void bindTexture(uint32_t binding, Texture *texture, uint32_t index);
-
-    virtual void bindTexture(uint32_t binding, Texture *texture, uint32_t index, AccessFlags accessFlag);
-
 
     // Functions invoked by JSB adapter
     bool bindBufferJSB(uint32_t binding, Buffer *buffer, uint32_t index);
