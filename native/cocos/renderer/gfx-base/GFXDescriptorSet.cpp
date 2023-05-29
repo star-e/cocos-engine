@@ -100,8 +100,8 @@ bool DescriptorSet::bindBufferJSB(uint32_t binding, Buffer *buffer, uint32_t ind
     return _isDirty;
 }
 
-bool DescriptorSet::bindTextureJSB(uint32_t binding, Texture *texture, uint32_t index) {
-    bindTexture(binding, texture, index);
+bool DescriptorSet::bindTextureJSB(uint32_t binding, Texture *texture, uint32_t index, AccessFlags flags) {
+    bindTexture(binding, texture, index, flags);
     return _isDirty;
 }
 
