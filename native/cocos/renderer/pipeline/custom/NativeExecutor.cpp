@@ -1096,8 +1096,7 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             auto& set = iter->second;
             const auto& user = get(RenderGraph::DataTag{}, ctx.g, vertID);
             auto& node = ctx.context.layoutGraphResources.at(layoutID);
-            auto fgdID = ctx.fgd.resourceAccessGraph.passIndex.at(vertID);
-            auto &accessNode = ctx.fgd.resourceAccessGraph.access[fgdID];
+            const auto& accessNode = ctx.fgd.getAttachmentStatus(vertID);
 
             auto* perPassSet = initDescriptorSet(
                 ctx.resourceGraph,

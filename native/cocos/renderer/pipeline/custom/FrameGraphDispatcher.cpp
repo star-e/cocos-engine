@@ -90,7 +90,7 @@ void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
     _paralellExecWeight = clampf(paralellExecWeight, 0.0F, 1.0F);
 }
 
-const ResourceAccessNode& FrameGraphDispatcher::getAttachmentStatus(RenderGraph::vertex_descriptor renderGraphVertID) {
+const ResourceAccessNode &FrameGraphDispatcher::getAttachmentStatus(RenderGraph::vertex_descriptor renderGraphVertID) const {
     auto iter = resourceAccessGraph.subpassIndex.find(renderGraphVertID);
     auto ragVertID = resourceAccessGraph.passIndex.at(renderGraphVertID);
     const ResourceAccessNode* accessNode = &resourceAccessGraph.access.at(ragVertID);

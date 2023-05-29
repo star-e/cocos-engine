@@ -410,7 +410,7 @@ struct FrameGraphDispatcher {
 
     using BarrierMap = PmrMap<ResourceAccessGraph::vertex_descriptor, BarrierNode>;
 
-    const ResourceAccessNode& getAttachmentStatus(RenderGraph::vertex_descriptor renderGraphVertID);
+    const ResourceAccessNode& getAttachmentStatus(RenderGraph::vertex_descriptor renderGraphVertID) const;
 
     void enablePassReorder(bool enable);
 
