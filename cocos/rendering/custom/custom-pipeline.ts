@@ -27,7 +27,8 @@ import { Camera, CameraUsage } from '../../render-scene/scene';
 import { BasicPipeline, PipelineBuilder } from './pipeline';
 import { CopyPair, LightInfo, QueueHint, ResourceResidency, SceneFlags } from './types';
 import { AntiAliasing, buildBloomPass, buildForwardPass, buildFxaaPass, buildPostprocessPass, buildSSSSPass,
-    buildToneMappingPass, buildTransparencyPass, buildUIPass, hasSkinObject, buildHBAOPasses, buildCopyPass, getRenderArea, buildReflectionProbePasss } from './define';
+    buildToneMappingPass, buildTransparencyPass, buildUIPass, hasSkinObject,
+    buildHBAOPasses, buildCopyPass, getRenderArea, buildReflectionProbePasss } from './define';
 import { isUICamera } from './utils';
 import { RenderWindow } from '../../render-scene/core/render-window';
 
@@ -67,7 +68,7 @@ export class CustomPipelineBuilder implements PipelineBuilder {
                 buildCopyPass(ppl, pairs);
 
                 // skin pass
-                const skinInfo = buildSSSSPass(camera, ppl, forwardInfo.rtName, forwardInfo.dsName);
+                const skinInfo = buildSSSSPass(camera, ppl, 'copyTexTest', forwardInfo.dsName);
                 // deferred transparency objects
                 const deferredTransparencyInfo = buildTransparencyPass(camera, ppl, skinInfo.rtName, skinInfo.dsName, hasDeferredTransparencyObjects);
                 // hbao pass
@@ -80,7 +81,7 @@ export class CustomPipelineBuilder implements PipelineBuilder {
                 // todo: bloom need to be rendered before tone-mapping
                 const bloomInfo = buildBloomPass(camera, ppl, fxaaInfo.rtName);
                 // Present Pass
-                buildPostprocessPass(camera, ppl, bloomInfo.rtName, AntiAliasing.NONE);
+                buildPostprocessPass(camera, ppl, bloomInfo.rtName);
                 continue;
             }
             // render ui
