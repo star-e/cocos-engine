@@ -113,7 +113,7 @@ void DescriptorSetAgent::bindBuffer(uint32_t binding, Buffer *buffer, uint32_t i
         });
 }
 
-void DescriptorSetAgent::bindTexture(uint32_t binding, Texture *texture, uint32_t index, DescriptorSetBindFlags flags) {
+void DescriptorSetAgent::bindTexture(uint32_t binding, Texture *texture, uint32_t index, AccessFlags flags) {
     DescriptorSet::bindTexture(binding, texture, index, flags);
 
     ENQUEUE_MESSAGE_5(

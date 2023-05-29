@@ -470,7 +470,8 @@ gfx::DescriptorSet* initDescriptorSet(
     const PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor>& resourceIndex,
     const DescriptorSetData& set,
     const RenderData& user,
-    LayoutGraphNodeResource& node) {
+    LayoutGraphNodeResource& node,
+    const ResourceAccessNode *accessNode = nullptr) {
     // update per pass resources
     const auto& data = set.descriptorSetLayoutData;
 
@@ -614,8 +615,17 @@ gfx::DescriptorSet* initDescriptorSet(
                     if (iter != resourceIndex.end()) {
                         // render graph textures
                         auto* texture = resg.getTexture(iter->second);
+                        gfx::AccessFlags access = gfx::AccessFlagBit::NONE;
+                        if (accessNode != nullptr) {
+                            auto accIter = std::find_if(accessNode->attachmentStatus.begin(), accessNode->attachmentStatus.end(),
+                                [iter](const AccessStatus &status) {
+                                return status.vertID == iter->second;
+                            });
+                            access = accIter != accessNode->attachmentStatus.end() ? accIter->accessFlag : gfx::AccessFlagBit::NONE;
+                        }
+
                         CC_ENSURES(texture);
-                        newSet->bindTexture(bindID, texture);
+                        newSet->bindTexture(bindID, texture, 0, access);
                     }
                     bindID += d.count;
                 }
@@ -1062,9 +1072,16 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             /*  const auto& resourceIndex = buildResourceIndex(
                   ctx.resourceGraph, ctx.lg, subpass.computeViews, ctx.scratch);*/
             PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
+
             resourceIndex.reserve(subpass.rasterViews.size() * 2);
             for (const auto& [resName, rasterView] : subpass.rasterViews) {
                 const auto resID = vertex(resName, ctx.resourceGraph);
+                auto ragId = ctx.fgd.resourceAccessGraph.passIndex.at(vertID);
+                auto &attachments = ctx.fgd.resourceAccessGraph.access[ragId].attachmentStatus;
+                auto resIter = std::find_if(attachments.begin(), attachments.end(), [resID](const AccessStatus& status) {
+                    return status.vertID == resID;
+                });
+
                 auto slotName = rasterView.slotName;
                 if (rasterView.accessType == AccessType::READ || rasterView.accessType == AccessType::READ_WRITE) {
                     slotName.insert(0, "__in");
@@ -1079,11 +1096,14 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             auto& set = iter->second;
             const auto& user = get(RenderGraph::DataTag{}, ctx.g, vertID);
             auto& node = ctx.context.layoutGraphResources.at(layoutID);
+            auto fgdID = ctx.fgd.resourceAccessGraph.passIndex.at(vertID);
+            auto &accessNode = ctx.fgd.resourceAccessGraph.access[fgdID];
+
             auto* perPassSet = initDescriptorSet(
                 ctx.resourceGraph,
                 ctx.device, ctx.cmdBuff,
                 *ctx.context.defaultResource, ctx.lg,
-                resourceIndex, set, user, node);
+                resourceIndex, set, user, node, &accessNode);
             CC_ENSURES(perPassSet);
             ctx.renderGraphDescriptorSet[vertID] = perPassSet;
         }

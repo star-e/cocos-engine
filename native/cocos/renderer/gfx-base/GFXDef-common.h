@@ -805,13 +805,6 @@ enum class PassType : uint32_t {
 };
 CC_ENUM_CONVERSION_OPERATOR(PassType);
 
-enum class DescriptorSetBindFlagBit: uint32_t {
-    NONE = 0,
-    FEEDBACK_LOOP = 0x01
-};
-using DescriptorSetBindFlags = DescriptorSetBindFlagBit;
-CC_ENUM_BITWISE_OPERATORS(DescriptorSetBindFlagBit);
-
 #define EXPOSE_COPY_FN(type)      \
     type &copy(const type &rhs) { \
         *this = rhs;              \

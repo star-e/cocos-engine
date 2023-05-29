@@ -144,7 +144,7 @@ void DescriptorSetValidator::bindBuffer(uint32_t binding, Buffer *buffer, uint32
     _actor->bindBuffer(binding, vBuffer->getActor(), index);
 }
 
-void DescriptorSetValidator::bindTexture(uint32_t binding, Texture *texture, uint32_t index, DescriptorSetBindFlags flags) {
+void DescriptorSetValidator::bindTexture(uint32_t binding, Texture *texture, uint32_t index, AccessFlags flags) {
     CC_ASSERT(isInited());
     CC_ASSERT(texture && static_cast<TextureValidator *>(texture)->isInited());
 
