@@ -586,12 +586,17 @@ void cmdFuncCCVKCreateRenderPass(CCVKDevice *device, CCVKGPURenderPass *gpuRende
         // offset = 0U;
         ccstd::unordered_set<const GFXObject *> subpassExternalFilter;
 
+        gpuRenderPass->hasSelfDependency.resize(subpassCount, false);
         for (uint32_t i = 0U; i < dependencyCount; ++i) {
             const auto &dependency{gpuRenderPass->dependencies[i]};
             VkSubpassDependency2 vkDependency{VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2};
             vkDependency.srcSubpass = dependency.srcSubpass;
             vkDependency.dstSubpass = dependency.dstSubpass;
             vkDependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+            if (dependency.srcSubpass == dependency.dstSubpass && dependency.srcSubpass < subpassCount) {
+                gpuRenderPass->hasSelfDependency[dependency.srcSubpass] = true;
+            }
 
             auto addStageAccessMask = [&vkDependency](const SubpassDependency& deps) {
                 ccstd::vector<ThsvsAccessType> prevAccesses;

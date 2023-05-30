@@ -127,6 +127,7 @@ public:
     // helper storage
     ccstd::vector<VkClearValue> clearValues;
     ccstd::vector<VkSampleCountFlagBits> sampleCounts; // per subpass
+    ccstd::vector<bool> hasSelfDependency; // per subpass
 
     const CCVKGPUGeneralBarrier *getBarrier(size_t index, CCVKGPUDevice *gpuDevice) const;
     bool hasShadingAttachment(uint32_t subPassId) const;
