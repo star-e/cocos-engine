@@ -1073,7 +1073,7 @@ ccstd::string mu::spirv2MSL(const uint32_t *ir, size_t word_count,
                 const auto &attachment = resources.subpass_inputs[i];
                 gpuShader->inputs[i].name = attachment.name;
                 auto id = msl.get_decoration(attachment.id, spv::DecorationInputAttachmentIndex);
-                auto loc = readBuffer[id];
+                auto loc = id >= readBuffer.size() ? id : readBuffer[id];
                 msl.set_decoration(attachment.id, spv::DecorationInputAttachmentIndex, loc);
             }
         }
@@ -1083,7 +1083,7 @@ ccstd::string mu::spirv2MSL(const uint32_t *ir, size_t word_count,
             const auto &stageOutput = resources.stage_outputs[i];
             auto set = msl.get_decoration(stageOutput.id, spv::DecorationDescriptorSet);
             auto id = msl.get_decoration(stageOutput.id, spv::DecorationLocation);
-            auto loc = drawBuffer[id];
+            auto loc = id >= drawBuffer.size() ? id : drawBuffer[id];
             msl.set_decoration(stageOutput.id, spv::DecorationLocation, loc);
 
             gpuShader->outputs[i].name = stageOutput.name;

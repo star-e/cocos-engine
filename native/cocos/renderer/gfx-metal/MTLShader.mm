@@ -71,6 +71,11 @@ const CCMTLGPUShader *CCMTLShader::gpuShader(CCMTLRenderPass *renderPass, uint32
 
 void CCMTLShader::doInit(const ShaderInfo& info) {
     _specializedFragFuncs = [[NSMutableDictionary alloc] init];
+    // spirv-cross for input attachment needs RenderPass to build [[color(index)]],
+    // build gpu shader only when there is no subPass input.
+    if (!checkInputAttachment(info)) {
+        gpuShader(nullptr, 0);
+    }
 }
 
 void CCMTLShader::doDestroy() {
@@ -129,6 +134,10 @@ void CCMTLShader::doDestroy() {
         }
     };
     CCMTLGPUGarbageCollectionPool::getInstance()->collect(destroyFunc);
+}
+
+bool CCMTLShader::checkInputAttachment(const ShaderInfo& info) const {
+    return !info.subpassInputs.empty();
 }
 
 bool CCMTLShader::createMTLFunction(const ShaderStage& stage, CCMTLRenderPass *renderPass, uint32_t subPass) {
