@@ -41,6 +41,10 @@ export class ForwardTransparencySimplePass extends BasePass {
 
     public render (camera: Camera, ppl: Pipeline) {
         const pass = passContext.pass!;
+        pass.addQueue(QueueHint.RENDER_TRANSPARENT, 'forward')
+            .addSceneOfCamera(camera,
+                new LightInfo(),
+                SceneFlags.UI | SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY);
         pass.addQueue(QueueHint.RENDER_TRANSPARENT)
             .addSceneOfCamera(camera,
                 new LightInfo(),
