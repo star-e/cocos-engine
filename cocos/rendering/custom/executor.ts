@@ -1554,7 +1554,7 @@ class BlitInfo {
 
     private _createLightVolumes () {
         const device = this._context.root.device;
-        let totalSize = Float32Array.BYTES_PER_ELEMENT * 4 * 4 * UBODeferredLight.LIGHTS_PER_PASS;
+        let totalSize = Float32Array.BYTES_PER_ELEMENT * 5 * 4 * UBODeferredLight.LIGHTS_PER_PASS;
         totalSize = Math.ceil(totalSize / device.capabilities.uboOffsetAlignment) * device.capabilities.uboOffsetAlignment;
 
         this._lightVolumeBuffer = device.createBuffer(new BufferInfo(
