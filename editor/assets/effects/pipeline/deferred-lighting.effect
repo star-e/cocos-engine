@@ -62,6 +62,9 @@ CCProgram lighting-fs-tiled %{
       2.0 * coord.z - 1.0);
       #endif
 
+    #ifdef _CC_METAL_
+      ndc.y = -ndc.y;
+    #endif  
     return GetWorldPosFromNDCPosRH(ndc, cc_matProj, cc_matViewProjInv);
   }
 
@@ -142,6 +145,9 @@ CCProgram lighting-fs %{
       2.0 * coord.z - 1.0);
       #endif
 
+    #ifdef _CC_METAL_
+      ndc.y = -ndc.y;
+    #endif  
     return GetWorldPosFromNDCPosRH(ndc, cc_matProj, cc_matViewProjInv);
   }
 

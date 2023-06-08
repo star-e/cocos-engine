@@ -33,6 +33,11 @@ CCProgram cluster-main %{
       2.0 * (coord.x - cc_viewPort.x) / cc_viewPort.z - 1.0,
       2.0 * (coord.y - cc_viewPort.y) / cc_viewPort.w - 1.0,
       2.0 * coord.z - 1.0);
+
+    #ifdef _CC_METAL_
+      ndc.y = -ndc.y;
+    #endif  
+    
     vec4 eye = ((cc_matProjInv) * (vec4(ndc, 1.0)));
     eye      = eye / eye.w;
     return eye;
