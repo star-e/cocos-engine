@@ -27,10 +27,11 @@ export const getPhaseID = (() => {
     let phaseNum = 0;
     return (phaseName: string | number) => {
         if (typeof phaseName === 'number') { return phaseName; }
-        if (!phases.has(phaseName)) {
-            phases.set(phaseName, 1 << phaseNum);
+        const name = phaseName === 'forward' ? 'default' : phaseName;
+        if (!phases.has(name)) {
+            phases.set(name, 1 << phaseNum);
             phaseNum++;
         }
-        return phases.get(phaseName)!;
+        return phases.get(name)!;
     };
 })();

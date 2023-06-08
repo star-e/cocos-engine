@@ -676,12 +676,14 @@ static ccstd::unordered_map<ccstd::string, uint32_t> phases; //cjh how to clear 
 static uint32_t phaseNum = 0;
 
 uint32_t getPhaseID(const ccstd::string& phaseName) {
-    const auto iter = phases.find(phaseName);
+    ccstd::string name = phaseName == ccstd::string("forward") ? "default" : phaseName;
+
+    const auto iter = phases.find(name);
     if (iter == phases.end()) {
-        phases.emplace(phaseName, 1 << phaseNum);
+        phases.emplace(name, 1 << phaseNum);
         ++phaseNum;
     }
-    return phases.at(phaseName);
+    return phases.at(name);
 }
 
 void localDescriptorSetLayoutResizeMaxJoints(uint32_t maxCount) {
