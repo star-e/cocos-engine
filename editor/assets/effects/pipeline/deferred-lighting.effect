@@ -6,7 +6,6 @@ CCEffect %{
     - vert: lighting-vs
       frag: lighting-fs
       pass: deferred-lighting
-      phase: deferred-lighting
       rasterizerState:
         cullMode: none
       depthStencilState:

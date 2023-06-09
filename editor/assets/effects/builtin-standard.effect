@@ -89,7 +89,6 @@ CCEffect %{
       vert: standard-vs
       frag: standard-fs
       pass: gbuffer
-      phase: gbuffer
       embeddedMacros: { CC_PIPELINE_TYPE: 1 }
       propertyIndex: 0
   - name: transparent
@@ -161,7 +160,7 @@ CCProgram surface-vertex %{
     worldPos.y += cos(cc_time.x * worldPos.z);
     return worldPos;
   }
-  
+
   #define CC_SURFACES_VERTEX_MODIFY_WORLD_NORMAL
   vec3 SurfacesVertexModifyWorldNormal(in SurfacesStandardVertexIntermediate In)
   {
@@ -173,14 +172,14 @@ CCProgram surface-vertex %{
   #endif
     return normalize(worldNormal);
   }
-  
+
   // see <surfaces/default-functions/common-vs> for more overrided functions
   #define CC_SURFACES_VERTEX_MODIFY_SHARED_DATA
   void SurfacesVertexModifySharedData(inout SurfacesStandardVertexIntermediate In)
   {
   }
 */
-  
+
   #define CC_SURFACES_VERTEX_MODIFY_UV
   void SurfacesVertexModifyUV(inout SurfacesStandardVertexIntermediate In)
   {
@@ -230,7 +229,7 @@ CCProgram surface-fragment %{
   vec4 SurfacesFragmentModifyBaseColorAndTransparency()
   {
     vec4 baseColor = albedo;
-    
+
     #if USE_VERTEX_COLOR
       baseColor.rgb *= SRGBToLinear(FSInput_vertexColor.rgb); // use linear
       baseColor.a *= FSInput_vertexColor.a;
@@ -261,7 +260,7 @@ CCProgram surface-fragment %{
       #if USE_ALBEDO_MAP
         alpha = texture(albedoMap, ALBEDO_UV).ALPHA_TEST_CHANNEL;
       #endif
-  
+
       if (alpha < albedoScaleAndCutoff.w) discard;
     #endif
   }

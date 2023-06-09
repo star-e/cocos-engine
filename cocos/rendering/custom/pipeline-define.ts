@@ -56,8 +56,8 @@ function prepareRenderWindow (camera: Camera): number {
     return windowID;
 }
 
-export function prepareResource (ppl: BasicPipeline, camera: Camera, useSubPass: boolean,
-    initResourceFunc: (ppl: BasicPipeline, info: CameraInfo, useSubPass: boolean) => void,
+export function prepareResource (ppl: BasicPipeline, camera: Camera,
+    initResourceFunc: (ppl: BasicPipeline, info: CameraInfo) => void,
     updateResourceFunc: (ppl: BasicPipeline, info: CameraInfo) => void): CameraInfo {
     let info = cameraInfos.get(camera);
     if (info !== undefined) {
@@ -85,7 +85,7 @@ export function prepareResource (ppl: BasicPipeline, camera: Camera, useSubPass:
         camera.window.height ? camera.window.height : 1,
     );
 
-    initResourceFunc(ppl, info, useSubPass);
+    initResourceFunc(ppl, info);
     cameraInfos.set(camera, info);
     return info;
 }
@@ -394,7 +394,7 @@ export function setupReflectionProbePass (ppl: BasicPipeline, info: CameraInfo) 
     }
 }
 const gBufferInfo = new GBufferInfo();
-export function setupGBufferRes (ppl: BasicPipeline, info: CameraInfo, useSubPass: boolean) {
+export function setupGBufferRes (ppl: BasicPipeline, info: CameraInfo) {
     const camera = info.camera;
     const area = getRenderArea(camera, camera.window.width, camera.window.height);
     const width = area.width;
@@ -404,11 +404,10 @@ export function setupGBufferRes (ppl: BasicPipeline, info: CameraInfo, useSubPas
     const gBufferPassEmissive = `gBufferPassEmissive`;
     const gBufferPassDSName = `gBufferPassDSCamera`;
     const colFormat = Format.RGBA16F;
-    const residency = useSubPass ? ResourceResidency.MEMORYLESS : ResourceResidency.MANAGED;
-    ppl.addRenderTarget(gBufferPassRTName, colFormat, width, height, residency);
-    ppl.addRenderTarget(gBufferPassEmissive, colFormat, width, height, residency);
-    ppl.addRenderTarget(gBufferPassNormal, colFormat, width, height, residency);
-    ppl.addDepthStencil(gBufferPassDSName, Format.DEPTH_STENCIL, width, height, residency);
+    ppl.addRenderTarget(gBufferPassRTName, colFormat, width, height, ResourceResidency.MANAGED);
+    ppl.addRenderTarget(gBufferPassEmissive, colFormat, width, height, ResourceResidency.MANAGED);
+    ppl.addRenderTarget(gBufferPassNormal, colFormat, width, height, ResourceResidency.MANAGED);
+    ppl.addDepthStencil(gBufferPassDSName, Format.DEPTH_STENCIL, width, height, ResourceResidency.MANAGED);
     gBufferInfo.color = gBufferPassRTName;
     gBufferInfo.normal = gBufferPassNormal;
     gBufferInfo.emissive = gBufferPassEmissive;
@@ -528,12 +527,12 @@ export function setupGBufferPass (ppl: BasicPipeline, info: CameraInfo) {
     gBufferPass.addRenderTarget(gBufferPassNormal, LoadOp.CLEAR, StoreOp.STORE, new Color(0, 0, 0, 0));
     gBufferPass.addDepthStencil(gBufferPassDSName, LoadOp.CLEAR, StoreOp.STORE, camera.clearDepth, camera.clearStencil, camera.clearFlag);
     gBufferPass
-        .addQueue(QueueHint.RENDER_OPAQUE, 'gbuffer')
+        .addQueue(QueueHint.RENDER_OPAQUE)
         .addSceneOfCamera(camera, new LightInfo(), SceneFlags.OPAQUE_OBJECT | SceneFlags.CUTOUT_OBJECT);
     return gBufferPass;
 }
 
-export function setupLightingRes (ppl: BasicPipeline, info: CameraInfo, useSubPass: boolean) {
+export function setupLightingRes (ppl: BasicPipeline, info: CameraInfo) {
     setupShadowRes(ppl, info);
     const camera = info.camera;
     const area = getRenderArea(camera, camera.window.width, camera.window.height);
@@ -541,7 +540,6 @@ export function setupLightingRes (ppl: BasicPipeline, info: CameraInfo, useSubPa
     const height = area.height;
 
     const deferredLightingPassRTName = `deferredLightingPassRTName`;
-    const residency = useSubPass ? ResourceResidency.MEMORYLESS : ResourceResidency.MANAGED;
     ppl.addRenderTarget(deferredLightingPassRTName, Format.RGBA8, width, height, ResourceResidency.MANAGED);
 }
 
@@ -608,7 +606,7 @@ export function setupLightingPass (pipeline: BasicPipeline, info: CameraInfo, us
     }
     lightingClearColor.w = 0;
     lightingPass.addRenderTarget(deferredLightingPassRTName, LoadOp.CLEAR, StoreOp.STORE, lightingClearColor);
-    lightingPass.addQueue(QueueHint.RENDER_TRANSPARENT, 'deferred-lighting').addCameraQuad(
+    lightingPass.addQueue(QueueHint.RENDER_TRANSPARENT).addCameraQuad(
         camera, lightingInfo.deferredLightingMaterial, 0,
         SceneFlags.VOLUMETRIC_LIGHTING,
     );

@@ -61,7 +61,7 @@ export class ForwardPipelineBuilder implements PipelineBuilder {
                 continue;
             }
             ppl.update(camera);
-            const info = prepareResource(ppl, camera, false, this.initResource, this.updateResource);
+            const info = prepareResource(ppl, camera, this.initResource, this.updateResource);
             setupForwardPass(ppl, info);
             if (EDITOR) {
                 setupReflectionProbePass(ppl, info);
@@ -86,15 +86,12 @@ export class DeferredPipelineBuilder implements PipelineBuilder {
                 continue;
             }
             ppl.update(camera);
-            const forceDisableSubPass = true;
-            const useSubPass = !forceDisableSubPass && ppl.device.hasFeature(Feature.INPUT_ATTACHMENT_BENEFIT);
-
             const forceDisableCluster = false;
             const useCluster = !forceDisableCluster && ppl.device.hasFeature(Feature.COMPUTE_SHADER);
 
             const isGameView = camera.cameraUsage === CameraUsage.GAME
                 || camera.cameraUsage === CameraUsage.GAME_VIEW;
-            const info = prepareResource(ppl, camera, useSubPass, this.initResource, this.updateResource);
+            const info = prepareResource(ppl, camera, this.initResource, this.updateResource);
             if (!isGameView) {
                 setupForwardPass(ppl, info);
                 continue;
@@ -104,22 +101,14 @@ export class DeferredPipelineBuilder implements PipelineBuilder {
                     buildClusterPasses(camera, ppl);
                 }
 
-                if (!useSubPass) {
-                    // GBuffer Pass
-                    setupGBufferPass(ppl, info);
-                    // Lighting Pass
-                    const lightInfo = setupLightingPass(ppl, info, useCluster);
-                    // Deferred ForwardPass, for non-surface-shader material and transparent material
-                    setupDeferredForward(ppl, info, lightInfo.rtName);
-                    // Postprocess
-                    setupPostprocessPass(ppl, info, lightInfo.rtName);
-                } else {
-                    const lightInfo = setupScenePassTiled(ppl, info, useCluster);
-                    // Deferred ForwardPass, for non-surface-shader material and transparent material
-                    setupDeferredForward(ppl, info, lightInfo.rtName);
-                    // Postprocess
-                    setupPostprocessPass(ppl, info, lightInfo.rtName);
-                }
+                // GBuffer Pass
+                setupGBufferPass(ppl, info);
+                // Lighting Pass
+                const lightInfo = setupLightingPass(ppl, info, useCluster);
+                // Deferred ForwardPass, for non-surface-shader material and transparent material
+                setupDeferredForward(ppl, info, lightInfo.rtName);
+                // Postprocess
+                setupPostprocessPass(ppl, info, lightInfo.rtName);
 
                 continue;
             }
@@ -127,14 +116,14 @@ export class DeferredPipelineBuilder implements PipelineBuilder {
             setupUIPass(ppl, info);
         }
     }
-    private initResource (ppl: BasicPipeline, cameraInfo: CameraInfo, useSubPass: boolean) {
+    private initResource (ppl: BasicPipeline, cameraInfo: CameraInfo) {
         if (EDITOR) {
             setupForwardRes(ppl, cameraInfo);
             return;
         }
         if (!isUICamera(cameraInfo.camera)) {
-            setupGBufferRes(ppl, cameraInfo, useSubPass);
-            setupLightingRes(ppl, cameraInfo, useSubPass);
+            setupGBufferRes(ppl, cameraInfo);
+            setupLightingRes(ppl, cameraInfo);
             setupPostprocessRes(ppl, cameraInfo);
         } else {
             setupUIRes(ppl, cameraInfo);
