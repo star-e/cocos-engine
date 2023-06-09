@@ -336,6 +336,10 @@ void GLES2CommandBuffer::resolveTexture(Texture *srcTexture, Texture *dstTexture
     // should not copy texture in a secondary command buffer
 }
 
+void GLES2CommandBuffer::copyBuffer(Buffer *srcBuffer, Buffer *dstBuffer, const BufferCopy *regions, uint32_t count) {
+    // should not copy buffer in a secondary command buffer
+}
+
 void GLES2CommandBuffer::blitTexture(Texture *srcTexture, Texture *dstTexture, const TextureBlit *regions, uint32_t count, Filter filter) {
     GLES2CmdBlitTexture *cmd = _cmdAllocator->blitTextureCmdPool.alloc();
     if (srcTexture) cmd->gpuTextureSrc = static_cast<GLES2Texture *>(srcTexture)->gpuTexture();
