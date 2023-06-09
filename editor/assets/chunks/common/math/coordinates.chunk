@@ -3,9 +3,9 @@
 #pragma define CC_HANDLE_NDC_SAMPLE_FLIP(uv, flipNDCSign) uv = flipNDCSign == 1.0 ? vec2(uv.x, 1.0 - uv.y) : uv
 
 #ifdef _CC_USE_METAL_
-#pragma define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y) y = -y
+#define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y) y = -y
 #else
-#pragma define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y)
+#define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y)
 #endif
 
 
