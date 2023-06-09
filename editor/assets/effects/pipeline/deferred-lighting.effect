@@ -46,9 +46,9 @@ CCProgram lighting-fs-tiled %{
   #include <common/debug/debug-view-define>
 
   #pragma subpass
-  #pragma subpassColor in gAlbedoMap
-  #pragma subpassColor in gNormalMap
-  #pragma subpassColor in gEmissiveMap
+  #pragma subpassColor in albedoMap
+  #pragma subpassColor in normalMap
+  #pragma subpassColor in emissiveMap
   #pragma subpassDepth in depthStencil
 
   layout(location = 0) out vec4 fragColor;
@@ -69,20 +69,20 @@ CCProgram lighting-fs-tiled %{
   void main () {
     StandardSurface s;
 
-    vec4 albedoMap = subpassLoad(gAlbedoMap);
-    vec4 normalMap = subpassLoad(gNormalMap);
-    vec4 emissiveMap = subpassLoad(gEmissiveMap);
+    vec4 albedo = subpassLoad(albedoMap);
+    vec4 normal = subpassLoad(normalMap);
+    vec4 emissive = subpassLoad(emissiveMap);
     float depth = subpassLoad(depthStencil).x;
 
-    s.albedo = albedoMap;
+    s.albedo = albedo;
     vec3 position = screen2WS(vec3(gl_FragCoord.xy, depth)).xyz;
     s.position = position;
-    s.roughness = normalMap.z;
-    s.normal = oct_to_float32x3(normalMap.xy);
+    s.roughness = normal.z;
+    s.normal = oct_to_float32x3(normal.xy);
     s.specularIntensity = 0.5;
-    s.metallic = normalMap.w;
-    s.emissive = emissiveMap.xyz;
-    s.occlusion = emissiveMap.w;
+    s.metallic = normal.w;
+    s.emissive = emissive.xyz;
+    s.occlusion = emissive.w;
     // fixme: default value is 0, and give black result
     float fogFactor;
     CC_TRANSFER_FOG_BASE(vec4(position, 1), fogFactor);
@@ -122,12 +122,12 @@ CCProgram lighting-fs %{
   #include <common/debug/debug-view-define>
 
   in vec2 v_uv;
-  #pragma rate gAlbedoMap pass
-  layout(binding = 0) uniform sampler2D gAlbedoMap;
-  #pragma rate gNormalMap pass
-  layout(binding = 1) uniform sampler2D gNormalMap;
-  #pragma rate gEmissiveMap pass
-  layout(binding = 2) uniform sampler2D gEmissiveMap;
+  #pragma rate albedoMap pass
+  layout(binding = 0) uniform sampler2D albedoMap;
+  #pragma rate normalMap pass
+  layout(binding = 1) uniform sampler2D normalMap;
+  #pragma rate emissiveMap pass
+  layout(binding = 2) uniform sampler2D emissiveMap;
   #pragma rate depthStencil pass
   layout(binding = 3) uniform sampler2D depthStencil;
 
@@ -149,20 +149,20 @@ CCProgram lighting-fs %{
   void main () {
     StandardSurface s;
 
-    vec4 albedoMap = texture(gAlbedoMap, v_uv);
-    vec4 normalMap = texture(gNormalMap, v_uv);
-    vec4 emissiveMap = texture(gEmissiveMap, v_uv);
+    vec4 albedo = texture(albedoMap, v_uv);
+    vec4 normal = texture(normalMap, v_uv);
+    vec4 emissive = texture(emissiveMap, v_uv);
     float depth = texture(depthStencil, v_uv).x;
 
-    s.albedo = albedoMap;
+    s.albedo = albedo;
     vec3 position = screen2WS(vec3(gl_FragCoord.xy, depth)).xyz;
     s.position = position;
-    s.roughness = normalMap.z;
-    s.normal = oct_to_float32x3(normalMap.xy);
+    s.roughness = normal.z;
+    s.normal = oct_to_float32x3(normal.xy);
     s.specularIntensity = 0.5;
-    s.metallic = normalMap.w;
-    s.emissive = emissiveMap.xyz;
-    s.occlusion = emissiveMap.w;
+    s.metallic = normal.w;
+    s.emissive = emissive.xyz;
+    s.occlusion = emissive.w;
     // fixme: default value is 0, and give black result
     float fogFactor;
     CC_TRANSFER_FOG_BASE(vec4(position, 1), fogFactor);

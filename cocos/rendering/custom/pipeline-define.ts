@@ -476,9 +476,9 @@ export function setupScenePassTiled (pipeline: BasicPipeline, info: CameraInfo, 
     lightingPass.name = `CameraLightingPass${info.id}`;
     lightingPass.setViewport(new Viewport(area.x, area.y, width, height));
 
-    lightingPass.addRenderTarget(gBufferPassRTName, AccessType.READ, 'gAlbedoMap', LoadOp.DISCARD, StoreOp.DISCARD);
-    lightingPass.addRenderTarget(gBufferPassNormal, AccessType.READ, 'gNormalMap', LoadOp.DISCARD, StoreOp.DISCARD);
-    lightingPass.addRenderTarget(gBufferPassEmissive, AccessType.READ, 'gEmissiveMap', LoadOp.DISCARD, StoreOp.DISCARD);
+    lightingPass.addRenderTarget(gBufferPassRTName, AccessType.READ, 'albedoMap', LoadOp.DISCARD, StoreOp.DISCARD);
+    lightingPass.addRenderTarget(gBufferPassNormal, AccessType.READ, 'normalMap', LoadOp.DISCARD, StoreOp.DISCARD);
+    lightingPass.addRenderTarget(gBufferPassEmissive, AccessType.READ, 'emissiveMap', LoadOp.DISCARD, StoreOp.DISCARD);
     lightingPass.addDepthStencil(gBufferPassDSName, AccessType.READ, 'depthStencil', '_', LoadOp.DISCARD, StoreOp.DISCARD);
 
     // cluster data
@@ -584,9 +584,9 @@ export function setupLightingPass (pipeline: BasicPipeline, info: CameraInfo, us
         }
     }
     if (ppl.containsResource(gBufferInfo.color)) {
-        lightingPass.addTexture(gBufferInfo.color, 'gAlbedoMap');
-        lightingPass.addTexture(gBufferInfo.normal, 'gNormalMap');
-        lightingPass.addTexture(gBufferInfo.emissive, 'gEmissiveMap');
+        lightingPass.addTexture(gBufferInfo.color, 'albedoMap');
+        lightingPass.addTexture(gBufferInfo.normal, 'normalMap');
+        lightingPass.addTexture(gBufferInfo.emissive, 'emissiveMap');
         lightingPass.addTexture(gBufferInfo.ds, 'depthStencil');
     }
 
@@ -671,7 +671,7 @@ export function setupPostprocessPass (ppl: BasicPipeline,
     postprocessPass.addDepthStencil(postprocessPassDS,
         getLoadOpOfClearFlag(camera.clearFlag, AttachmentType.DEPTH_STENCIL),
         StoreOp.STORE, camera.clearDepth, camera.clearStencil, camera.clearFlag);
-    postprocessPass.addQueue(QueueHint.NONE, 'post-process').addCameraQuad(
+    postprocessPass.addQueue(QueueHint.NONE).addCameraQuad(
         camera, postInfo.postMaterial, 0,
         SceneFlags.NONE,
     );
