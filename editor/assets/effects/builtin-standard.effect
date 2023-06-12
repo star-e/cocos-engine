@@ -6,7 +6,6 @@ CCEffect %{
     passes:
     - vert: standard-vs
       frag: standard-fs
-      phase: forward
       properties: &props
         tilingOffset:                     { value: [1.0, 1.0, 0.0, 0.0] }
         mainColor:                        { value: [1.0, 1.0, 1.0, 1.0], target: albedo, linear: true, editor: { displayName: Albedo, type: color } }
@@ -89,6 +88,7 @@ CCEffect %{
       vert: standard-vs
       frag: standard-fs
       pass: gbuffer
+      phase: gbuffer
       embeddedMacros: { CC_PIPELINE_TYPE: 1 }
       propertyIndex: 0
   - name: transparent
@@ -96,10 +96,10 @@ CCEffect %{
     - vert: standard-vs
       frag: standard-fs
       embeddedMacros: { CC_FORCE_FORWARD_SHADING: true }
-      depthStencilState:
+      depthStencilState: &d1
         depthTest: true
         depthWrite: false
-      blendState:
+      blendState: &b1
         targets:
         - blend: true
           blendSrc: src_alpha
@@ -109,6 +109,14 @@ CCEffect %{
     - *forward-add
     - *shadow-caster
     - *planar-shadow
+    - &deferred-forward
+      vert: standard-vs
+      frag: standard-fs
+      phase: deferred-forward
+      embeddedMacros: { CC_PIPELINE_TYPE: 0 }
+      propertyIndex: 0
+      depthStencilState: *d1
+      blendState: *b1
 }%
 
 CCProgram shared-ubos %{

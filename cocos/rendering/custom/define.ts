@@ -580,11 +580,6 @@ export function buildForwardPass (camera: Camera,
         .addSceneOfCamera(camera, new LightInfo(),
             SceneFlags.OPAQUE_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.CUTOUT_OBJECT
              | SceneFlags.DEFAULT_LIGHTING | SceneFlags.DRAW_INSTANCING);
-    forwardPass
-        .addQueue(QueueHint.RENDER_OPAQUE, 'forward')
-        .addSceneOfCamera(camera, new LightInfo(),
-            SceneFlags.OPAQUE_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.CUTOUT_OBJECT
-            | SceneFlags.DEFAULT_LIGHTING | SceneFlags.DRAW_INSTANCING);
     let sceneFlags = SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY;
     if (!isOffScreen) {
         sceneFlags |= SceneFlags.UI;
@@ -814,9 +809,7 @@ export class LightingInfo {
         this.deferredLightingMaterial.name = 'builtin-deferred-material';
         this.deferredLightingMaterial.initialize({
             effectName: 'pipeline/deferred-lighting',
-            defines: [
-                { CC_ENABLE_CLUSTERED_LIGHT_CULLING: this.enableCluster, CC_RECEIVE_SHADOW: 1 },
-                { CC_ENABLE_CLUSTERED_LIGHT_CULLING: this.enableCluster, CC_RECEIVE_SHADOW: 1 }],
+            defines: { CC_ENABLE_CLUSTERED_LIGHT_CULLING: this.enableCluster, CC_RECEIVE_SHADOW: 1 },
         });
         for (let i = 0; i < this.deferredLightingMaterial.passes.length; ++i) {
             this.deferredLightingMaterial.passes[i].tryCompile();

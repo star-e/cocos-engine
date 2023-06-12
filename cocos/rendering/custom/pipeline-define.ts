@@ -249,11 +249,23 @@ export function setupDeferredForward (ppl: BasicPipeline, cameraInfo: CameraInfo
     const camera = cameraInfo.camera;
     forwardPass.addRenderTarget(inputColor, LoadOp.LOAD, StoreOp.STORE);
     forwardPass.addDepthStencil(gBufferInfo.ds, LoadOp.LOAD, StoreOp.DISCARD);
-    forwardPass.addQueue(QueueHint.RENDER_OPAQUE)
+
+    for (const dirShadowName of shadowInfo.mainLightShadowNames) {
+        if (ppl.containsResource(dirShadowName)) {
+            forwardPass.addTexture(dirShadowName, 'cc_shadowMap');
+        }
+    }
+    for (const spotShadowName of shadowInfo.spotLightShadowNames) {
+        if (ppl.containsResource(spotShadowName)) {
+            forwardPass.addTexture(spotShadowName, 'cc_spotShadowMap');
+        }
+    }
+
+    forwardPass.addQueue(QueueHint.RENDER_OPAQUE, 'deferred-forward')
         .addSceneOfCamera(camera, new LightInfo(),
             SceneFlags.OPAQUE_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.CUTOUT_OBJECT
             | SceneFlags.DEFAULT_LIGHTING | SceneFlags.DRAW_INSTANCING);
-    forwardPass.addQueue(QueueHint.RENDER_TRANSPARENT)
+    forwardPass.addQueue(QueueHint.RENDER_TRANSPARENT, 'deferred-forward')
         .addSceneOfCamera(camera, new LightInfo(), SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY);
 }
 
@@ -296,11 +308,6 @@ export function setupForwardPass (ppl: BasicPipeline, cameraInfo: CameraInfo, is
         .addSceneOfCamera(camera, new LightInfo(),
             SceneFlags.OPAQUE_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.CUTOUT_OBJECT
              | SceneFlags.DEFAULT_LIGHTING | SceneFlags.DRAW_INSTANCING);
-    forwardPass
-        .addQueue(QueueHint.RENDER_OPAQUE, 'forward')
-        .addSceneOfCamera(camera, new LightInfo(),
-            SceneFlags.OPAQUE_OBJECT | SceneFlags.PLANAR_SHADOW | SceneFlags.CUTOUT_OBJECT
-            | SceneFlags.DEFAULT_LIGHTING | SceneFlags.DRAW_INSTANCING);
 
     let sceneFlags = SceneFlags.TRANSPARENT_OBJECT | SceneFlags.GEOMETRY;
     if (!isOffScreen) {
@@ -527,7 +534,7 @@ export function setupGBufferPass (ppl: BasicPipeline, info: CameraInfo) {
     gBufferPass.addRenderTarget(gBufferPassNormal, LoadOp.CLEAR, StoreOp.STORE, new Color(0, 0, 0, 0));
     gBufferPass.addDepthStencil(gBufferPassDSName, LoadOp.CLEAR, StoreOp.STORE, camera.clearDepth, camera.clearStencil, camera.clearFlag);
     gBufferPass
-        .addQueue(QueueHint.RENDER_OPAQUE)
+        .addQueue(QueueHint.RENDER_OPAQUE, 'gbuffer')
         .addSceneOfCamera(camera, new LightInfo(), SceneFlags.OPAQUE_OBJECT | SceneFlags.CUTOUT_OBJECT);
     return gBufferPass;
 }
