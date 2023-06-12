@@ -70,9 +70,6 @@ export function prepareResource (ppl: BasicPipeline, camera: Camera,
             height = 1;
         }
         const windowID = prepareRenderWindow(camera);
-        if (info.width !== width || info.height !== height || info.windowID !== windowID) {
-            return info;
-        }
         updateResourceFunc(ppl, info);
         return info;
     }
