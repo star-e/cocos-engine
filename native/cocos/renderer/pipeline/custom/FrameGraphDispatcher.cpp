@@ -1158,42 +1158,61 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
         }
     }
 
-    const auto &resDescs = get(ResourceGraph::DescTag{}, resourceGraph);
-    auto genGFXBarrier = [&resDescs](std::vector<Barrier> &barriers) {
-        for (auto &passBarrier : barriers) {
-            const auto &desc = get(resDescs, passBarrier.resourceID);
-            if (desc.dimension == ResourceDimension::BUFFER) {
-                gfx::BufferBarrierInfo info;
-                info.prevAccesses = passBarrier.beginStatus.accessFlag;
-                info.nextAccesses = passBarrier.endStatus.accessFlag;
-                const auto &range = ccstd::get<BufferRange>(passBarrier.endStatus.range);
-                info.offset = range.offset;
-                info.size = range.size;
-                info.type = passBarrier.type;
-                passBarrier.barrier = gfx::Device::getInstance()->getBufferBarrier(info);
-            } else {
-                gfx::TextureBarrierInfo info;
-                info.prevAccesses = passBarrier.beginStatus.accessFlag;
-                info.nextAccesses = passBarrier.endStatus.accessFlag;
-                const auto &range = ccstd::get<TextureRange>(passBarrier.beginStatus.range);
-                info.baseMipLevel = range.mipLevel;
-                info.levelCount = range.levelCount;
-                info.baseSlice = range.firstSlice;
-                info.sliceCount = range.numSlices;
-                info.type = passBarrier.type;
-                passBarrier.barrier = gfx::Device::getInstance()->getTextureBarrier(info);
+    {
+        const auto &resDescs = get(ResourceGraph::DescTag{}, resourceGraph);
+        auto genGFXBarrier = [&resDescs](std::vector<Barrier> &barriers) {
+            for (auto &passBarrier : barriers) {
+                const auto &desc = get(resDescs, passBarrier.resourceID);
+                if (desc.dimension == ResourceDimension::BUFFER) {
+                    gfx::BufferBarrierInfo info;
+                    info.prevAccesses = passBarrier.beginStatus.accessFlag;
+                    info.nextAccesses = passBarrier.endStatus.accessFlag;
+                    const auto &range = ccstd::get<BufferRange>(passBarrier.endStatus.range);
+                    info.offset = range.offset;
+                    info.size = range.size;
+                    info.type = passBarrier.type;
+                    passBarrier.barrier = gfx::Device::getInstance()->getBufferBarrier(info);
+                } else {
+                    gfx::TextureBarrierInfo info;
+                    info.prevAccesses = passBarrier.beginStatus.accessFlag;
+                    info.nextAccesses = passBarrier.endStatus.accessFlag;
+                    const auto &range = ccstd::get<TextureRange>(passBarrier.beginStatus.range);
+                    info.baseMipLevel = range.mipLevel;
+                    info.levelCount = range.levelCount;
+                    info.baseSlice = range.firstSlice;
+                    info.sliceCount = range.numSlices;
+                    info.type = passBarrier.type;
+                    passBarrier.barrier = gfx::Device::getInstance()->getTextureBarrier(info);
+                }
+            }
+        };
+
+        constexpr static bool USING_RENDERPASS_DEP_INSTEAD_OF_BARRIER{true};
+        if constexpr (USING_RENDERPASS_DEP_INSTEAD_OF_BARRIER) {
+            auto prune = [&rag, &renderGraph, &resourceGraph](std::vector<Barrier>& barriers) {
+                barriers.erase(std::remove_if(barriers.begin(), barriers.end(), [&rag, &renderGraph, &resourceGraph](Barrier &barrier) {
+                                   bool fromAttachment = isAttachmentAccess(barrier.beginStatus.accessFlag) || barrier.beginStatus.accessFlag == gfx::AccessFlagBit::NONE;
+                                   bool toAttachment = isAttachmentAccess(barrier.endStatus.accessFlag);
+                                   return toAttachment;
+                    }),
+                    barriers.end());
+            };
+            for (auto &passBarrierInfo : batchedBarriers) {
+                auto &passBarrierNode = passBarrierInfo.second;
+                prune(passBarrierNode.blockBarrier.frontBarriers);
+                prune(passBarrierNode.blockBarrier.rearBarriers);
             }
         }
-    };
 
-    // generate gfx barrier
-    for (auto &passBarrierInfo : batchedBarriers) {
-        auto &passBarrierNode = passBarrierInfo.second;
-        genGFXBarrier(passBarrierNode.blockBarrier.frontBarriers);
-        genGFXBarrier(passBarrierNode.blockBarrier.rearBarriers);
-        for (auto &subpassBarrier : passBarrierNode.subpassBarriers) {
-            genGFXBarrier(subpassBarrier.frontBarriers);
-            genGFXBarrier(subpassBarrier.rearBarriers);
+        // generate gfx barrier
+        for (auto &passBarrierInfo : batchedBarriers) {
+            auto &passBarrierNode = passBarrierInfo.second;
+            genGFXBarrier(passBarrierNode.blockBarrier.frontBarriers);
+            genGFXBarrier(passBarrierNode.blockBarrier.rearBarriers);
+            for (auto &subpassBarrier : passBarrierNode.subpassBarriers) {
+                genGFXBarrier(subpassBarrier.frontBarriers);
+                genGFXBarrier(subpassBarrier.rearBarriers);
+            }
         }
     }
 
