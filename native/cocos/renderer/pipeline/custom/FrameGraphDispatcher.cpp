@@ -226,6 +226,14 @@ inline bool hasReadAccess(gfx::AccessFlagBit flag) {
     return (static_cast<uint32_t>(flag) & READ_ACCESS) != 0;
 }
 
+inline bool isAttachmentAccess(gfx::AccessFlagBit flag) {
+    return hasAnyFlags(flag, gfx::AccessFlagBit::FRAGMENT_SHADER_READ_COLOR_INPUT_ATTACHMENT |
+                                 gfx::AccessFlagBit::FRAGMENT_SHADER_READ_DEPTH_STENCIL_INPUT_ATTACHMENT |
+                                 gfx::AccessFlagBit::COLOR_ATTACHMENT_READ |
+                                 gfx::AccessFlagBit::COLOR_ATTACHMENT_WRITE |
+                                 gfx::AccessFlagBit::DEPTH_STENCIL_ATTACHMENT_WRITE);
+}
+
 inline bool isReadOnlyAccess(gfx::AccessFlagBit flag) {
     return flag < gfx::AccessFlagBit::PRESENT || flag == gfx::AccessFlagBit::SHADING_RATE;
 }
