@@ -84,6 +84,9 @@ CCProgram lighting-fs-tiled %{
     s.metallic = normal.w;
     s.emissive = emissive.xyz;
     s.occlusion = emissive.w;
+#if CC_RECEIVE_SHADOW
+    s.shadowBias = vec2(0, 0);
+#endif
     // fixme: default value is 0, and give black result
     float fogFactor;
     CC_TRANSFER_FOG_BASE(vec4(position, 1), fogFactor);
@@ -165,6 +168,9 @@ CCProgram lighting-fs %{
     s.metallic = normal.w;
     s.emissive = emissive.xyz;
     s.occlusion = emissive.w;
+#if CC_RECEIVE_SHADOW
+    s.shadowBias = vec2(0, 0);
+#endif
     // fixme: default value is 0, and give black result
     float fogFactor;
     CC_TRANSFER_FOG_BASE(vec4(position, 1), fogFactor);
