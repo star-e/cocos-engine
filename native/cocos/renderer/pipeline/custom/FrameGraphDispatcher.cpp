@@ -1833,34 +1833,22 @@ auto getResourceStatus(PassType passType, const PmrString &name, gfx::MemoryAcce
         // can't find this resource in layoutdata, not in descriptor so either input or output attachment.
         gfx::TextureUsage texUsage = gfx::TextureUsage::NONE;
 
+
         // TODO(Zeqiang): visbility of slot name "_" not found
-        bool isAttachment = (visibility == gfx::ShaderStageFlags::NONE || gfx::hasFlag(visibility, gfx::ShaderStageFlags::FRAGMENT)) && rasterized;
-        if (isAttachment) {
-            vis = gfx::ShaderStageFlags::FRAGMENT;
-            bool outColorFlag = (desc.flags & ResourceFlags::COLOR_ATTACHMENT) != ResourceFlags::NONE;
-            bool inputFlag = (desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE;
-            bool depthStencilFlag = (desc.flags & ResourceFlags::DEPTH_STENCIL_ATTACHMENT) != ResourceFlags::NONE;
-            bool shadingRateAttachment = (desc.flags & ResourceFlags::SHADING_RATE) != ResourceFlags::NONE;
-
-            inputFlag &= gfx::hasFlag(memAccess, gfx::MemoryAccess::READ_ONLY);
-
-            if (outColorFlag) texUsage |= gfx::TextureUsage::COLOR_ATTACHMENT;
-            if (inputFlag) texUsage |= gfx::TextureUsage::INPUT_ATTACHMENT;
-            if (depthStencilFlag) texUsage |= gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT;
-            if (shadingRateAttachment) texUsage |= gfx::TextureUsage::SHADING_RATE;
-        } else {
-            if (memAccess == gfx::MemoryAccess::READ_ONLY) {
-                if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE && rasterized) {
-                    texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::INPUT_ATTACHMENT));
-                } else {
-                    texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::SAMPLED | gfx::TextureUsage::STORAGE | gfx::TextureUsage::SHADING_RATE));
-                }
+        if (memAccess == gfx::MemoryAccess::READ_ONLY) {
+            if ((desc.flags & ResourceFlags::INPUT_ATTACHMENT) != ResourceFlags::NONE && rasterized) {
+                texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::INPUT_ATTACHMENT));
             } else {
-                texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::STORAGE));
+                texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::SAMPLED | gfx::TextureUsage::STORAGE | gfx::TextureUsage::SHADING_RATE | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT));
             }
-
-            CC_ASSERT(vis != gfx::ShaderStageFlags::NONE);
+        } else {
+            texUsage |= (mapTextureFlags(desc.flags) & (gfx::TextureUsage::COLOR_ATTACHMENT | gfx::TextureUsage::DEPTH_STENCIL_ATTACHMENT | gfx::TextureUsage::STORAGE));
         }
+
+        if (vis == gfx::ShaderStageFlags::NONE) {
+            vis = passType == gfx::PassType::RASTER ? gfx::ShaderStageFlags::FRAGMENT : gfx::ShaderStageFlags::COMPUTE;
+        }
+        
         usage = texUsage;
         accesFlag = gfx::getAccessFlags(texUsage, memAccess, vis);
     }
