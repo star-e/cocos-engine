@@ -2,7 +2,7 @@
 // cc_cameraPos.w is flipNDCSign
 #pragma define CC_HANDLE_NDC_SAMPLE_FLIP(uv, flipNDCSign) uv = flipNDCSign == 1.0 ? vec2(uv.x, 1.0 - uv.y) : uv
 
-#ifdef _CC_USE_METAL_
+#ifdef CC_USE_METAL
 #define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y) y = -y
 #else
 #define CC_HANDLE_SAMPLE_NDC_FLIP_STATIC(y)
