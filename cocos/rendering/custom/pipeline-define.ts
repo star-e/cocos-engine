@@ -400,10 +400,10 @@ export function setupGBufferRes (ppl: BasicPipeline, info: CameraInfo) {
     const area = getRenderArea(camera, camera.window.width, camera.window.height);
     const width = area.width;
     const height = area.height;
-    const gBufferPassRTName = `gBufferPassColorCamera`;
-    const gBufferPassNormal = `gBufferPassNormal`;
-    const gBufferPassEmissive = `gBufferPassEmissive`;
-    const gBufferPassDSName = `gBufferPassDSCamera`;
+    const gBufferPassRTName = `gBufferPassColorCamera${info.id}`;
+    const gBufferPassNormal = `gBufferPassNormal${info.id}`;
+    const gBufferPassEmissive = `gBufferPassEmissive${info.id}`;
+    const gBufferPassDSName = `gBufferPassDSCamera${info.id}`;
     const colFormat = Format.RGBA16F;
     ppl.addRenderTarget(gBufferPassRTName, colFormat, width, height, ResourceResidency.MANAGED);
     ppl.addRenderTarget(gBufferPassEmissive, colFormat, width, height, ResourceResidency.MANAGED);
@@ -420,10 +420,10 @@ export function updateGBufferRes (ppl: BasicPipeline, info: CameraInfo) {
     const area = getRenderArea(camera, camera.window.width, camera.window.height);
     const width = area.width;
     const height = area.height;
-    const gBufferPassRTName = `gBufferPassColorCamera`;
-    const gBufferPassNormal = `gBufferPassNormal`;
-    const gBufferPassEmissive = `gBufferPassEmissive`;
-    const gBufferPassDSName = `gBufferPassDSCamera`;
+    const gBufferPassRTName = `gBufferPassColorCamera${info.id}`;
+    const gBufferPassNormal = `gBufferPassNormal${info.id}`;
+    const gBufferPassEmissive = `gBufferPassEmissive${info.id}`;
+    const gBufferPassDSName = `gBufferPassDSCamera${info.id}`;
     ppl.updateRenderTarget(gBufferPassRTName, width, height);
     ppl.updateRenderTarget(gBufferPassEmissive, width, height);
     ppl.updateRenderTarget(gBufferPassNormal, width, height);
@@ -482,7 +482,7 @@ export function setupScenePassTiled (pipeline: BasicPipeline, info: CameraInfo, 
     lightingPass.addDepthStencil(gBufferPassDSName, AccessType.READ, 'depthStencil', '_', LoadOp.DISCARD, StoreOp.DISCARD);
 
     // cluster data
-    const clusterLightBufferName = `clusterLightBuffer`;
+    const clusterLightBufferName = `clusterLightBuffer${cameraID}`;
     const clusterLightIndicesBufferName = `clusterLightIndicesBuffer${cameraID}`;
     const clusterLightGridBufferName = `clusterLightGridBuffer${cameraID}`;
     if (ppl.containsResource(clusterLightBufferName)) {
@@ -491,7 +491,7 @@ export function setupScenePassTiled (pipeline: BasicPipeline, info: CameraInfo, 
         lightingPass.addStorageBuffer(clusterLightGridBufferName, AccessType.READ, 'b_clusterLightGridBuffer');
     }
 
-    const deferredLightingPassRTName = `deferredLightingPassRTName`;
+    const deferredLightingPassRTName = `deferredLightingPassRTName${info.id}`;
     lightingPass.addRenderTarget(deferredLightingPassRTName, AccessType.WRITE, '_', LoadOp.CLEAR, StoreOp.STORE, rtColor);
     lightingPass.addQueue(QueueHint.RENDER_TRANSPARENT, 'deferred-lighting-tiled').addCameraQuad(
         camera, lightingInfo.deferredLightingMaterial, 1,
@@ -540,7 +540,7 @@ export function setupLightingRes (ppl: BasicPipeline, info: CameraInfo) {
     const width = area.width;
     const height = area.height;
 
-    const deferredLightingPassRTName = `deferredLightingPassRTName`;
+    const deferredLightingPassRTName = `deferredLightingPassRTName${info.id}`;
     ppl.addRenderTarget(deferredLightingPassRTName, Format.RGBA8, width, height, ResourceResidency.MANAGED);
 }
 
@@ -551,7 +551,7 @@ export function updateLightingRes (ppl: BasicPipeline, info: CameraInfo) {
     const width = area.width;
     const height = area.height;
 
-    const deferredLightingPassRTName = `deferredLightingPassRTName`;
+    const deferredLightingPassRTName = `deferredLightingPassRTName${info.id}`;
     ppl.updateRenderTarget(deferredLightingPassRTName, width, height);
 }
 let lightingInfo: LightingInfo;
@@ -567,7 +567,7 @@ export function setupLightingPass (pipeline: BasicPipeline, info: CameraInfo, us
     const height = area.height;
     const cameraID = getCameraUniqueID(camera);
 
-    const deferredLightingPassRTName = `deferredLightingPassRTName`;
+    const deferredLightingPassRTName = `deferredLightingPassRTName${info.id}`;
     // lighting pass
     const lightingPass = ppl.addRenderPass(width, height, 'deferred-lighting');
     lightingPass.name = `CameraLightingPass${info.id}`;
@@ -590,7 +590,7 @@ export function setupLightingPass (pipeline: BasicPipeline, info: CameraInfo, us
     }
 
     // cluster data
-    const clusterLightBufferName = `clusterLightBuffer`;
+    const clusterLightBufferName = `clusterLightBuffer${cameraID}`;
     const clusterLightIndicesBufferName = `clusterLightIndicesBuffer${cameraID}`;
     const clusterLightGridBufferName = `clusterLightGridBuffer${cameraID}`;
     if (ppl.containsResource(clusterLightBufferName)) {

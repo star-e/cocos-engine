@@ -2032,7 +2032,7 @@ export function buildLightClusterCullingPass (camera: Camera, clusterData: Clust
     ppl: Pipeline) {
     const cameraID = getCameraUniqueID(camera);
     const clusterBufferName = `clusterBuffer${cameraID}`;
-    const clusterLightBufferName = `clusterLightBuffer`;
+    const clusterLightBufferName = `clusterLightBuffer${cameraID}`;
     const clusterGlobalIndexBufferName = `globalIndexBuffer${cameraID}`;
     const clusterLightIndicesBufferName = `clusterLightIndicesBuffer${cameraID}`;
     const clusterLightGridBufferName = `clusterLightGridBuffer${cameraID}`;
@@ -2187,7 +2187,7 @@ export function buildClusterLightData (camera: Camera, pipeline: BasicPipeline) 
     const clusterLightBufferSize = validLightCountForBuffer * 4 * lightBufferFloatNum;
 
     const cameraID = getCameraUniqueID(camera);
-    const clusterLightBufferName = `clusterLightBuffer`;
+    const clusterLightBufferName = `clusterLightBuffer${cameraID}`;
     const clusterGlobalIndexBufferName = `globalIndexBuffer${cameraID}`;
 
     const ppl = (pipeline as Pipeline);
