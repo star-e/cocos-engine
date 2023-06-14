@@ -20,9 +20,6 @@ import { BasicPipeline, Pipeline } from './pipeline';
 import {
     AccessType,
     AttachmentType,
-    ClearValue,
-    ClearValueType,
-    ComputeView,
     LightInfo,
     QueueHint,
     ResourceResidency,
