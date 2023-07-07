@@ -608,7 +608,7 @@ void NativePipeline::addResolvePass(const ccstd::vector<ResolvePair> &resolvePai
         pass.resolvePairs.emplace_back(pair);
     }
     std::string_view name("Resolve");
-    addVertex(
+    addVertex2(
         ResolveTag{},
         std::forward_as_tuple(name),
         std::forward_as_tuple(),
@@ -620,7 +620,7 @@ void NativePipeline::addResolvePass(const ccstd::vector<ResolvePair> &resolvePai
 
 // NOLINTNEXTLINE
 ComputePassBuilder *NativePipeline::addComputePass(const ccstd::string &passName) {
-    auto passID = addVertex(
+    auto passID = addVertex2(
         ComputeTag{},
         std::forward_as_tuple(passName),
         std::forward_as_tuple(passName),
@@ -641,7 +641,7 @@ void NativePipeline::addMovePass(const ccstd::vector<MovePair> &movePairs) {
         pass.movePairs.emplace_back(pair);
     }
     std::string_view name("Move");
-    addVertex(
+    addVertex2(
         MoveTag{},
         std::forward_as_tuple(name),
         std::forward_as_tuple(),
@@ -658,7 +658,7 @@ void NativePipeline::addCopyPass(const ccstd::vector<CopyPair> &copyPairs) {
         pass.copyPairs.emplace_back(pair);
     }
     std::string_view name("Copy");
-    addVertex(
+    addVertex2(
         CopyTag{},
         std::forward_as_tuple(name),
         std::forward_as_tuple(),
@@ -676,7 +676,7 @@ void NativePipeline::addUploadPass(ccstd::vector<UploadPair> &uploadPairs) {
     }
     uploadPairs.clear();
     std::string_view name("Upload");
-    addVertex(
+    addVertex2(
         CopyTag{},
         std::forward_as_tuple(name),
         std::forward_as_tuple(),
@@ -888,6 +888,9 @@ bool NativePipeline::activate(gfx::Swapchain *swapchainIn) {
 }
 
 bool NativePipeline::destroy() noexcept {
+#if CC_USE_DEBUG_RENDERER
+    DebugRenderer::getInstance()->destroy();
+#endif
     if (globalDSManager) {
         globalDSManager->destroy();
         globalDSManager.reset();
