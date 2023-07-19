@@ -834,31 +834,6 @@ ResourceGraph::vertex_descriptor getComputeResource(const ComputeView& view,
 bool defaultAttachment(const ccstd::pmr::string& name) {
     return name == "_" || name.empty();
 };
-
-auto getRasterResource(const RasterView& view,
-                        const ccstd::pmr::string& resName,
-                        const ResourceGraph& resg) {
-    auto slot0 = vertex(resName, resg);
-    auto slot1 = ResourceGraph::null_vertex();
-    const auto& desc = get(ResourceGraph::DescTag{}, resg, slot0);
-    if (desc.format == gfx::Format::DEPTH_STENCIL && view.accessType != AccessType::WRITE) {
-        std::string_view depthSuffix{"/depth"};
-        std::string_view stencilSuffix{"/stencil"};
-        if (!defaultAttachment(view.slotName)) {
-            slot0 = vertex(resName + depthSuffix.data(), resg);
-        }
-        if (!defaultAttachment(view.slotName1)) {
-            slot1 = vertex(resName + stencilSuffix.data(), resg);
-        }
-        if (!defaultAttachment(view.slotName) &&
-            !defaultAttachment(view.slotName1) &&
-            view.slotName > view.slotName1) {
-            std::swap(slot0, slot1);
-        }
-    }
-    return std::make_tuple(slot0, slot1);
-}
-
 struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
     void updateAndCreatePerPassDescriptorSet(RenderGraph::vertex_descriptor vertID) const {
         auto* perPassSet = updateCameraUniformBufferAndDescriptorSet(ctx, vertID);
@@ -1672,13 +1647,6 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void end(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
 
-    void mountDepthStencilViews(ResourceGraph::vertex_descriptor resID,
-                                const ccstd::pmr::string& depthName,
-                                const ccstd::pmr::string& stencilName) const {
-        auto* texture = get_if<gfx::Texture>(resID, &ctx.resourceGraph);
-        CC_ENSURES(texture);
-    }
-
     void mountResources(const Subpass& pass) const {
         auto& resg = ctx.resourceGraph;
         // mount managed resources
@@ -1686,9 +1654,6 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
             auto resID = findVertex(name, resg);
             CC_EXPECTS(resID != ResourceGraph::null_vertex());
             resg.mount(ctx.device, resID);
-            if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
-                // CC_LOG_INFO("gggg");
-            }
         }
         for (const auto& [name, views] : pass.computeViews) {
             auto resID = findVertex(name, resg);
