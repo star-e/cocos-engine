@@ -973,23 +973,22 @@ void startRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pa
             return ct + subpass.resolvePairs.size();
         });
     }
-
-    {
-        const auto &subpasses = pass.subpassGraph.subpasses;
-        uint32_t initVal{0};
-        ccstd::pmr::set<ResourceGraph::vertex_descriptor> resSet{resourceAccessGraph.get_allocator()};
-        for (const auto &subpass : subpasses) {
-            for (const auto &view : subpass.rasterViews) {
-                resSet.emplace(realID(view.first, resourceGraph));
-            }
-            auto &dsResolveAttachment = fgRenderpassInfo.rpInfo.depthStencilResolveAttachment;
-            if (dsResolveAttachment.format != gfx::Format::UNKNOWN) {
-                const auto &dsAccess = fgRenderpassInfo.dsResolveAccess;
-                dsResolveAttachment.barrier = getGeneralBarrier(cc::gfx::Device::getInstance(), dsAccess.prevAccess, dsAccess.nextAccess);
-            }
+    
+    const auto &subpasses = pass.subpassGraph.subpasses;
+    uint32_t initVal{0};
+    ccstd::pmr::set<ResourceGraph::vertex_descriptor> resSet{resourceAccessGraph.get_allocator()};
+    for (const auto &subpass : subpasses) {
+        for (const auto &view : subpass.rasterViews) {
+            resSet.emplace(realID(view.first, resourceGraph));
         }
-        fgRenderPassInfo.uniqueRasterViewCount = resSet.size();
+        auto &dsResolveAttachment = fgRenderPassInfo.rpInfo.depthStencilResolveAttachment;
+        if (dsResolveAttachment.format != gfx::Format::UNKNOWN) {
+            const auto &dsAccess = fgRenderPassInfo.dsResolveAccess;
+            dsResolveAttachment.barrier = getGeneralBarrier(cc::gfx::Device::getInstance(), dsAccess.prevAccess, dsAccess.nextAccess);
+        }
     }
+    fgRenderPassInfo.uniqueRasterViewCount = resSet.size();
+    
 }
 
 void endRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pass) {
