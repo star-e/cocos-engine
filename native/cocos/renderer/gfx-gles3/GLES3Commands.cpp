@@ -871,7 +871,7 @@ void cmdFuncGLES3CreateTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture)
         if (gpuTexture->useRenderBuffer &&
             hasFlag(gpuTexture->flags, TextureFlagBit::LAZILY_ALLOCATED)) {
             gpuTexture->glTarget = GL_RENDERBUFFER;
-            gpuTexture->allocateMemory = false;
+            gpuTexture->memoryAllocated = false;
             return;
         }
     }
@@ -925,7 +925,7 @@ void cmdFuncGLES3DestroyTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture
 }
 
 void cmdFuncGLES3ResizeTexture(GLES3Device *device, GLES3GPUTexture *gpuTexture) {
-    if (!gpuTexture->allocateMemory ||
+    if (!gpuTexture->memoryAllocated ||
         hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_OES) ||
         hasFlag(gpuTexture->flags, TextureFlagBit::EXTERNAL_NORMAL)) {
         return;
@@ -2634,7 +2634,7 @@ uint8_t *funcGLES3PixelBufferPick(const uint8_t *buffer, Format format, uint32_t
 }
 
 void cmdFuncGLES3CopyBuffersToTexture(GLES3Device *device, const uint8_t *const *buffers, GLES3GPUTexture *gpuTexture, const BufferTextureCopy *regions, uint32_t count) {
-    if (!gpuTexture->allocateMemory) return;
+    if (!gpuTexture->memoryAllocated) return;
 
     GLuint &glTexture = device->stateCache()->glTextures[device->stateCache()->texUint];
     if (glTexture != gpuTexture->glTexture) {

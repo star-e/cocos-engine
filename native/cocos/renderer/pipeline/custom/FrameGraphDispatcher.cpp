@@ -982,6 +982,11 @@ void startRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pa
             for (const auto &view : subpass.rasterViews) {
                 resSet.emplace(realID(view.first, resourceGraph));
             }
+            auto &dsResolveAttachment = fgRenderpassInfo.rpInfo.depthStencilResolveAttachment;
+            if (dsResolveAttachment.format != gfx::Format::UNKNOWN) {
+                const auto &dsAccess = fgRenderpassInfo.dsResolveAccess;
+                dsResolveAttachment.barrier = getGeneralBarrier(cc::gfx::Device::getInstance(), dsAccess.prevAccess, dsAccess.nextAccess);
+            }
         }
         fgRenderPassInfo.uniqueRasterViewCount = resSet.size();
     }
