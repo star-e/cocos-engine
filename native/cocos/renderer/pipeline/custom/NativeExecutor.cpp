@@ -165,7 +165,7 @@ gfx::GeneralBarrier* getGeneralBarrier(gfx::Device* device, const RasterView& vi
 
 PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
     RenderGraphVisitorContext& ctx, const RasterPass& pass,
-    boost::container::pmr::memory_resource* scratch) {
+    boost::container::pmr::memory_resource* /*scratch*/) {
     auto& resg = ctx.resourceGraph;
 
     PersistentRenderPassAndFramebuffer data(pass.get_allocator());
@@ -534,7 +534,7 @@ gfx::DescriptorSet* initDescriptorSet(
                 }
                 break;
             case DescriptorTypeOrder::INPUT_ATTACHMENT: {
-                for (auto& [descID, resID] : resourceIndex) {
+                for (const auto& [descID, resID] : resourceIndex) {
                     std::ignore = descID;
                     // render graph textures
                     auto* texture = resg.getTexture(resID);

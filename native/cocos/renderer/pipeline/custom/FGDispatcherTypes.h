@@ -101,7 +101,21 @@ struct LayoutAccess {
 };
 
 struct AttachmentInfo {
-    const ccstd::pmr::string& parentName;
+    using allocator_type = boost::container::pmr::polymorphic_allocator<char>;
+    allocator_type get_allocator() const noexcept { // NOLINT
+        return {parentName.get_allocator().resource()};
+    }
+
+    AttachmentInfo(const allocator_type& alloc) noexcept; // NOLINT
+    AttachmentInfo(AttachmentInfo&& rhs, const allocator_type& alloc);
+    AttachmentInfo(AttachmentInfo const& rhs, const allocator_type& alloc);
+
+    AttachmentInfo(AttachmentInfo&& rhs) noexcept = default;
+    AttachmentInfo(AttachmentInfo const& rhs) = delete;
+    AttachmentInfo& operator=(AttachmentInfo&& rhs) = default;
+    AttachmentInfo& operator=(AttachmentInfo const& rhs) = default;
+
+    ccstd::pmr::string parentName;
     uint32_t attachmentIndex{0};
     uint32_t isResolveView{0};
 };

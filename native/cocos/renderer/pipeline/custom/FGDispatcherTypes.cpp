@@ -43,6 +43,19 @@ ResourceAccessNode::ResourceAccessNode(ResourceAccessNode&& rhs, const allocator
 ResourceAccessNode::ResourceAccessNode(ResourceAccessNode const& rhs, const allocator_type& alloc)
 : resourceStatus(rhs.resourceStatus, alloc) {}
 
+AttachmentInfo::AttachmentInfo(const allocator_type& alloc) noexcept
+: parentName(alloc) {}
+
+AttachmentInfo::AttachmentInfo(AttachmentInfo&& rhs, const allocator_type& alloc)
+: parentName(std::move(rhs.parentName), alloc),
+  attachmentIndex(rhs.attachmentIndex),
+  isResolveView(rhs.isResolveView) {}
+
+AttachmentInfo::AttachmentInfo(AttachmentInfo const& rhs, const allocator_type& alloc)
+: parentName(rhs.parentName, alloc),
+  attachmentIndex(rhs.attachmentIndex),
+  isResolveView(rhs.isResolveView) {}
+
 FGRenderPassInfo::FGRenderPassInfo(const allocator_type& alloc) noexcept
 : orderedViews(alloc),
   viewIndex(alloc) {}

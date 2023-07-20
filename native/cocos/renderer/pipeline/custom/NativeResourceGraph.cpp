@@ -280,7 +280,29 @@ void mount(gfx::Device* device, ResourceGraph::vertex_descriptor vertID, Resourc
         });
 }
 
-void unmount(uint64_t completedFenceValue, ResourceGraph& resg) {
+struct MountVisitor : boost::dfs_visitor<> {
+    MountVisitor(gfx::Device* deviceIn, ResourceGraph& resgIn) : device(deviceIn), resg(resgIn) {}
+
+    void discover_vertex(ResourceGraph::vertex_descriptor u, const ResourceGraph& /*g*/) {
+        mount(device, u, resg);
+    }
+
+    gfx::Device* device;
+    ResourceGraph& resg;
+};
+
+// NOLINTNEXTLINE(misc-no-recursion)
+void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
+    std::ignore = device;
+    auto& resg = *this;
+    MountVisitor visitor{device, resg};
+    auto colorMap = colors(resource());
+    AddressableView<ResourceGraph> graphView(*this);
+    boost::depth_first_visit(resg, vertID, visitor, get(colorMap, resg));
+}
+
+void ResourceGraph::unmount(uint64_t completedFenceValue) {
+    auto& resg = *this;
     for (const auto& vertID : makeRange(vertices(resg))) {
         // here msvc has strange behaviour when using visitObject
         // we use if-else instead.
@@ -302,45 +324,6 @@ void unmount(uint64_t completedFenceValue, ResourceGraph& resg) {
             }
         }
     }
-}
-
-struct MountVisitor : boost::dfs_visitor<> {
-    MountVisitor(gfx::Device* deviceIn, ResourceGraph& resgIn) : device(deviceIn), resg(resgIn) {}
-
-    void discover_vertex(ResourceGraph::vertex_descriptor u, const ResourceGraph& g) {
-        mount(device, u, resg);
-    }
-
-    gfx::Device* device;
-    ResourceGraph& resg;
-};
-
-struct UnmountVisitor : boost::dfs_visitor<> {
-    UnmountVisitor(const uint64_t& completedFenceValIn, ResourceGraph& resgIn) : fenceVal(completedFenceValIn), resg(resgIn) {}
-
-    void discover_vertex(ResourceGraph::vertex_descriptor u, const ResourceGraph& g) {
-        unmount(fenceVal, resg);
-    }
-
-    const uint64_t& fenceVal;
-    ResourceGraph& resg;
-};
-
-// NOLINTNEXTLINE(misc-no-recursion)
-void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
-    std::ignore = device;
-    auto& resg = *this;
-    MountVisitor visitor{device, resg};
-    auto colorMap = colors(resource());
-    AddressableView<ResourceGraph> graphView(*this);
-    boost::depth_first_visit(resg, vertID, visitor, get(colorMap, resg));
-}
-
-void ResourceGraph::unmount(uint64_t completedFenceValue) {
-    auto& resg = *this;
-    UnmountVisitor visitor{completedFenceValue, resg};
-    auto colorMap = colors(resource());
-    boost::depth_first_search(resg, visitor, get(colorMap, resg));
 }
 
 bool ResourceGraph::isTexture(vertex_descriptor resID) const noexcept {
