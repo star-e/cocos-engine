@@ -56,6 +56,7 @@
 #include "pipeline/custom/RenderCommonFwd.h"
 #include "pipeline/custom/RenderGraphTypes.h"
 #include "pipeline/custom/details/GslUtils.h"
+#include "NativeRenderGraphUtils.h"
 
 #ifndef BRANCH_CULLING
     #define BRANCH_CULLING 0
@@ -729,23 +730,19 @@ void fillRenderPassInfo(const AttachmentMap &colorMap,
     }
 };
 
-bool isDefaultRenderAttachment(const ccstd::pmr::string &name) {
-    return name.empty() || (name == "_");
-}
-
 void extractNames(const ccstd::pmr::string &resName,
                   const RasterView &view,
                   ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> &names) {
     // depth_stencil
     if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
-        if (!isDefaultRenderAttachment(view.slotName)) {
+        if (!defaultAttachment(view.slotName)) {
             if (strstr(resName.c_str(), "/depth")) {
                 names.emplace_back(resName, 0);
             } else {
                 names.emplace_back(resName + "/depth", 0);
             }
         }
-        if (!isDefaultRenderAttachment(view.slotName1)) {
+        if (!defaultAttachment(view.slotName1)) {
             if (strstr(resName.c_str(), "/stencil")) {
                 names.emplace_back(resName, 1);
             } else {
@@ -2141,14 +2138,6 @@ bool tryAddEdge(uint32_t srcVertex, uint32_t dstVertex, Graph &graph) {
 
 bool isTransitionStatusDependent(const AccessStatus &lhs, const AccessStatus &rhs) {
     return !(isReadOnlyAccess(lhs.accessFlag) && isReadOnlyAccess(rhs.accessFlag));
-}
-
-bool isDefaultAttachment(const PmrString &name) {
-    return name.empty() || name == "_";
-}
-
-bool isDefaultDepthStencilAttachment(const PmrString &name, const PmrString &name1) {
-    return (name.empty() || name == "_") && (name1.empty() || name1 == "_");
 }
 
 #pragma endregion assisstantFuncDefinition

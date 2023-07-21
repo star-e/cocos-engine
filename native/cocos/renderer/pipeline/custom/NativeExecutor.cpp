@@ -35,6 +35,7 @@
 #include "RenderGraphGraphs.h"
 #include "RenderGraphTypes.h"
 #include "RenderingModule.h"
+#include "NativeRenderGraphUtils.h"
 #include "cocos/renderer/gfx-base/GFXBarrier.h"
 #include "cocos/renderer/gfx-base/GFXDef-common.h"
 #include "cocos/renderer/gfx-base/GFXDescriptorSetLayout.h"
@@ -777,6 +778,24 @@ void submitProfilerCommands(
     cmdBuff->draw(ia);
 }
 
+ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID, const ResourceGraph& resg, std::string_view name) {
+    auto resName = get(ResourceGraph::NameTag{}, resg, resID);
+    resName += "/";
+    resName += name;
+    return findVertex(resName, resg);
+}
+
+ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID,
+                                              const ResourceGraph& resg,
+                                              uint32_t basePlane) {
+    auto ret = resID;
+    const auto& desc = get(ResourceGraph::DescTag{}, resg, resID);
+    if (desc.format == gfx::Format::DEPTH_STENCIL) {
+        ret = basePlane == 0 ? locateSubres(resID, resg, "depth") : locateSubres(resID, resg, "stencil");
+    }
+    return ret;
+}
+
 PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor>
 buildResourceIndex(
     const ResourceGraph& resg,
@@ -788,17 +807,12 @@ buildResourceIndex(
     for (const auto& [resName, computeViews] : computeViews) {
         std::string_view suffix{""};
         auto resID = vertex(resName, resg);
-        const auto& desc = get(ResourceGraph::DescTag{}, resg, resID);
         for (const auto& computeView : computeViews) {
             const auto& name = computeView.name;
             CC_EXPECTS(!name.empty());
             const auto nameID = lg.attributeIndex.at(name);
-
-            if (desc.format == gfx::Format::DEPTH_STENCIL) {
-                suffix = computeView.plane == 0 ? "/depth" : "/stencil";
-                resID = vertex(resName + suffix.data(), resg);
-            }
-            resourceIndex.emplace(nameID, resID);
+            auto subresID = locateSubres(resID, resg, computeView.plane);
+            resourceIndex.emplace(nameID, subresID);
         }
     }
     return resourceIndex;
@@ -816,24 +830,6 @@ getComputeViews(RenderGraph::vertex_descriptor passID, const RenderGraph& rg) {
     return get(ComputeTag{}, passID, rg).computeViews;
 }
 
-ResourceGraph::vertex_descriptor getComputeResource(const ComputeView& view,
-                                                    const ccstd::pmr::string& resName,
-                                                    const ResourceGraph& resg) {
-    auto resID = vertex(resName, resg);
-    const auto& desc = get(ResourceGraph::DescTag{}, resg, resID);
-    if (desc.format == gfx::Format::DEPTH_STENCIL) {
-        std::string_view depthSuffix{"/depth"};
-        std::string_view stencilSuffix{"/stencil"};
-        auto rName = resName;
-        rName = view.plane == 0 ? resName + depthSuffix.data() : resName + stencilSuffix.data();
-        resID = vertex(rName, resg);
-    }
-    return resID;
-}
-
-bool defaultAttachment(const ccstd::pmr::string& name) {
-    return name == "_" || name.empty();
-};
 struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
     void updateAndCreatePerPassDescriptorSet(RenderGraph::vertex_descriptor vertID) const {
         auto* perPassSet = updateCameraUniformBufferAndDescriptorSet(ctx, vertID);
@@ -1064,34 +1060,37 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
 
             NameLocalID unused{128};
             // input sort by slot name
-            ccstd::pmr::map<std::string_view, ccstd::pmr::string> inputs(ctx.scratch);
+            ccstd::pmr::map<std::string_view, std::pair<const ccstd::pmr::string&, std::string_view>> inputs(ctx.scratch);
             for (const auto& [resourceName, rasterView] : subpass.rasterViews) {
                 if (rasterView.accessType != AccessType::WRITE) {
                     if (!defaultAttachment(rasterView.slotName)) {
-                        std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? "/depth" : "";
-                        inputs.emplace(rasterView.slotName, resourceName + suffix.data());
+                        std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? "depth" : "";
+                        inputs.emplace(std::piecewise_construct,
+                                       std::forward_as_tuple(rasterView.slotName),
+                                       std::forward_as_tuple(resourceName, suffix));
                     }
                     if (!defaultAttachment(rasterView.slotName1)) {
                         CC_EXPECTS(rasterView.attachmentType == AttachmentType::DEPTH_STENCIL);
-                        std::string_view suffix = "/stencil";
-                        inputs.emplace(rasterView.slotName1, resourceName + suffix.data());
+                        std::string_view suffix = "stencil";
+                        inputs.emplace(std::piecewise_construct,
+                                       std::forward_as_tuple(rasterView.slotName1),
+                                       std::forward_as_tuple(resourceName, suffix));
                     }
                 }
             }
             // build pass resources
             PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
             resourceIndex.reserve(inputs.size());
-            for (const auto& [keyPair, resourceName] : inputs) {
-                auto resID = vertex(resourceName.data(), ctx.resourceGraph);
+            for (const auto& [slotName, nameInfo] : inputs) {
+                auto resID = vertex(nameInfo.first, ctx.resourceGraph);
+                resID = locateSubres(resID, ctx.resourceGraph, nameInfo.second);
                 resourceIndex.emplace(unused, resID);
                 unused.value++;
             }
             for (const auto& [resName, computeViews] : subpass.computeViews) {
                 auto resID = vertex(resName, ctx.resourceGraph);
-                auto ragId = ctx.fgd.resourceAccessGraph.passIndex.at(vertID);
-
                 for (const auto& computeView : computeViews) {
-                    resID = getComputeResource(computeView, resName, ctx.resourceGraph);
+                    resID = locateSubres(resID, ctx.resourceGraph, computeView.plane);
                     auto iter = ctx.lg.attributeIndex.find(computeView.name);
                     if (iter != ctx.lg.attributeIndex.end()) {
                         resourceIndex.emplace(iter->second, resID);

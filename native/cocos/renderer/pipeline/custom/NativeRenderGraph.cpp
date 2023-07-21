@@ -275,10 +275,6 @@ uint32_t getSlotID(RasterPass &pass, std::string_view name, AttachmentType type)
     return iter != pass.attachmentIndexMap.end() ? iter->second : pass.attachmentIndexMap.emplace(name, newID).first->second;
 }
 
-bool defaultAttachmentName(std::string_view name) {
-    return name.empty() || name == "_";
-}
-
 template <class Tag>
 void addRasterViewImpl(
     std::string_view name,
@@ -306,11 +302,11 @@ void addRasterViewImpl(
 
     if (nameIter != subpassData.rasterViews.end()) {
         auto &view = subpass.rasterViews.at(name.data());
-        if (!defaultAttachmentName(slotName)) {
+        if (!defaultAttachment(slotName)) {
             nameIter->second.slotName = slotName;
             view.slotName = slotName;
         }
-        if (!defaultAttachmentName(slotName1)) {
+        if (!defaultAttachment(slotName1)) {
             nameIter->second.slotName1 = slotName1;
             view.slotName1 = slotName1;
         }

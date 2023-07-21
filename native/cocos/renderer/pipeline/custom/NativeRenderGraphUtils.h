@@ -211,6 +211,10 @@ void addSubpassComputeViewImpl(
                subpassData.computeViews.find(std::string_view{name})->second.size());
 }
 
+inline bool defaultAttachment(std::string_view slotName) {
+    return slotName.empty() || slotName == "_";
+}
+
 } // namespace render
 
 } // namespace cc
