@@ -225,7 +225,10 @@ bool CCMTLTexture::createMTLTexture() {
     if (descriptor == nullptr)
         return false;
 
-    descriptor.usage = mu::toMTLTextureUsage(_info.usage) | MTLTextureUsagePixelFormatView;
+    descriptor.usage = mu::toMTLTextureUsage(_info.usage);
+    if(hasFlag(_info.flags, TextureFlags::MUTABLE_VIEW_FORMAT)) {
+        descriptor.usage |= MTLTextureUsagePixelFormatView;
+    }
     descriptor.sampleCount = mu::toMTLSampleCount(_info.samples);
     descriptor.textureType = descriptor.sampleCount > 1 ? MTLTextureType2DMultisample : mu::toMTLTextureType(_info.type);
     descriptor.mipmapLevelCount = _info.levelCount;

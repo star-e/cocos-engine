@@ -372,9 +372,13 @@ ResourceGraph::vertex_descriptor realID(const ccstd::pmr::string &name, const Re
     return resID;
 }
 
+bool depthStencil(gfx::Format format) {
+    return format == gfx::Format::DEPTH_STENCIL || format == gfx::Format::DEPTH;
+}
+
 void subResourceFeedback(ResourceGraph &resg, ResourceGraph::vertex_descriptor parentID, gfx::Format subFormat) {
     auto &parentDesc = get(ResourceGraph::DescTag{}, resg, parentID);
-    if (subFormat == gfx::Format::DEPTH_STENCIL || parentDesc.format != subFormat) {
+    if (depthStencil(subFormat) || parentDesc.format != subFormat) {
         parentDesc.textureFlags |= gfx::TextureFlagBit::MUTABLE_VIEW_FORMAT;
     }
 }
@@ -456,6 +460,10 @@ auto dependencyCheck(ResourceAccessGraph &rag, ResourceAccessGraph::vertex_descr
 
         if (rag.leafPasses.find(lastVertID) != rag.leafPasses.end()) {
             rag.leafPasses.erase(lastVertID);
+        }
+        
+        if(viewStatus.access != AccessType::WRITE) {
+            subResourceFeedback(resourceGraph, resourceID, desc.format);
         }
     }
     auto lastDependentVert = lastVertID; // last dependent vert, WAW/WAR/RAW
