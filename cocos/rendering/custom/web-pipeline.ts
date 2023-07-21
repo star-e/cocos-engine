@@ -989,11 +989,12 @@ export class WebRenderSubpassBuilder extends WebSetter implements RenderSubpassB
         throw new Error('Method not implemented.');
     }
     addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default'): RenderQueueBuilder {
+        const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
         if (DEBUG) {
-            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
             assert(layoutId !== 0xFFFFFFFF);
         }
         const queue = new RenderQueue(hint);
+        queue.phaseID = layoutId;
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         return new WebRenderQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
@@ -1129,11 +1130,12 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
         return result;
     }
     addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default'): WebRenderQueueBuilder {
+        const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
         if (DEBUG) {
-            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
             assert(layoutId !== 0xFFFFFFFF);
         }
         const queue = new RenderQueue(hint);
+        queue.phaseID = layoutId;
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         return new WebRenderQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
@@ -1283,11 +1285,12 @@ export class WebComputePassBuilder extends WebSetter implements ComputePassBuild
         throw new Error('Method not implemented.');
     }
     addQueue (layoutName = 'default'): WebComputeQueueBuilder {
+        const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
         if (DEBUG) {
-            const layoutId = this._layoutGraph.locateChild(this._layoutID, layoutName);
             assert(layoutId !== 0xFFFFFFFF);
         }
         const queue = new RenderQueue();
+        queue.phaseID = layoutId;
         const data = new RenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         return new WebComputeQueueBuilder(data, this._renderGraph, this._layoutGraph, queueID, queue, this._pipeline);
