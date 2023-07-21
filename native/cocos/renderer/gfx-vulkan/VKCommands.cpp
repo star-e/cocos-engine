@@ -204,7 +204,8 @@ void cmdFuncCCVKCreateTextureView(CCVKDevice *device, CCVKGPUTextureView *gpuTex
                 uint32_t planeCount = gpuTextureView->planeCount;
                 aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT << planeIndex;
                 CC_ASSERT(planeIndex + planeCount <= 2);
-                while (--planeCount) {
+                CC_ASSERT(planeCount > 0);
+                while (planeCount && --planeCount) {
                     aspectMask |= (aspectMask << 1);
                 }
             }

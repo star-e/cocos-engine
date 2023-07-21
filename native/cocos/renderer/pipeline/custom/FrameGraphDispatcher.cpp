@@ -27,9 +27,9 @@
 #include <algorithm>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/breadth_first_search.hpp>
+#include <boost/graph/filtered_graph.hpp>
 #include <boost/graph/transitive_closure.hpp>
 #include <boost/range/algorithm.hpp>
-#include <boost/graph/filtered_graph.hpp>
 #include <iterator>
 #include <limits>
 #include <numeric>
@@ -44,6 +44,7 @@
 #include "boost/graph/hawick_circuits.hpp"
 #include "boost/graph/visitors.hpp"
 #include "boost/lexical_cast.hpp"
+#include "details/GraphView.h"
 #include "details/Range.h"
 #include "gfx-base/GFXBarrier.h"
 #include "gfx-base/GFXDef-common.h"
@@ -55,7 +56,6 @@
 #include "pipeline/custom/RenderCommonFwd.h"
 #include "pipeline/custom/RenderGraphTypes.h"
 #include "pipeline/custom/details/GslUtils.h"
-#include "details/GraphView.h"
 
 #ifndef BRANCH_CULLING
     #define BRANCH_CULLING 0
@@ -101,7 +101,7 @@ void FrameGraphDispatcher::setParalellWeight(float paralellExecWeight) {
     _paralellExecWeight = clampf(paralellExecWeight, 0.0F, 1.0F);
 }
 
-const BarrierNode& FrameGraphDispatcher::getBarrier(RenderGraph::vertex_descriptor u) const {
+const BarrierNode &FrameGraphDispatcher::getBarrier(RenderGraph::vertex_descriptor u) const {
     auto ragVertID = resourceAccessGraph.passIndex.at(u);
     return get(ResourceAccessGraph::BarrierTag{}, resourceAccessGraph, ragVertID);
 }
@@ -111,7 +111,7 @@ const ResourceAccessNode &FrameGraphDispatcher::getAccessNode(RenderGraph::verte
     return get(ResourceAccessGraph::PassNodeTag{}, resourceAccessGraph, ragVertID);
 }
 
-const gfx::RenderPassInfo& FrameGraphDispatcher::getRenderPassInfo(RenderGraph::vertex_descriptor u) const {
+const gfx::RenderPassInfo &FrameGraphDispatcher::getRenderPassInfo(RenderGraph::vertex_descriptor u) const {
     CC_EXPECTS(holds<RasterPassTag>(u, renderGraph));
     auto ragVertID = resourceAccessGraph.passIndex.at(u);
     return get(ResourceAccessGraph::RenderPassInfoTag{}, resourceAccessGraph, ragVertID).rpInfo;
@@ -141,7 +141,7 @@ RenderingInfo FrameGraphDispatcher::getRenderPassAndFrameBuffer(RenderGraph::ver
             clearColor = rasterView.clearColor;
         }
         if (info.attachmentIndex != gfx::INVALID_BINDING) {
-            //colorLike
+            // colorLike
             renderingInfo.clearColors.emplace_back(clearColor);
 
             auto resID = findVertex(viewName, resg);
@@ -184,7 +184,7 @@ RenderingInfo FrameGraphDispatcher::getRenderPassAndFrameBuffer(RenderGraph::ver
                     fbInfo.colorTextures.emplace_back(view.textureView);
                 });
         } else {
-            //ds or ds resolve
+            // ds or ds resolve
             if (!info.isResolveView) {
                 renderingInfo.clearDepth = clearColor.x;
                 renderingInfo.clearStencil = static_cast<uint8_t>(clearColor.y);
@@ -227,7 +227,6 @@ LayoutAccess FrameGraphDispatcher::getResourceAccess(ResourceGraph::vertex_descr
     return {range.first->second.accessFlag, range.second->second.accessFlag};
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////INTERNAL⚡IMPLEMENTATION/////////////////////////////////////////////////////////////////////////////////////////////
 
 //---------------------------------------------------------------predefine------------------------------------------------------------------
@@ -253,7 +252,7 @@ struct Graphs {
 };
 
 struct ViewStatus {
-    const ccstd::pmr::string& name;
+    const ccstd::pmr::string &name;
     const AccessType access;
     const gfx::ShaderStageFlagBit visibility;
     const gfx::AccessFlags accessFlag;
@@ -373,7 +372,14 @@ ResourceGraph::vertex_descriptor realID(const ccstd::pmr::string &name, const Re
     return resID;
 }
 
-auto dependencyCheck(ResourceAccessGraph &rag, ResourceAccessGraph::vertex_descriptor curVertID, const ResourceGraph &resourceGraph, const ViewStatus &viewStatus) {
+void subResourceFeedback(ResourceGraph &resg, ResourceGraph::vertex_descriptor parentID, gfx::Format subFormat) {
+    auto &parentDesc = get(ResourceGraph::DescTag{}, resg, parentID);
+    if (subFormat == gfx::Format::DEPTH_STENCIL || parentDesc.format != subFormat) {
+        parentDesc.textureFlags |= gfx::TextureFlagBit::MUTABLE_VIEW_FORMAT;
+    }
+}
+
+auto dependencyCheck(ResourceAccessGraph &rag, ResourceAccessGraph::vertex_descriptor curVertID, ResourceGraph &resourceGraph, const ViewStatus &viewStatus) {
     auto &accessRecord = rag.resourceAccess;
     const auto &[name, access, visibility, accessFlag, originRange] = viewStatus;
     auto resourceID = rag.resourceIndex.at(name);
@@ -408,6 +414,7 @@ auto dependencyCheck(ResourceAccessGraph &rag, ResourceAccessGraph::vertex_descr
             }
             accessRecord[name].emplace(*lastIter);
             accessRecord[realName][curVertID] = AccessStatus{accessFlag, range};
+            subResourceFeedback(resourceGraph, parentID, desc.format);
         } else {
             accessRecord[name].emplace(0, AccessStatus{lastAccess, range});
         }
@@ -623,7 +630,7 @@ struct AttachmentSortKey {
 };
 
 struct AttachmentComparator {
-    bool operator()(const AttachmentSortKey& lhs, const AttachmentSortKey& rhs) const {
+    bool operator()(const AttachmentSortKey &lhs, const AttachmentSortKey &rhs) const {
         return std::tie(rhs.samples, lhs.accessType, lhs.attachmentWeight, lhs.name) < std::tie(lhs.samples, rhs.accessType, rhs.attachmentWeight, rhs.name);
     }
 };
@@ -639,9 +646,9 @@ struct ViewInfo {
 using AttachmentMap = ccstd::pmr::map<AttachmentSortKey, ViewInfo, AttachmentComparator>;
 } // namespace
 
-void fillRenderPassInfo(const AttachmentMap& colorMap,
+void fillRenderPassInfo(const AttachmentMap &colorMap,
                         FGRenderPassInfo &fgRenderpassInfo,
-                        const ResourceGraph& resg) {
+                        const ResourceGraph &resg) {
     for (const auto &pair : colorMap) {
         const auto &key = pair.first;
         const auto &viewInfo = pair.second;
@@ -649,7 +656,7 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
             // put ds[sample > 1] to ds, ds[sample == 1] to dsResolve, swap them if not a ms pass in endRenderPass.
             bool ms = key.samples != gfx::SampleCount::X1;
             auto &ds = ms ? fgRenderpassInfo.rpInfo.depthStencilAttachment
-                                                           : fgRenderpassInfo.rpInfo.depthStencilResolveAttachment;
+                          : fgRenderpassInfo.rpInfo.depthStencilResolveAttachment;
             auto &dsAccess = ms ? fgRenderpassInfo.dsAccess : fgRenderpassInfo.dsResolveAccess;
             if (ds.format == gfx::Format::UNKNOWN) {
                 ds.depthLoadOp = viewInfo.loadOp;
@@ -657,7 +664,6 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
                 ds.sampleCount = key.samples;
                 ds.format = viewInfo.format;
                 dsAccess.prevAccess = viewInfo.access.prevAccess;
-
             }
             ds.depthStoreOp = viewInfo.storeOp;
             ds.stencilStoreOp = viewInfo.storeOp;
@@ -683,7 +689,7 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
                 color.sampleCount = key.samples;
                 color.storeOp = viewInfo.storeOp;
                 color.loadOp = viewInfo.loadOp;
-                fgRenderpassInfo.colorAccesses.emplace_back(LayoutAccess {viewInfo.access.prevAccess, viewInfo.access.nextAccess });
+                fgRenderpassInfo.colorAccesses.emplace_back(LayoutAccess{viewInfo.access.prevAccess, viewInfo.access.nextAccess});
                 fgRenderpassInfo.colorAccesses[colorIndex].nextAccess = viewInfo.access.nextAccess;
 
                 auto parentID = realID(key.name, resg);
@@ -693,7 +699,7 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
                 attachmentInfo.attachmentIndex = static_cast<uint32_t>(fgRenderpassInfo.orderedViews.size());
                 attachmentInfo.isResolveView = fgRenderpassInfo.resolveCount && key.samples == gfx::SampleCount::X1;
 
-                fgRenderpassInfo.viewIndex.emplace(key.name,attachmentInfo);
+                fgRenderpassInfo.viewIndex.emplace(key.name, attachmentInfo);
                 fgRenderpassInfo.orderedViews.emplace_back(key.name);
             } else {
                 const auto &attachmentInfo = fgRenderpassInfo.viewIndex.at(key.name);
@@ -706,7 +712,7 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
                     auto &access = ms ? fgRenderpassInfo.dsAccess : fgRenderpassInfo.dsResolveAccess;
                     access.nextAccess = viewInfo.access.nextAccess;
                 } else {
-                    auto& color = fgRenderpassInfo.rpInfo.colorAttachments[cIndex];
+                    auto &color = fgRenderpassInfo.rpInfo.colorAttachments[cIndex];
                     color.storeOp = viewInfo.storeOp;
                     fgRenderpassInfo.colorAccesses[cIndex].nextAccess = viewInfo.access.nextAccess;
                 }
@@ -715,13 +721,13 @@ void fillRenderPassInfo(const AttachmentMap& colorMap,
     }
 };
 
-bool isDefaultRenderAttachment(const ccstd::pmr::string& name) {
+bool isDefaultRenderAttachment(const ccstd::pmr::string &name) {
     return name.empty() || (name == "_");
 }
 
-void extractNames(const ccstd::pmr::string& resName,
-                const RasterView &view,
-                  ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>>& names) {
+void extractNames(const ccstd::pmr::string &resName,
+                  const RasterView &view,
+                  ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> &names) {
     // depth_stencil
     if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
         if (!isDefaultRenderAttachment(view.slotName)) {
@@ -730,7 +736,6 @@ void extractNames(const ccstd::pmr::string& resName,
             } else {
                 names.emplace_back(resName + "/depth", 0);
             }
-
         }
         if (!isDefaultRenderAttachment(view.slotName1)) {
             if (strstr(resName.c_str(), "/stencil")) {
@@ -739,8 +744,6 @@ void extractNames(const ccstd::pmr::string& resName,
                 names.emplace_back(resName + "/stencil", 1);
             }
         }
-
-
     }
 
     if (names.empty()) {
@@ -786,16 +789,15 @@ auto checkRasterViews(const Graphs &graphs,
 
         const auto &desc = get(ResourceGraph::DescTag{}, resourceGraph, resID);
         colorMap.emplace(AttachmentSortKey{desc.sampleCount,
-                                            rasterView.accessType,
-                                            ATTACHMENT_TYPE_WEIGHT[static_cast<uint32_t>(rasterView.attachmentType)],
-                                            resName},
-                            ViewInfo{desc.format,
-                                    LayoutAccess{lastAccess, accessFlag},
-                                    rasterView.loadOp,
-                                    rasterView.storeOp,
-                                    rasterView.attachmentType});
+                                           rasterView.accessType,
+                                           ATTACHMENT_TYPE_WEIGHT[static_cast<uint32_t>(rasterView.attachmentType)],
+                                           resName},
+                         ViewInfo{desc.format,
+                                  LayoutAccess{lastAccess, accessFlag},
+                                  rasterView.loadOp,
+                                  rasterView.storeOp,
+                                  rasterView.attachmentType});
         hasDS |= rasterView.attachmentType == AttachmentType::DEPTH_STENCIL;
-
     }
     return std::make_tuple(dependent, hasDS);
 }
@@ -841,10 +843,10 @@ bool checkComputeViews(const Graphs &graphs, ResourceAccessGraph::vertex_descrip
 }
 
 bool checkResolveResource(const Graphs &graphs,
-        uint32_t ragVertID,
-        ResourceAccessNode &node,
-        const ccstd::pmr::vector<ResolvePair> &resolves,
-        AttachmentMap &colorMap) {
+                          uint32_t ragVertID,
+                          ResourceAccessNode &node,
+                          const ccstd::pmr::vector<ResolvePair> &resolves,
+                          AttachmentMap &colorMap) {
     const auto &[renderGraph, layoutGraphData, resourceGraph, resourceAccessGraph, relationGraph] = graphs;
     const auto passID = get(ResourceAccessGraph::PassIDTag{}, resourceAccessGraph, ragVertID);
     bool dependent = false;
@@ -882,7 +884,6 @@ bool checkResolveResource(const Graphs &graphs,
     }
     return dependent;
 }
-
 
 uint32_t record(uint32_t index) {
     uint32_t res = 1 << index;
@@ -982,7 +983,6 @@ void startRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pa
         }
     }
     fgRenderPassInfo.uniqueRasterViewCount = resSet.size();
-
 }
 
 void endRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pass) {
@@ -1012,16 +1012,16 @@ void endRenderPass(const Graphs &graphs, uint32_t passID, const RasterPass &pass
     }
 
     if (!pass.subpassGraph.subpasses.empty()) {
-        //for (auto &subpassInfo : fgRenderpassInfo.rpInfo.subpasses) {
-        //    if (subpassInfo.depthStencil != gfx::INVALID_BINDING) {
-        //        if (subpassInfo.depthStencil != gfx::INVALID_BINDING) {
-        //            subpassInfo.depthStencil = colorSize;
-        //        }
-        //        if (subpassInfo.depthStencilResolve != gfx::INVALID_BINDING) {
-        //            subpassInfo.depthStencilResolve = colorSize + 1;
-        //        }
-        //    }
-        //}
+        // for (auto &subpassInfo : fgRenderpassInfo.rpInfo.subpasses) {
+        //     if (subpassInfo.depthStencil != gfx::INVALID_BINDING) {
+        //         if (subpassInfo.depthStencil != gfx::INVALID_BINDING) {
+        //             subpassInfo.depthStencil = colorSize;
+        //         }
+        //         if (subpassInfo.depthStencilResolve != gfx::INVALID_BINDING) {
+        //             subpassInfo.depthStencilResolve = colorSize + 1;
+        //         }
+        //     }
+        // }
         getPreserves(fgRenderpassInfo.rpInfo);
     }
 }
@@ -1072,7 +1072,7 @@ void startRenderSubpass(const Graphs &graphs, uint32_t passID, const RasterSubpa
                     subpassInfo.resolves.resize(pass.rasterViews.size() - hasDS, gfx::INVALID_BINDING);
                 }
                 const auto &resolveSrc = resolveIter->source;
-                const auto& resourceSrcInfo = fgRenderpassInfo.viewIndex.at(resolveSrc);
+                const auto &resourceSrcInfo = fgRenderpassInfo.viewIndex.at(resolveSrc);
                 subpassInfo.resolves[resourceSrcInfo.attachmentIndex] = cIndex;
             }
         } else {
@@ -1111,7 +1111,7 @@ void startRenderSubpass(const Graphs &graphs, uint32_t passID, const RasterSubpa
                 auto lastPassID = get(ResourceAccessGraph::PassIDTag{}, resourceAccessGraph, lastVert);
                 auto lastPassIndex = INVALID_ID;
                 if (holds<RasterSubpassTag>(lastPassID, renderGraph) && (parent(lastPassID, renderGraph) == parentID)) {
-                    const auto* lastPass = get_if<RasterSubpass>(lastPassID , &renderGraph);
+                    const auto *lastPass = get_if<RasterSubpass>(lastPassID, &renderGraph);
                     lastPassIndex = lastPass->subpassID;
                 }
 
@@ -1164,10 +1164,10 @@ void startCopyPass(const Graphs &graphs, uint32_t passID, const CopyPass &pass) 
     CC_EXPECTS(static_cast<uint32_t>(rlgVertID) == static_cast<uint32_t>(vertID));
     auto &accessNode = get(ResourceAccessGraph::PassNodeTag{}, resourceAccessGraph, rlgVertID);
 
-    const auto &resg = resourceGraph;
+    auto &resg = resourceGraph;
     auto &rag = resourceAccessGraph;
     auto &rlg = relationGraph;
-    auto checkCopy = [&](const ccstd::pmr::string& resName,
+    auto checkCopy = [&](const ccstd::pmr::string &resName,
                          uint32_t firstSlice,
                          uint32_t firstMip,
                          uint32_t firstPlane,
@@ -1221,7 +1221,7 @@ void startRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass
 
 struct DependencyVisitor : boost::dfs_visitor<> {
     void discover_vertex(RenderGraph::vertex_descriptor passID,
-        const AddressableView<RenderGraph> &gv) const {
+                         const AddressableView<RenderGraph> &gv) const {
         visitObject(
             passID, gv.mGraph,
             [&](const RasterPass &pass) {
@@ -1478,7 +1478,7 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
 
                 if (holds<RasterSubpassTag>(srcPassID, renderGraph) &&
                     accessDependent(iter->second.accessFlag, nextIter->second.accessFlag, isBuffer)) {
-                    const auto* subpass = get_if<RasterSubpass>(srcPassID, &renderGraph);
+                    const auto *subpass = get_if<RasterSubpass>(srcPassID, &renderGraph);
                     CC_ASSERT(subpass);
                     auto subpassID = subpass->subpassID;
                     auto &dependency = fgRenderPassInfo.rpInfo.dependencies.emplace_back();
@@ -1555,8 +1555,8 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
             for (auto &color : colorAttachments) {
                 const auto &colorAccess = fgRenderpassInfo.colorAccesses[count];
                 color.barrier = getGeneralBarrier(cc::gfx::Device::getInstance(),
-                                                                colorAccess.prevAccess,
-                                                                colorAccess.nextAccess);
+                                                  colorAccess.prevAccess,
+                                                  colorAccess.nextAccess);
                 ++count;
             }
             auto &dsAttachment = fgRenderpassInfo.rpInfo.depthStencilAttachment;
