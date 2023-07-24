@@ -805,7 +805,6 @@ buildResourceIndex(
     PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(scratch);
     resourceIndex.reserve(computeViews.size() * 2);
     for (const auto& [resName, computeViews] : computeViews) {
-        std::string_view suffix{""};
         auto resID = vertex(resName, resg);
         for (const auto& computeView : computeViews) {
             const auto& name = computeView.name;

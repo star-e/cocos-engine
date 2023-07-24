@@ -478,7 +478,7 @@ enum class TextureFlagBit : uint32_t {
     EXTERNAL_OES = 0x4,         // External oes texture
     EXTERNAL_NORMAL = 0x8,      // External normal texture
     LAZILY_ALLOCATED = 0x10,    // Try lazily allocated mode.
-    MUTABLE_VIEW_FORMAT = 0x20, // texture view as different format
+    MUTABLE_VIEW_FORMAT = 0x40, // texture view as different format
 };
 using TextureFlags = TextureFlagBit;
 CC_ENUM_BITWISE_OPERATORS(TextureFlagBit);
