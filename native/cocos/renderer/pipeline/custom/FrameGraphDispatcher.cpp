@@ -135,7 +135,7 @@ ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor r
     auto ret = resID;
     const auto &desc = get(ResourceGraph::DescTag{}, resg, resID);
     if (desc.format == gfx::Format::DEPTH_STENCIL) {
-        ret = basePlane == 0 ? locateSubres(resID, resg, depthPlaneName) : locateSubres(resID, resg, stencilPlaneName);
+        ret = basePlane == 0 ? locateSubres(resID, resg, DepthPlaneName) : locateSubres(resID, resg, StencilPlaneName);
     }
     return ret;
 }
@@ -173,14 +173,14 @@ PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::
         for (const auto &[resourceName, rasterView] : rasterViews) {
             if (rasterView.accessType != AccessType::WRITE) {
                 if (!defaultAttachment(rasterView.slotName)) {
-                    std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? depthPlaneName : "";
+                    std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? DepthPlaneName : "";
                     inputs.emplace(std::piecewise_construct,
                                    std::forward_as_tuple(rasterView.slotName),
                                    std::forward_as_tuple(resourceName, suffix));
                 }
                 if (!defaultAttachment(rasterView.slotName1)) {
                     CC_EXPECTS(rasterView.attachmentType == AttachmentType::DEPTH_STENCIL);
-                    std::string_view suffix = stencilPlaneName;
+                    std::string_view suffix = StencilPlaneName;
                     inputs.emplace(std::piecewise_construct,
                                    std::forward_as_tuple(rasterView.slotName1),
                                    std::forward_as_tuple(resourceName, suffix));
@@ -1319,7 +1319,7 @@ struct TextureNode {
 struct ResourceNode {
     ccstd::pmr::vector<TextureNode> planes;
 };
-}
+} // namespace
 
 bool rangeCheck(ccstd::pmr::map<ccstd::pmr::string, ResourceNode> &status,
                 const ResourceDesc &desc,

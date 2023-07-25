@@ -58,7 +58,7 @@ void addSubresourceNode<gfx::Format::DEPTH_STENCIL>(ResourceGraph::vertex_descri
 
     ccstd::string depthName{name};
     depthName += "/";
-    depthName += depthPlaneName;
+    depthName += DepthPlaneName;
     auto depthID = addVertex(
         SubresourceViewTag{},
         std::forward_as_tuple(depthName.c_str()),
@@ -73,7 +73,7 @@ void addSubresourceNode<gfx::Format::DEPTH_STENCIL>(ResourceGraph::vertex_descri
     view.firstPlane = 1;
     ccstd::string stencilName{name};
     stencilName += "/";
-    stencilName += stencilPlaneName;
+    stencilName += StencilPlaneName;
     auto stencilID = addVertex(
         SubresourceViewTag{},
         std::forward_as_tuple(stencilName.c_str()),
