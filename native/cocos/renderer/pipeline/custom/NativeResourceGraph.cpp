@@ -210,8 +210,11 @@ void ResourceGraph::validateSwapchains() {
     }
 }
 
-void mount(gfx::Device* device, ResourceGraph::vertex_descriptor vertID, ResourceGraph& resg) {
-    const auto& desc = get(ResourceGraph::DescTag{}, resg, vertID);
+// NOLINTNEXTLINE(misc-no-recursion)
+void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
+    std::ignore = device;
+    auto& resg = *this;
+    const auto& desc = get(ResourceGraph::DescTag{}, *this, vertID);
     visitObject(
         vertID, resg,
         [&](const ManagedResource& resource) {
@@ -223,7 +226,7 @@ void mount(gfx::Device* device, ResourceGraph::vertex_descriptor vertID, Resourc
                 buffer.buffer = device->createBuffer(info);
             }
             CC_ENSURES(buffer.buffer);
-            buffer.fenceValue = resg.nextFenceValue;
+            buffer.fenceValue = nextFenceValue;
         },
         [&](ManagedTexture& texture) {
             if (!texture.checkResource(desc)) {
@@ -231,7 +234,7 @@ void mount(gfx::Device* device, ResourceGraph::vertex_descriptor vertID, Resourc
                 texture.texture = device->createTexture(info);
             }
             CC_ENSURES(texture.texture);
-            texture.fenceValue = resg.nextFenceValue;
+            texture.fenceValue = nextFenceValue;
         },
         [&](const IntrusivePtr<gfx::Buffer>& buffer) {
             CC_EXPECTS(buffer);
@@ -280,27 +283,6 @@ void mount(gfx::Device* device, ResourceGraph::vertex_descriptor vertID, Resourc
         });
 }
 
-struct MountVisitor : boost::dfs_visitor<> {
-    MountVisitor(gfx::Device* deviceIn, ResourceGraph& resgIn) : device(deviceIn), resg(resgIn) {}
-
-    void discover_vertex(ResourceGraph::vertex_descriptor u, const ResourceGraph& /*g*/) {
-        mount(device, u, resg);
-    }
-
-    gfx::Device* device;
-    ResourceGraph& resg;
-};
-
-// NOLINTNEXTLINE(misc-no-recursion)
-void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
-    std::ignore = device;
-    auto& resg = *this;
-    MountVisitor visitor{device, resg};
-    auto colorMap = colors(resource());
-    AddressableView<ResourceGraph> graphView(*this);
-    boost::depth_first_visit(resg, vertID, visitor, get(colorMap, resg));
-}
-
 void ResourceGraph::unmount(uint64_t completedFenceValue) {
     auto& resg = *this;
     for (const auto& vertID : makeRange(vertices(resg))) {
@@ -314,7 +296,7 @@ void ResourceGraph::unmount(uint64_t completedFenceValue) {
         } else if (holds<ManagedTextureTag>(vertID, resg)) {
             auto& texture = get(ManagedTextureTag{}, vertID, resg);
             if (texture.texture && texture.fenceValue <= completedFenceValue) {
-                resg.invalidatePersistentRenderPassAndFramebuffer(texture.texture.get());
+                invalidatePersistentRenderPassAndFramebuffer(texture.texture.get());
                 texture.texture.reset();
                 const auto& traits = get(ResourceGraph::TraitsTag{}, resg, vertID);
                 if (traits.hasSideEffects()) {

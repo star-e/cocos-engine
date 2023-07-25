@@ -52,9 +52,9 @@ void addSubresourceNode<gfx::Format::DEPTH_STENCIL>(ResourceGraph::vertex_descri
         gfx::Format::DEPTH_STENCIL,
         0, 1, 0, 1, 0, 1};
 
-    const auto &desc = get(ResourceGraph::DescTag{}, resg, v);
-    const auto &traits = get(ResourceGraph::TraitsTag{}, resg, v);
-    const auto &samplerInfo = get(ResourceGraph::SamplerTag{}, resg, v);
+    auto desc = get(ResourceGraph::DescTag{}, resg, v);
+    auto traits = get(ResourceGraph::TraitsTag{}, resg, v);
+    auto samplerInfo = get(ResourceGraph::SamplerTag{}, resg, v);
 
     ccstd::string depthName{name};
     depthName += "/";
