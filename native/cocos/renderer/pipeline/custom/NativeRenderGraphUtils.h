@@ -215,6 +215,15 @@ inline bool defaultAttachment(std::string_view slotName) {
     return slotName.empty() || slotName == "_";
 }
 
+static constexpr std::string_view depthPlaneName = "depth";
+static constexpr std::string_view stencilPlaneName = "stencil";
+static constexpr std::string_view cubeTopName = "Top";
+static constexpr std::string_view cubeBottomName = "Bottom";
+static constexpr std::string_view cubeFrontName = "Front";
+static constexpr std::string_view cubeRearName = "Rear";
+static constexpr std::string_view cubeLeftName = "Left";
+static constexpr std::string_view cubeRightName = "Right";
+
 } // namespace render
 
 } // namespace cc

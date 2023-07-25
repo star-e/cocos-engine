@@ -164,6 +164,10 @@ gfx::GeneralBarrier* getGeneralBarrier(gfx::Device* device, const RasterView& vi
     return nullptr;
 }
 
+ResourceGraph::vertex_descriptor getResourceID(const ccstd::pmr::string& name, const FrameGraphDispatcher& fgd) {
+    return fgd.realResourceID(name);
+}
+
 PersistentRenderPassAndFramebuffer createPersistentRenderPassAndFramebuffer(
     RenderGraphVisitorContext& ctx, const RasterPass& pass,
     boost::container::pmr::memory_resource* /*scratch*/) {
@@ -778,45 +782,6 @@ void submitProfilerCommands(
     cmdBuff->draw(ia);
 }
 
-ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID, const ResourceGraph& resg, std::string_view name) {
-    auto resName = get(ResourceGraph::NameTag{}, resg, resID);
-    resName += "/";
-    resName += name;
-    return findVertex(resName, resg);
-}
-
-ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID,
-                                              const ResourceGraph& resg,
-                                              uint32_t basePlane) {
-    auto ret = resID;
-    const auto& desc = get(ResourceGraph::DescTag{}, resg, resID);
-    if (desc.format == gfx::Format::DEPTH_STENCIL) {
-        ret = basePlane == 0 ? locateSubres(resID, resg, "depth") : locateSubres(resID, resg, "stencil");
-    }
-    return ret;
-}
-
-PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor>
-buildResourceIndex(
-    const ResourceGraph& resg,
-    const LayoutGraphData& lg,
-    const PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>& computeViews,
-    boost::container::pmr::memory_resource* scratch) {
-    PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(scratch);
-    resourceIndex.reserve(computeViews.size() * 2);
-    for (const auto& [resName, computeViews] : computeViews) {
-        auto resID = vertex(resName, resg);
-        for (const auto& computeView : computeViews) {
-            const auto& name = computeView.name;
-            CC_EXPECTS(!name.empty());
-            const auto nameID = lg.attributeIndex.at(name);
-            auto subresID = locateSubres(resID, resg, computeView.plane);
-            resourceIndex.emplace(nameID, subresID);
-        }
-    }
-    return resourceIndex;
-}
-
 const PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>&
 getComputeViews(RenderGraph::vertex_descriptor passID, const RenderGraph& rg) {
     if (holds<RasterPassTag>(passID, rg)) {
@@ -962,8 +927,7 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             }
 
             // build pass resources
-            const auto& resourceIndex = buildResourceIndex(
-                ctx.resourceGraph, ctx.lg, computeViews, ctx.scratch);
+            const auto& resourceIndex = ctx.fgd.buildDescriptorIndex(computeViews, ctx.scratch);
 
             // populate set
             auto& set = iter->second;
@@ -995,8 +959,7 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
             }
 
             // build pass resources
-            const auto& resourceIndex = buildResourceIndex(
-                ctx.resourceGraph, ctx.lg, computeViews, ctx.scratch);
+            const auto& resourceIndex = ctx.fgd.buildDescriptorIndex(computeViews, ctx.scratch);
 
             // find scene resource
             const auto* const sceneResource = getFirstSceneResource(vertID);
@@ -1057,46 +1020,7 @@ struct RenderGraphUploadVisitor : boost::dfs_visitor<> {
                 return;
             }
 
-            NameLocalID unused{128};
-            // input sort by slot name
-            ccstd::pmr::map<std::string_view, std::pair<const ccstd::pmr::string&, std::string_view>> inputs(ctx.scratch);
-            for (const auto& [resourceName, rasterView] : subpass.rasterViews) {
-                if (rasterView.accessType != AccessType::WRITE) {
-                    if (!defaultAttachment(rasterView.slotName)) {
-                        std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? "depth" : "";
-                        inputs.emplace(std::piecewise_construct,
-                                       std::forward_as_tuple(rasterView.slotName),
-                                       std::forward_as_tuple(resourceName, suffix));
-                    }
-                    if (!defaultAttachment(rasterView.slotName1)) {
-                        CC_EXPECTS(rasterView.attachmentType == AttachmentType::DEPTH_STENCIL);
-                        std::string_view suffix = "stencil";
-                        inputs.emplace(std::piecewise_construct,
-                                       std::forward_as_tuple(rasterView.slotName1),
-                                       std::forward_as_tuple(resourceName, suffix));
-                    }
-                }
-            }
-            // build pass resources
-            PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> resourceIndex(ctx.scratch);
-            resourceIndex.reserve(inputs.size());
-            for (const auto& [slotName, nameInfo] : inputs) {
-                auto resID = vertex(nameInfo.first, ctx.resourceGraph);
-                resID = locateSubres(resID, ctx.resourceGraph, nameInfo.second);
-                resourceIndex.emplace(unused, resID);
-                unused.value++;
-            }
-            for (const auto& [resName, computeViews] : subpass.computeViews) {
-                auto resID = vertex(resName, ctx.resourceGraph);
-                for (const auto& computeView : computeViews) {
-                    resID = locateSubres(resID, ctx.resourceGraph, computeView.plane);
-                    auto iter = ctx.lg.attributeIndex.find(computeView.name);
-                    if (iter != ctx.lg.attributeIndex.end()) {
-                        resourceIndex.emplace(iter->second, resID);
-                    }
-                }
-            }
-
+            const auto& resourceIndex = ctx.fgd.buildDescriptorIndex(subpass.computeViews, subpass.rasterViews, ctx.scratch);
             // populate set
             auto& set = iter->second;
             const auto& user = get(RenderGraph::DataTag{}, ctx.g, vertID);
@@ -1246,6 +1170,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
         if (subpass.subpassID) {
             ctx.cmdBuff->nextSubpass();
         }
+        //ctx.cmdBuff->setViewport(subpass);
         tryBindPerPassDescriptorSet(vertID);
         ctx.subpassIndex = subpass.subpassID;
         // noop

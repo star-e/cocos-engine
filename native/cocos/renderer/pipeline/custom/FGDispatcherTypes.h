@@ -293,9 +293,8 @@ struct ResourceAccessGraph {
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
     PmrTransparentMap<ccstd::pmr::string, PmrFlatMap<uint32_t, AccessStatus>> resourceAccess;
-    PmrFlatMap<ccstd::pmr::string, ccstd::pmr::string> movedResource;
+    PmrFlatMap<ccstd::pmr::string, ccstd::pmr::vector<ccstd::pmr::string>> movedTarget;
     PmrFlatMap<ccstd::pmr::string, AccessStatus> movedSourceStatus;
-    PmrFlatMap<ccstd::pmr::string, AccessStatus> movedTargetStatus;
 };
 
 struct RelationGraph {
@@ -470,6 +469,18 @@ struct FrameGraphDispatcher {
     RenderingInfo getRenderPassAndFrameBuffer(RenderGraph::vertex_descriptor u, const ResourceGraph& resg) const;
         
     LayoutAccess getResourceAccess(ResourceGraph::vertex_descriptor r, RenderGraph::vertex_descriptor p) const;
+
+    // those resource been moved point to another resID
+    ResourceGraph::vertex_descriptor realResourceID(const ccstd::pmr::string& name) const;
+
+    PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> buildDescriptorIndex(
+        const PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>&computeViews,
+        const PmrTransparentMap<ccstd::pmr::string, RasterView>& rasterViews,
+        boost::container::pmr::memory_resource* scratch) const;
+
+    PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> buildDescriptorIndex(
+        const PmrTransparentMap<ccstd::pmr::string, ccstd::pmr::vector<ComputeView>>&computeViews,
+        boost::container::pmr::memory_resource* scratch) const;
 
     ResourceAccessGraph resourceAccessGraph;
     ResourceGraph& resourceGraph;
