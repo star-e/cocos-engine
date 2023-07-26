@@ -135,7 +135,7 @@ ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor r
     auto ret = resID;
     const auto &desc = get(ResourceGraph::DescTag{}, resg, resID);
     if (desc.format == gfx::Format::DEPTH_STENCIL) {
-        ret = basePlane == 0 ? locateSubres(resID, resg, DepthPlaneName) : locateSubres(resID, resg, StencilPlaneName);
+        ret = basePlane == 0 ? locateSubres(resID, resg, DEPTH_PLANE_NAME) : locateSubres(resID, resg, STENCIL_PLANE_NAME);
     }
     return ret;
 }
@@ -173,14 +173,14 @@ PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::
         for (const auto &[resourceName, rasterView] : rasterViews) {
             if (rasterView.accessType != AccessType::WRITE) {
                 if (!defaultAttachment(rasterView.slotName)) {
-                    std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? DepthPlaneName : "";
+                    std::string_view suffix = rasterView.attachmentType == AttachmentType::DEPTH_STENCIL ? DEPTH_PLANE_NAME : "";
                     inputs.emplace(std::piecewise_construct,
                                    std::forward_as_tuple(rasterView.slotName),
                                    std::forward_as_tuple(resourceName, suffix));
                 }
                 if (!defaultAttachment(rasterView.slotName1)) {
                     CC_EXPECTS(rasterView.attachmentType == AttachmentType::DEPTH_STENCIL);
-                    std::string_view suffix = StencilPlaneName;
+                    std::string_view suffix = STENCIL_PLANE_NAME;
                     inputs.emplace(std::piecewise_construct,
                                    std::forward_as_tuple(rasterView.slotName1),
                                    std::forward_as_tuple(resourceName, suffix));
