@@ -262,7 +262,7 @@ void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
             CC_EXPECTS(parentID != resg.null_vertex());
             CC_EXPECTS(resg.isTexture(parentID));
             CC_ENSURES(!resg.isTextureView(parentID));
-            // mount(device, parentID);
+            mount(device, parentID);
         },
         [&](SubresourceView& view) { // NOLINT(misc-no-recursion)
             auto parentID = parent(vertID, resg);
