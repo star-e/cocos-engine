@@ -95,17 +95,35 @@ function sceneCulling (
     const visibility = camera.visibility;
     for (const model of scene.models) {
         assert(!!model);
-        if (!model.enabled || (castShadow && !model.castShadow)) {
+        if (!model.enabled || model === skyboxModelToSkip || (castShadow && !model.castShadow)) {
             continue;
         }
-        if (isNodeVisible(model.node, visibility) || isModelVisible(model, visibility)) {
-            if (!isFrustumVisible(model, camOrLightFrustum)
-            || model === skyboxModelToSkip
-            || scene.isCulledByLod(camera, model)) {
+        if (scene && scene.isCulledByLod(camera, model)) {
+            continue;
+        }
+
+        // if (model.castShadow) {
+        //     castShadowObjects.push(this._getRenderObject(model, camera));
+        //     csmLayerObjects.push(this._getRenderObject(model, camera));
+        // }
+
+        if (model.node && ((visibility & model.node.layer) === model.node.layer)
+             || (visibility & model.visFlags)) {
+            // frustum culling
+            if (model.worldBounds && !intersect.aabbFrustum(model.worldBounds, camOrLightFrustum)) {
                 continue;
             }
+
             models.push(model);
         }
+        // if (isNodeVisible(model.node, visibility) || isModelVisible(model, visibility)) {
+        //     if (!isFrustumVisible(model, camOrLightFrustum)
+        //     || model === skyboxModelToSkip
+        //     || scene.isCulledByLod(camera, model)) {
+        //         continue;
+        //     }
+        //     models.push(model);
+        // }
     }
 }
 
@@ -202,9 +220,11 @@ export class SceneCulling {
         for (const c of this.culledResults) {
             c.length = 0;
         }
+        this.culledResults.length = 0;
         for (const q of this.renderQueues) {
             q.clear();
         }
+        this.renderQueues.length = 0;
         this.sceneQueryIndex.clear();
         this.numCullingQueries = 0;
         this.numRenderQueues = 0;
