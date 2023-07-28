@@ -169,7 +169,7 @@ PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::
     if (!rasterViews.empty()) {
         NameLocalID unused{128};
         // input sort by slot name
-        ccstd::pmr::map<std::string_view, std::pair<const ccstd::pmr::string &, std::string_view>> inputs(scratch);
+        ccstd::pmr::map<std::string_view, std::pair<std::string_view, std::string_view>> inputs(scratch);
         for (const auto &[resourceName, rasterView] : rasterViews) {
             if (rasterView.accessType != AccessType::WRITE) {
                 if (!defaultAttachment(rasterView.slotName)) {
@@ -189,8 +189,10 @@ PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::
         }
         // build pass resources
         for (const auto &[slotName, nameInfo] : inputs) {
-            auto resID = realResourceID(nameInfo.first);
-            resID = locateSubres(resID, resourceGraph, nameInfo.second);
+            auto resID = realResourceID(nameInfo.first.data());
+            if (!nameInfo.second.empty()) {
+                resID = locateSubres(resID, resourceGraph, nameInfo.second);
+            }
             resourceIndex.emplace(unused, resID);
             unused.value++;
         }
@@ -543,7 +545,7 @@ auto dependencyCheck(ResourceAccessGraph &rag, ResourceAccessGraph::vertex_descr
         if (rag.leafPasses.find(lastVertID) != rag.leafPasses.end()) {
             rag.leafPasses.erase(lastVertID);
         }
-        
+
         if(viewStatus.access != AccessType::WRITE) {
             subResourceFeedback(resourceGraph, resourceID, desc.format);
         }
@@ -858,7 +860,6 @@ auto checkRasterViews(const Graphs &graphs,
     for (const auto &pair : rasterViews) {
         const auto &rasterView = pair.second;
         const auto &resName = pair.first;
-        ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> names(resourceAccessGraph.get_allocator());
         const auto resID = vertex(resName, resourceGraph);
         auto access = rasterView.accessType;
         gfx::ShaderStageFlagBit originVis = getVisibility(renderGraph, layoutGraphData, passID, pair.second.slotName) | explicitVis | pair.second.shaderStageFlags;
@@ -884,6 +885,12 @@ auto checkRasterViews(const Graphs &graphs,
                                   rasterView.storeOp,
                                   rasterView.attachmentType});
         hasDS |= rasterView.attachmentType == AttachmentType::DEPTH_STENCIL;
+
+        ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> names(resourceAccessGraph.get_allocator());
+        extractNames(resName, rasterView, names);
+        for (const auto& [subresName, plane] : names) {
+            resourceAccessGraph.resourceIndex.emplace(subresName, vertex(subresName, resourceGraph));
+        }
     }
     return std::make_tuple(dependent, hasDS);
 }
@@ -1414,7 +1421,7 @@ bool moveValidation(const MovePass& pass, ResourceAccessGraph& rag, const Resour
 
 void startMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) {
     const auto &[renderGraph, layoutGraphData, resourceGraph, resourceAccessGraph, relationGraph] = graphs;
-    
+
     if(moveValidation(pass, resourceAccessGraph, resourceGraph)) {
         for(const auto& pair : pass.movePairs) {
             auto srcResourceRange = getResourceRange(vertex(pair.source, resourceGraph), resourceGraph);

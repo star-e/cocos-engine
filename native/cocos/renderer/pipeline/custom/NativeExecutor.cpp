@@ -1571,9 +1571,16 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     }
     
     void mountResource(const ccstd::pmr::string& name) const {
-        auto resID = ctx.fgd.resourceAccessGraph.resourceIndex.at(name);
-        CC_EXPECTS(resID != ResourceGraph::null_vertex());
-        ctx.resourceGraph.mount(ctx.device, resID);
+        auto resIter = ctx.fgd.resourceAccessGraph.resourceIndex.find(name);
+        if (resIter != ctx.fgd.resourceAccessGraph.resourceIndex.end()) {
+            auto resID = resIter->second;
+            auto& resg = ctx.resourceGraph;
+            resg.mount(ctx.device, resID);
+            for (const auto& subres : makeRange(children(resID, resg))) {
+                const auto& subresName = get(ResourceGraph::NameTag{}, resg, subres.target);
+                mountResource(subresName);
+            }
+        }
     }
 
     void mountResources(const Subpass& pass) const {
