@@ -819,27 +819,53 @@ void extractNames(const ccstd::pmr::string &resName,
     // depth_stencil
     if (view.attachmentType == AttachmentType::DEPTH_STENCIL) {
         if (!defaultAttachment(view.slotName)) {
-            if (strstr(resName.c_str(), "/depth")) {
+            if (strstr(resName.c_str(), "/")) {
                 names.emplace_back(resName, 0);
             } else {
-                names.emplace_back(resName + "/depth", 0);
+                auto &subresName = names.emplace_back();
+                subresName.first += "/";
+                subresName.first += DEPTH_PLANE_NAME;
+                subresName.second = 0;
             }
         }
         if (!defaultAttachment(view.slotName1)) {
-            if (strstr(resName.c_str(), "/stencil")) {
+            if (strstr(resName.c_str(), "/")) {
                 names.emplace_back(resName, 1);
             } else {
-                names.emplace_back(resName + "/stencil", 1);
+                auto &subresName = names.emplace_back();
+                subresName.first += "/";
+                subresName.first += STENCIL_PLANE_NAME;
+                subresName.second = 0;
             }
         }
     }
 
-    if (names.empty()) {
-        names.emplace_back(resName, 0);
-    }
     // cube
 
     // array
+    
+    if (names.empty()) {
+        names.emplace_back(resName, 0);
+    }
+}
+
+[[nodiscard("subresName")]] ccstd::pmr::string getSubresName(const ccstd::pmr::string &resName,
+                                                            uint32_t planeID, const ResourceGraph& resg,
+                                                            boost::container::pmr::memory_resource* scratch) {
+    const auto& desc = get(ResourceGraph::DescTag{}, resg, vertex(resName, resg));
+    ccstd::pmr::string subresName(resName, scratch);
+    if(desc.format == gfx::Format::DEPTH_STENCIL) {
+        auto nameView = planeID == 0 ? DEPTH_PLANE_NAME : STENCIL_PLANE_NAME;
+        subresName += "/";
+        subresName += nameView;
+    }
+    
+
+    // cube
+
+    // array
+    
+    return subresName;
 }
 
 auto checkRasterViews(const Graphs &graphs,
@@ -929,6 +955,11 @@ bool checkComputeViews(const Graphs &graphs, ResourceAccessGraph::vertex_descrip
             tryAddEdge(lastVertId, ragVertID, resourceAccessGraph);
             tryAddEdge(lastVertId, ragVertID, relationGraph);
             dependent = lastVertId != EXPECT_START_ID;
+            
+            if(out_degree(resID, resourceGraph)) {
+                const auto& subresName = getSubresName(resName, computeView.plane, resourceGraph, resourceAccessGraph.resource());
+                resourceAccessGraph.resourceIndex.emplace(subresName, vertex(subresName, resourceGraph));
+            }
         }
     }
 
