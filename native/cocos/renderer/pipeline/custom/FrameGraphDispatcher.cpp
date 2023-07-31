@@ -813,6 +813,16 @@ void fillRenderPassInfo(const AttachmentMap &colorMap,
     }
 };
 
+[[nodiscard("concat")]] ccstd::pmr::string concatResName(
+    std::string_view name0,
+    std::string_view name1,
+    boost::container::pmr::memory_resource *scratch) {
+    ccstd::pmr::string name(name0, scratch);
+    name += "/";
+    name += name1;
+    return name;
+}
+
 void extractNames(const ccstd::pmr::string &resName,
                   const RasterView &view,
                   ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> &names) {
@@ -823,8 +833,7 @@ void extractNames(const ccstd::pmr::string &resName,
                 names.emplace_back(resName, 0);
             } else {
                 auto &subresName = names.emplace_back();
-                subresName.first += "/";
-                subresName.first += DEPTH_PLANE_NAME;
+                subresName.first = concatResName(resName, DEPTH_PLANE_NAME, names.get_allocator().resource());
                 subresName.second = 0;
             }
         }
@@ -833,9 +842,8 @@ void extractNames(const ccstd::pmr::string &resName,
                 names.emplace_back(resName, 1);
             } else {
                 auto &subresName = names.emplace_back();
-                subresName.first += "/";
-                subresName.first += STENCIL_PLANE_NAME;
-                subresName.second = 0;
+                subresName.first = concatResName(resName, STENCIL_PLANE_NAME, names.get_allocator().resource());
+                subresName.second = 1;
             }
         }
     }
@@ -853,19 +861,20 @@ void extractNames(const ccstd::pmr::string &resName,
                                                             uint32_t planeID, const ResourceGraph& resg,
                                                             boost::container::pmr::memory_resource* scratch) {
     const auto& desc = get(ResourceGraph::DescTag{}, resg, vertex(resName, resg));
-    ccstd::pmr::string subresName(resName, scratch);
     if(desc.format == gfx::Format::DEPTH_STENCIL) {
         auto nameView = planeID == 0 ? DEPTH_PLANE_NAME : STENCIL_PLANE_NAME;
-        subresName += "/";
-        subresName += nameView;
+        const auto &subresName = concatResName(resName, nameView, scratch);
+        return subresName;
     }
     
 
     // cube
 
     // array
-    
-    return subresName;
+
+    // UNREACHABLE
+    CC_ASSERT(false);
+    return "";
 }
 
 auto checkRasterViews(const Graphs &graphs,
@@ -914,8 +923,8 @@ auto checkRasterViews(const Graphs &graphs,
 
         ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> names(resourceAccessGraph.get_allocator());
         extractNames(resName, rasterView, names);
-        for (const auto& [subresName, plane] : names) {
-            resourceAccessGraph.resourceIndex.emplace(subresName, vertex(subresName, resourceGraph));
+        for (const auto& [subresFullName, plane] : names) {
+            resourceAccessGraph.resourceIndex.emplace(subresFullName, vertex(subresFullName, resourceGraph));
         }
     }
     return std::make_tuple(dependent, hasDS);
@@ -957,8 +966,8 @@ bool checkComputeViews(const Graphs &graphs, ResourceAccessGraph::vertex_descrip
             dependent = lastVertId != EXPECT_START_ID;
             
             if(out_degree(resID, resourceGraph)) {
-                const auto& subresName = getSubresName(resName, computeView.plane, resourceGraph, resourceAccessGraph.resource());
-                resourceAccessGraph.resourceIndex.emplace(subresName, vertex(subresName, resourceGraph));
+                const auto& subresFullName = getSubresName(resName, computeView.plane, resourceGraph, resourceAccessGraph.resource());
+                resourceAccessGraph.resourceIndex.emplace(subresFullName, vertex(subresFullName, resourceGraph));
             }
         }
     }
