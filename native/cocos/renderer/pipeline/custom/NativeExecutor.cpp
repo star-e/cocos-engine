@@ -1570,7 +1570,7 @@ struct RenderGraphVisitor : boost::dfs_visitor<> {
     void end(const gfx::Viewport& pass, RenderGraph::vertex_descriptor vertID) const {
     }
     
-    void mountResource(const ccstd::pmr::string& name) const {
+    void mountResource(const ccstd::pmr::string& name) const { // NOLINT(misc-no-recursion)
         auto resIter = ctx.fgd.resourceAccessGraph.resourceIndex.find(name);
         if (resIter != ctx.fgd.resourceAccessGraph.resourceIndex.end()) {
             auto resID = resIter->second;
