@@ -1352,60 +1352,42 @@ void startRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass
     std::ignore = checkComputeViews(graphs, rlgVertID, accessNode, pass.computeViews);
 }
 
-namespace {
-struct SliceNode {
-    bool full{false};
-    ccstd::pmr::vector<uint32_t> mips;
-};
-
-struct TextureNode {
-    bool full{false};
-    ccstd::pmr::vector<SliceNode> slices;
-};
-
-struct ResourceNode {
-    ccstd::pmr::vector<TextureNode> planes;
-};
-} // namespace
-
-bool rangeCheck(ccstd::pmr::map<ccstd::pmr::string, ResourceNode> &status,
+bool rangeCheck(ResourceNode &status,
                 const ResourceDesc &desc,
                 const PmrString &targetName,
                 uint32_t firstSlice, uint32_t numSlices,
                 uint32_t firstMip, uint32_t mipLevels,
                 uint32_t planeIndex) {
-    if (status.find(targetName) == status.end()) {
-        status.emplace(targetName, ResourceNode{});
-    }
-
-    if (planeIndex >= status[targetName].planes.size()) {
-        status[targetName].planes.resize(planeIndex + 1);
-        status[targetName].planes[planeIndex].slices.resize(desc.depthOrArraySize);
-        for (auto &slice : status[targetName].planes[planeIndex].slices) {
-            slice.mips.resize(desc.mipLevels, std::numeric_limits<uint32_t>::max());
-        }
-    }
-
-    // no spare space in target
-    bool check = !status[targetName].planes[planeIndex].full;
-    for (auto slice = firstSlice; slice < firstSlice + numSlices; ++slice) {
-        auto &slices = status[targetName].planes[planeIndex].slices;
-        // no spare space in this slice
-        check &= !slices[slice].full;
-        for (auto mip = firstMip; mip < firstMip + mipLevels; ++mip) {
-            auto &mips = slices[slice].mips;
-            // this mip has been taken
-            check &= mips[mip] == std::numeric_limits<uint32_t>::max();
-            mips[mip] = mip;
-            auto maxIter = std::max_element(mips.begin(), mips.end());
-            if ((*maxIter) != std::numeric_limits<uint32_t>::max()) {
-                // linear increasing
-                check &= (*maxIter) == mips.size() - 1;
-                slices[slice].full = true;
+    CC_ASSERT(planeIndex < status.planes.size());
+    // spare space in target
+    bool check = !status.full;
+    check &= !status.planes[planeIndex].full;
+    if (check) {
+        for (auto slice = firstSlice; slice < firstSlice + numSlices; ++slice) {
+            auto &slices = status.planes[planeIndex].slices;
+            // no spare space in this slice
+            check &= !slices[slice].full;
+            if (!check) {
+                continue;
             }
-        }
-        if (std::all_of(slices.begin(), slices.end(), [](const SliceNode &sliceNode) { return sliceNode.full; })) {
-            status[targetName].planes[planeIndex].full = true;
+            for (auto mip = firstMip; mip < firstMip + mipLevels; ++mip) {
+                auto &mips = slices[slice].mips;
+                // this mip has been taken
+                check &= mips[mip] == std::numeric_limits<uint32_t>::max();
+                if (!check) {
+                    continue;
+                }
+                mips[mip] = mip;
+                auto maxIter = std::max_element(mips.begin(), mips.end());
+                if ((*maxIter) != std::numeric_limits<uint32_t>::max()) {
+                    // linear increasing
+                    check &= (*maxIter) == mips.size() - 1;
+                    slices[slice].full = true;
+                }
+            }
+            if (std::all_of(slices.begin(), slices.end(), [](const SliceNode &sliceNode) { return sliceNode.full; })) {
+                status.planes[planeIndex].full = true;
+            }
         }
     }
     return check;
@@ -1413,57 +1395,111 @@ bool rangeCheck(ccstd::pmr::map<ccstd::pmr::string, ResourceNode> &status,
 
 bool moveValidation(const MovePass& pass, ResourceAccessGraph& rag, const ResourceGraph& resourceGraph) {
     bool check = true;
-     // ccstd::pmr::map<PmrString, ResourceNode> sourceCheck;
-     ccstd::pmr::map<PmrString, ResourceNode> targetCheck;
-     for (const auto &movePair : pass.movePairs) {
-         const auto &fromResName = movePair.source;
-         const auto fromResID = resourceGraph.valueIndex.at(fromResName);
-         const auto &fromResDesc = get(ResourceGraph::DescTag{}, resourceGraph, fromResID);
+    ccstd::pmr::vector<ccstd::pmr::string> targets(rag.get_allocator());
+    for (const auto &movePair : pass.movePairs) {
+        const auto &fromResName = movePair.source;
+        const auto fromResID = resourceGraph.valueIndex.at(fromResName);
+        const auto &fromResDesc = get(ResourceGraph::DescTag{}, resourceGraph, fromResID);
 
-         const auto &toResName = movePair.target;
-         const auto toResID = resourceGraph.valueIndex.at(toResName);
-         const auto &toResDesc = get(ResourceGraph::DescTag{}, resourceGraph, toResID);
+        const auto &toResName = movePair.target;
+        const auto toResID = resourceGraph.valueIndex.at(toResName);
+        const auto &toResDesc = get(ResourceGraph::DescTag{}, resourceGraph, toResID);
 
-         const auto &fromResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, fromResID);
-         const auto &toResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, toResID);
-         auto commonUsage = fromResDesc.flags | toResDesc.flags;
+        const auto &fromResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, fromResID);
+        const auto &toResTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, toResID);
+        auto commonUsage = fromResDesc.flags | toResDesc.flags;
 
-         // bool sourceRangeValid = rangeCheck(targetCheck, toResDesc, fromResName, movePair.targetFirstSlice, movePair.numSlices, movePair.targetMostDetailedMip, movePair.mipLevels, movePair.targetPlaneSlice);
-         bool targetRangeValid = rangeCheck(targetCheck, toResDesc, toResName, movePair.targetFirstSlice, movePair.numSlices, movePair.targetMostDetailedMip, movePair.mipLevels, movePair.targetPlaneSlice);
+        targets.emplace_back(toResName);
 
-         uint32_t validConditions[] = {
-             !fromResTraits.hasSideEffects(),
-             rag.movedSourceStatus.find(toResName) == rag.movedSourceStatus.end(),
-             rag.movedSourceStatus.find(fromResName) == rag.movedSourceStatus.end(),
-             targetRangeValid,
-             fromResTraits.residency != ResourceResidency::MEMORYLESS && toResTraits.residency != ResourceResidency::MEMORYLESS,
-             fromResDesc.dimension == toResDesc.dimension,
-             fromResDesc.width == toResDesc.width,
-             fromResDesc.height == toResDesc.height,
-             fromResDesc.format == toResDesc.format,
-             fromResDesc.sampleCount == toResDesc.sampleCount,
-             (fromResDesc.depthOrArraySize == toResDesc.depthOrArraySize) || (toResDesc.dimension != ResourceDimension::BUFFER), // full move if resource is buffer
-         };
-         bool val = std::min_element(std::begin(validConditions), std::end(validConditions));
-         check &= val;
-     }
+        if (rag.movedTargetStatus.find(toResName) == rag.movedTargetStatus.end()) {
+            rag.movedTargetStatus[toResName].planes.resize(getPlaneCount(toResDesc.format));
+            for (auto &plane : rag.movedTargetStatus[toResName].planes) {
+                plane.slices.resize(toResDesc.depthOrArraySize);
+                for (auto &slice : plane.slices) {
+                    slice.mips.resize(toResDesc.mipLevels, std::numeric_limits<uint32_t>::max());
+                }
+            }
+        }
 
-     // full destination
-     check &= std::all_of(targetCheck.begin(), targetCheck.end(), [](const auto &pair) {
-         const ResourceNode &resNode = pair.second;
-         return std::all_of(resNode.planes.begin(), resNode.planes.end(), [](const auto &textureNode) {
-             return textureNode.full;
-         });
-     });
+        rangeCheck(rag.movedTargetStatus[toResName], toResDesc, toResName, movePair.targetFirstSlice, movePair.numSlices, movePair.targetMostDetailedMip, movePair.mipLevels, movePair.targetPlaneSlice);
+        uint32_t validConditions[] = {
+            !fromResTraits.hasSideEffects(),
+            rag.movedSourceStatus.find(toResName) == rag.movedSourceStatus.end(),
+            rag.movedSourceStatus.find(fromResName) == rag.movedSourceStatus.end(),
+            fromResTraits.residency != ResourceResidency::MEMORYLESS && toResTraits.residency != ResourceResidency::MEMORYLESS,
+            fromResDesc.dimension == toResDesc.dimension,
+            fromResDesc.width == toResDesc.width,
+            fromResDesc.height == toResDesc.height,
+            fromResDesc.format == toResDesc.format,
+            fromResDesc.sampleCount == toResDesc.sampleCount,
+            (fromResDesc.depthOrArraySize == toResDesc.depthOrArraySize) || (toResDesc.dimension != ResourceDimension::BUFFER), // full move if resource is buffer
+        };
+        bool val = std::min_element(std::begin(validConditions), std::end(validConditions));
+        check &= val;
+    }
 
-     return check;
- }
+    // full check
+    std::for_each(targets.begin(), targets.end(), [&](const ccstd::pmr::string &target) {
+        ResourceNode &resNode = rag.movedTargetStatus[target];
+        resNode.full |= std::all_of(resNode.planes.begin(), resNode.planes.end(), [](const auto &textureNode) {
+            return textureNode.full;
+        });
+    });
+
+    return check;
+}
+
+ccstd::pmr::string getSubresourceName(
+    const ccstd::pmr::string &name,
+    const ResourceDesc &desc,
+    const ResourceRange &range,
+    boost::container::pmr::memory_resource *scratch) {
+    ccstd::pmr::string subresName(name, scratch);
+    if (0) {
+        switch (range.firstSlice) {
+            case 0:
+                return CUBE_RIGHT_NAME.data();
+            case 1:
+                return CUBE_LEFT_NAME.data();
+            case 2:
+                return CUBE_TOP_NAME.data();
+            case 3:
+                return CUBE_BOTTOM_NAME.data();
+            case 4:
+                return CUBE_FRONT_NAME.data();
+            case 5:
+                return CUBE_REAR_NAME.data();
+            default:
+                break;
+        }
+    } else {
+        std::string suffix = std::to_string(range.basePlane) + "_" + std::to_string(range.planeCount) + "_" + std::to_string(range.firstSlice) + "_" + std::to_string(range.numSlices) + "_" + std::to_string(range.mipLevel) + "_" + std::to_string(range.levelCount);
+        subresName = suffix.c_str();
+    }
+    return subresName;
+}
+
+gfx::SamplerInfo makePointSamplerInfo() {
+    return gfx::SamplerInfo{gfx::Filter::POINT, gfx::Filter::POINT, gfx::Filter::POINT};
+}
+
+SubresourceView makeSubresourceView(const ResourceDesc& desc, const ResourceRange& range) {
+    return SubresourceView{
+        nullptr,
+        desc.format,
+        static_cast<uint16_t>(range.firstSlice),
+        static_cast<uint16_t>(range.numSlices),
+        static_cast<uint16_t>(range.basePlane),
+        static_cast<uint16_t>(range.planeCount),
+    };
+}
 
 void startMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) {
     const auto &[renderGraph, layoutGraphData, resourceGraph, resourceAccessGraph, relationGraph] = graphs;
 
-    if(moveValidation(pass, resourceAccessGraph, resourceGraph)) {
-        for(const auto& pair : pass.movePairs) {
+    if (moveValidation(pass, resourceAccessGraph, resourceGraph)) {
+        for (const auto &pair : pass.movePairs) {
+            auto toleranceRange = getResourceRange(vertex(pair.target, resourceGraph), resourceGraph);
             auto srcResourceRange = getResourceRange(vertex(pair.source, resourceGraph), resourceGraph);
             srcResourceRange.firstSlice = pair.targetFirstSlice;
             srcResourceRange.mipLevel = pair.targetMostDetailedMip;
@@ -1487,6 +1523,29 @@ void startMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) 
                 }
             };
             feedBack(pair.source, targetResID);
+
+            if (std::memcmp(&srcResourceRange, &toleranceRange, sizeof(toleranceRange))) {
+                const auto &targetDesc = get(ResourceGraph::DescTag{}, resourceGraph, targetResID);
+                const auto &targetTraits = get(ResourceGraph::TraitsTag{}, resourceGraph, targetResID);
+                const auto &subresName = getSubresourceName(pair.target, targetDesc, srcResourceRange, resourceAccessGraph.resource());
+                const auto &indexName = pair.target + "/" + subresName;
+                auto subresID = findVertex(indexName, resourceGraph);
+                if (subresID == resourceGraph.null_vertex()) {
+                    // register to resourcegraph
+                    subresID = addVertex(
+                        SubresourceViewTag{},
+                        std::forward_as_tuple(pair.target + "/" + subresName),
+                        std::forward_as_tuple(targetDesc),
+                        std::forward_as_tuple(targetTraits),
+                        std::forward_as_tuple(),
+                        std::forward_as_tuple(makePointSamplerInfo()),
+                        std::forward_as_tuple(makeSubresourceView(targetDesc, srcResourceRange)),
+                        resourceGraph,
+                        targetResID);
+                }
+
+                resourceAccessGraph.resourceIndex[pair.target] = subresID;
+            }
         }
     } else {
         for(const auto& pair : pass.movePairs) {
