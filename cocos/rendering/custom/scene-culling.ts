@@ -1,8 +1,8 @@
-import { assert } from '../../core';
-import { Frustum, intersect } from '../../core/geometry';
+import { Vec3, assert } from '../../core';
+import { Frustum, intersect, AABB } from '../../core/geometry';
 import { CommandBuffer } from '../../gfx';
 import { BatchingSchemes, Pass, RenderScene } from '../../render-scene';
-import { CSMLevel, Camera, DirectionalLight, Light, LightType, Model, SKYBOX_FLAG, SpotLight } from '../../render-scene/scene';
+import { CSMLevel, Camera, DirectionalLight, Light, LightType, Model, SKYBOX_FLAG, ShadowType, SpotLight } from '../../render-scene/scene';
 import { Node } from '../../scene-graph';
 import { PipelineSceneData } from '../pipeline-scene-data';
 import { hashCombineStr, getSubpassOrPassID, bool } from './define';
@@ -65,6 +65,8 @@ class CullingKey {
     }
 }
 
+let pSceneData: PipelineSceneData;
+
 class CullingQueries {
     // key: hash val
     culledResultIndex: Map<number, number> = new Map<number, number>();
@@ -78,10 +80,18 @@ function isNodeVisible (node: Node, visibility: number): boolean {
 function isModelVisible (model: Model, visibility: number): boolean {
     return !!(visibility & model.visFlags);
 }
-
-function isFrustumVisible (model: Model, frustum: Readonly<Frustum>): boolean {
+const transWorldBounds = new AABB();
+function isFrustumVisible (model: Model, frustum: Readonly<Frustum>, castShadow: boolean): boolean {
     const modelWorldBounds = model.worldBounds;
-    return !!(!modelWorldBounds || intersect.aabbFrustum(modelWorldBounds, frustum));
+    if (!modelWorldBounds) {
+        return false;
+    }
+    transWorldBounds.copy(modelWorldBounds);
+    const shadows = pSceneData.shadows;
+    if (shadows.type === ShadowType.Planar && castShadow) {
+        AABB.transform(transWorldBounds, modelWorldBounds, shadows.matLight);
+    }
+    return !intersect.aabbFrustum(transWorldBounds, frustum);
 }
 
 function sceneCulling (
@@ -102,28 +112,15 @@ function sceneCulling (
             continue;
         }
 
-        // if (model.castShadow) {
-        //     castShadowObjects.push(this._getRenderObject(model, camera));
-        //     csmLayerObjects.push(this._getRenderObject(model, camera));
-        // }
-
-        if (model.node && ((visibility & model.node.layer) === model.node.layer)
-             || (visibility & model.visFlags)) {
+        if (isNodeVisible(model.node, visibility)
+             || isModelVisible(model, visibility)) {
             // frustum culling
-            if (model.worldBounds && !intersect.aabbFrustum(model.worldBounds, camOrLightFrustum)) {
+            if (isFrustumVisible(model, camOrLightFrustum, castShadow)) {
                 continue;
             }
 
             models.push(model);
         }
-        // if (isNodeVisible(model.node, visibility) || isModelVisible(model, visibility)) {
-        //     if (!isFrustumVisible(model, camOrLightFrustum)
-        //     || model === skyboxModelToSkip
-        //     || scene.isCulledByLod(camera, model)) {
-        //         continue;
-        //     }
-        //     models.push(model);
-        // }
     }
 }
 
@@ -141,7 +138,8 @@ function computeSortingDepth (camera: Camera, model: Model): number {
     let depth = 0;
     if (model.node) {
         const  node = model.transform;
-        const position = node.worldPosition.subtract(camera.position);
+        const tempVec3 = new Vec3();
+        const position = Vec3.subtract(tempVec3, node.worldPosition, camera.position);
         depth = position.dot(camera.forward);
     }
     return depth;
@@ -233,6 +231,7 @@ export class SceneCulling {
     buildRenderQueues (rg: RenderGraph, lg: LayoutGraphData, pplSceneData: PipelineSceneData): void {
         this.layoutGraph = lg;
         this.renderGraph = rg;
+        pSceneData = pplSceneData;
         this.collectCullingQueries(rg, lg);
         this.batchCulling(pplSceneData);
         this.fillRenderQueues(rg, pplSceneData);
@@ -328,10 +327,20 @@ export class SceneCulling {
                         const mainLight: DirectionalLight = light as DirectionalLight;
                         const csmLevel = mainLight.csmLevel;
                         let frustum: Readonly<Frustum>;
-                        if (mainLight.shadowFixedArea || csmLevel === CSMLevel.LEVEL_1) {
-                            frustum = csmLayers.specialLayer.validFrustum;
+                        const shadows = pplSceneData.shadows;
+                        if (shadows.type === ShadowType.Planar) {
+                            frustum = camera.frustum;
                         } else {
-                            frustum = csmLayers.layers[level].validFrustum;
+                            if (shadows.enabled && shadows.type === ShadowType.ShadowMap && mainLight && mainLight.node) {
+                                // pplSceneData.updateShadowUBORange(UBOShadow.SHADOW_COLOR_OFFSET, shadows.shadowColor);
+                                csmLayers.update(pplSceneData, camera);
+                            }
+
+                            if (mainLight.shadowFixedArea || csmLevel === CSMLevel.LEVEL_1) {
+                                frustum = csmLayers.specialLayer.validFrustum;
+                            } else {
+                                frustum = csmLayers.layers[level].validFrustum;
+                            }
                         }
                         sceneCulling(skyboxModelToSkip, scene, camera, frustum, castShadow, models);
                     }
@@ -385,7 +394,8 @@ export class SceneCulling {
                 const node = model.node;
                 let depth = 0;
                 if (node) {
-                    const tempVec3 = node.worldPosition.subtract(camera.position);
+                    const tempVec3 = new Vec3();
+                    Vec3.subtract(tempVec3, node.worldPosition, camera.position);
                     depth = tempVec3.dot(camera.forward);
                 }
                 renderQueue.opaqueQueue.add(model, depth, 0, 0);

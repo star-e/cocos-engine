@@ -672,7 +672,7 @@ export function buildShadowPass (
     queue.addSceneOfCamera(
         camera,
         new LightInfo(light, level),
-        SceneFlags.SHADOW_CASTER,
+        SceneFlags.SHADOW_CASTER | SceneFlags.OPAQUE_OBJECT | SceneFlags.TRANSPARENT_OBJECT,
     );
     queue.setViewport(new Viewport(area.x, area.y, area.width, area.height));
 }
@@ -1115,7 +1115,9 @@ function applyGlobalDescBinding (data: RenderData, layout: string, isUpdate = fa
     const constants = data.constants;
     const samplers = data.samplers;
     const textures = data.textures;
-    const device = cclegacy.director.root.device;
+    const root = cclegacy.director.root;
+    const device = root.device;
+    const pipeline = root.pipeline as WebPipeline;
     const descriptorSetData = getDescriptorSetDataFromLayout(layout)!;
     const descriptorSet = descriptorSetData.descriptorSet!;
     for (const [key, value] of constants) {
@@ -1148,7 +1150,7 @@ function applyGlobalDescBinding (data: RenderData, layout: string, isUpdate = fa
         const bindId = getDescBinding(key, descriptorSetData);
         if (bindId === -1) { continue; }
         const tex = descriptorSet.getTexture(bindId);
-        if (!tex || isUpdate) {
+        if (!tex || (isUpdate && value !== pipeline.defaultTexture)) {
             bindGlobalDesc(descriptorSet, bindId, value);
         }
     }
@@ -1156,7 +1158,7 @@ function applyGlobalDescBinding (data: RenderData, layout: string, isUpdate = fa
         const bindId = getDescBinding(key, descriptorSetData);
         if (bindId === -1) { continue; }
         const sampler = descriptorSet.getSampler(bindId);
-        if (!sampler || isUpdate) {
+        if (!sampler || (isUpdate && value !== pipeline.defaultSampler)) {
             bindGlobalDesc(descriptorSet, bindId, value);
         }
     }
