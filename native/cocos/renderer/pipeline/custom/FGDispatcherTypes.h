@@ -60,21 +60,9 @@ struct LeafStatus {
     bool needCulling{false};
 };
 
-struct ResourceRange {
-    uint32_t width{0};
-    uint32_t height{0};
-    uint32_t depthOrArraySize{0};
-    uint32_t firstSlice{0};
-    uint32_t numSlices{0};
-    uint32_t mipLevel{0};
-    uint32_t levelCount{0};
-    uint32_t basePlane{0};
-    uint32_t planeCount{0};
-};
-
 struct AccessStatus {
     gfx::AccessFlagBit accessFlag{gfx::AccessFlagBit::NONE};
-    ResourceRange range;
+    gfx::ResourceRange range;
 };
 
 struct ResourceAccessNode {
@@ -310,6 +298,7 @@ struct ResourceAccessGraph {
     PmrTransparentMap<ccstd::pmr::string, PmrFlatMap<uint32_t, AccessStatus>> resourceAccess;
     PmrFlatMap<ccstd::pmr::string, ccstd::pmr::vector<ccstd::pmr::string>> movedTarget;
     PmrFlatMap<ccstd::pmr::string, AccessStatus> movedSourceStatus;
+    PmrFlatMap<ccstd::pmr::string, ResourceNode> movedTargetStatus;
 };
 
 struct RelationGraph {
