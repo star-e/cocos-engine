@@ -25,10 +25,15 @@
 import { EDITOR } from 'internal:constants';
 import { BufferInfo, Buffer, BufferUsageBit, ClearFlagBit, Color, DescriptorSet, LoadOp,
     Format, Rect, Sampler, StoreOp, Texture, Viewport, MemoryUsageBit, Filter, Address } from '../../gfx';
-import {
-    Camera, CSMLevel, DirectionalLight, Light, LightType, ProbeType, ReflectionProbe,
-    ShadowType, SKYBOX_FLAG, SpotLight, PointLight, RangedDirectionalLight, SphereLight,
-} from '../../render-scene/scene';
+import { ProbeType, ReflectionProbe } from '../../render-scene/scene/reflection-probe';
+import { Camera, SKYBOX_FLAG } from '../../render-scene/scene/camera';
+import { CSMLevel, ShadowType } from '../../render-scene/scene/shadows';
+import { Light, LightType } from '../../render-scene/scene/light';
+import { DirectionalLight } from '../../render-scene/scene/directional-light';
+import { RangedDirectionalLight } from '../../render-scene/scene/ranged-directional-light';
+import { PointLight } from '../../render-scene/scene/point-light';
+import { SphereLight } from '../../render-scene/scene/sphere-light';
+import { SpotLight } from '../../render-scene/scene/spot-light';
 import { supportsR32FloatTexture, supportsRGBA16HalfFloatTexture } from '../define';
 import { BasicPipeline, Pipeline } from './pipeline';
 import {
@@ -44,6 +49,7 @@ import { WebPipeline } from './web-pipeline';
 import { DescriptorSetData, LayoutGraph, LayoutGraphData } from './layout-graph';
 import { AABB } from '../../core/geometry';
 import { DebugViewCompositeType, DebugViewSingleType } from '../debug-view';
+import { ReflectionProbeManager } from '../../3d/reflection-probe/reflection-probe-manager';
 
 const _rangedDirLightBoundingBox = new AABB(0.0, 0.0, 0.0, 0.5, 0.5, 0.5);
 const _tmpBoundingBox = new AABB();
@@ -75,7 +81,7 @@ export function validPunctualLightsCulling (pipeline: BasicPipeline, camera: Cam
     const { spotLights } = camera.scene!;
     for (let i = 0; i < spotLights.length; i++) {
         const light = spotLights[i];
-        if (light.baked) {
+        if (light.baked && !camera.node.scene.globals.disableLightmap) {
             continue;
         }
 
@@ -88,7 +94,7 @@ export function validPunctualLightsCulling (pipeline: BasicPipeline, camera: Cam
     const { sphereLights } = camera.scene!;
     for (let i = 0; i < sphereLights.length; i++) {
         const light = sphereLights[i];
-        if (light.baked) {
+        if (light.baked && !camera.node.scene.globals.disableLightmap) {
             continue;
         }
         geometry.Sphere.set(_sphere, light.position.x, light.position.y, light.position.z, light.range);
@@ -117,8 +123,8 @@ export function validPunctualLightsCulling (pipeline: BasicPipeline, camera: Cam
             validPunctualLights.push(light);
         }
     }
-    // array push not supported.
-    pipeline.pipelineSceneData.validPunctualLights = validPunctualLights;
+    // in jsb, std::vector is not synchronized, so we need to assign it manually
+    sceneData.validPunctualLights = validPunctualLights;
 }
 
 const _cameras: Camera[] = [];
@@ -148,7 +154,14 @@ export function getLoadOpOfClearFlag (clearFlag: ClearFlagBit, attachment: Attac
     return loadOp;
 }
 
-export function getRenderArea (camera: Camera, width: number, height: number, light: Light | null = null, level = 0, out: Rect | null = null): Rect {
+export function getRenderArea (
+    camera: Camera,
+    width: number,
+    height: number,
+    light: Light | null = null,
+    level = 0,
+    out: Rect | undefined = undefined,
+): Rect {
     out = out || new Rect();
     const vp = camera ? camera.viewport : new Rect(0, 0, 1, 1);
     const w = width;
@@ -681,15 +694,15 @@ export function buildReflectionProbePasss (
     camera: Camera,
     ppl: BasicPipeline,
 ): void {
-    if (!cclegacy.internal.reflectionProbeManager) return;
-    const probes = cclegacy.internal.reflectionProbeManager.getProbes();
+    const reflectionProbeManager = cclegacy.internal.reflectionProbeManager as ReflectionProbeManager;
+    if (!reflectionProbeManager) return;
+    const probes = reflectionProbeManager.getProbes();
     if (probes.length === 0) return;
     for (let i = 0; i < probes.length; i++) {
         const probe = probes[i];
         if (probe.needRender) {
             if (probes[i].probeType === ProbeType.PLANAR) {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-                buildReflectionProbePass(camera, ppl, probe, probe.realtimePlanarTexture.window!, 0);
+                buildReflectionProbePass(camera, ppl, probe, probe.realtimePlanarTexture!.window!, 0);
             } else if (EDITOR) {
                 for (let faceIdx = 0; faceIdx < probe.bakedCubeTextures.length; faceIdx++) {
                     probe.updateCameraDir(faceIdx);
@@ -1041,7 +1054,7 @@ export function buildUIPass (
 }
 
 export function updateCameraUBO (setter: any, camera: Readonly<Camera>, ppl: Readonly<BasicPipeline>): void {
-    const pipeline = cclegacy.director.root.pipeline;
+    const pipeline = cclegacy.director.root!.pipeline as WebPipeline;
     const sceneData = ppl.pipelineSceneData;
     const skybox = sceneData.skybox;
     setter.addConstant('CCCamera');
@@ -1051,7 +1064,7 @@ export function updateCameraUBO (setter: any, camera: Readonly<Camera>, ppl: Rea
     setter.setMat4('cc_matProjInv', camera.matProjInv);
     setter.setMat4('cc_matViewProj', camera.matViewProj);
     setter.setMat4('cc_matViewProjInv', camera.matViewProjInv);
-    setter.setVec4('cc_cameraPos', new Vec4(camera.position.x, camera.position.y, camera.position.z, pipeline.getCombineSignY() as number));
+    setter.setVec4('cc_cameraPos', new Vec4(camera.position.x, camera.position.y, camera.position.z, pipeline.getCombineSignY()));
     // eslint-disable-next-line max-len
     setter.setVec4('cc_surfaceTransform', new Vec4(camera.surfaceTransform, 0.0, Math.cos(toRadian(skybox.getRotationAngle())), Math.sin(toRadian(skybox.getRotationAngle()))));
     // eslint-disable-next-line max-len

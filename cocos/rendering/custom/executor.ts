@@ -135,6 +135,7 @@ import {
     getRenderArea,
     mergeSrcToTargetDesc,
     updateGlobalDescBinding,
+    validPunctualLightsCulling,
 } from './define';
 import { RenderReflectionProbeQueue } from '../render-reflection-probe-queue';
 import { builtinResMgr } from '../../asset/asset-manager/builtin-res-mgr';
