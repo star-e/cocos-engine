@@ -104,7 +104,7 @@ void SceneCulling::collectCullingQueries(
 }
 
 namespace {
-static const pipeline::PipelineSceneData* pSceneData = nullptr;
+const pipeline::PipelineSceneData* pSceneData = nullptr;
 bool isNodeVisible(const Node* node, uint32_t visibility) {
     return node && ((visibility & node->getLayer()) == node->getLayer());
 }
