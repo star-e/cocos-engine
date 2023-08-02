@@ -265,9 +265,14 @@ void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
             mount(device, parentID); // NOLINT(misc-no-recursion)
         },
         [&](SubresourceView& view) { // NOLINT(misc-no-recursion)
+            SubresourceView originView = view;
             auto parentID = parent(vertID, resg);
             CC_EXPECTS(parentID != resg.null_vertex());
             while (resg.isTextureView(parentID)) {
+                const auto& prtView = get(SubresourceViewTag{}, parentID, resg);
+                originView.firstPlane += prtView.firstPlane;
+                originView.firstArraySlice += prtView.firstArraySlice;
+                originView.indexOrFirstMipLevel += prtView.indexOrFirstMipLevel;
                 parentID = parent(parentID, resg);
             }
             CC_EXPECTS(parentID != resg.null_vertex());
@@ -277,7 +282,7 @@ void ResourceGraph::mount(gfx::Device* device, vertex_descriptor vertID) {
             auto* parentTexture = resg.getTexture(parentID);
             const auto& desc = get(ResourceGraph::DescTag{}, resg, vertID);
             if (!view.textureView) {
-                auto textureViewInfo = getTextureViewInfo(view, desc);
+                auto textureViewInfo = getTextureViewInfo(originView, desc);
                 textureViewInfo.texture = parentTexture;
                 view.textureView = device->createTexture(textureViewInfo);
             }

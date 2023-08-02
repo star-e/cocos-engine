@@ -1771,6 +1771,19 @@ void buildAccessGraph(Graphs &graphs) {
 }
 
 #pragma region BUILD_BARRIERS
+gfx::ResourceRange getOriginRange(ResourceGraph::vertex_descriptor v, const gfx::ResourceRange &currRange, const ResourceGraph &resg) {
+    gfx::ResourceRange ret = currRange;
+    auto resID = parent(v, resg);
+    while (resg.isTextureView(resID)) {
+        const auto &subresView = get(SubresourceViewTag{}, resID, resg);
+        ret.firstSlice += subresView.firstArraySlice;
+        ret.mipLevel += subresView.indexOrFirstMipLevel;
+        ret.basePlane += subresView.firstPlane;
+        resID = parent(resID, resg);
+    }
+    return ret;
+}
+
 void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
     auto *scratch = fgDispatcher.scratch;
     const auto &renderGraph = fgDispatcher.renderGraph;
@@ -1799,10 +1812,11 @@ void buildBarriers(FrameGraphDispatcher &fgDispatcher) {
             info.type = barrier.type;
             gfxBarrier = gfx::Device::getInstance()->getBufferBarrier(info);
         } else {
+            const auto& originRange = getOriginRange(barrier.resourceID, barrier.endStatus.range, resourceGraph);
             gfx::TextureBarrierInfo info;
             info.prevAccesses = barrier.beginStatus.accessFlag;
             info.nextAccesses = barrier.endStatus.accessFlag;
-            info.range = barrier.endStatus.range;
+            info.range = originRange;
             info.type = barrier.type;
             gfxBarrier = gfx::Device::getInstance()->getTextureBarrier(info);
         }
