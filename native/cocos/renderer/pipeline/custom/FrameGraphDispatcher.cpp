@@ -122,6 +122,57 @@ ResourceGraph::vertex_descriptor FrameGraphDispatcher::realResourceID(const ccst
     return resourceAccessGraph.resourceIndex.at(name);
 }
 
+[[nodiscard("concat")]] ccstd::pmr::string concatResName(
+    std::string_view name0,
+    std::string_view name1,
+    boost::container::pmr::memory_resource *scratch) {
+    ccstd::pmr::string name(name0, scratch);
+    name += "/";
+    name += name1;
+    return name;
+}
+
+[[nodiscard("subresName")]] ccstd::pmr::string getSubresNameByPlane(const ccstd::pmr::string &resName,
+                                                                    uint32_t planeID, const ResourceGraph &resg,
+                                                                    boost::container::pmr::memory_resource *scratch) {
+    const auto &desc = get(ResourceGraph::DescTag{}, resg, vertex(resName, resg));
+    // depth stencil
+    if (desc.format == gfx::Format::DEPTH_STENCIL) {
+        auto nameView = planeID == 0 ? DEPTH_PLANE_NAME : STENCIL_PLANE_NAME;
+        const auto &subresName = concatResName(resName, nameView, scratch);
+        return subresName;
+    }
+
+    // array
+    if (desc.dimension == ResourceDimension::TEXTURE2D && desc.depthOrArraySize > 1) {
+        ccstd::pmr::set<ccstd::pmr::string> leaves(scratch);
+        auto resID = vertex(resName, resg);
+
+        using LeafGatherFunc = std::function<void(ResourceGraph::vertex_descriptor, const ResourceGraph &, ccstd::pmr::set<ccstd::pmr::string> &)>;
+        LeafGatherFunc leafGather = [&](ResourceGraph::vertex_descriptor v, const ResourceGraph &resg, ccstd::pmr::set<ccstd::pmr::string> &names) {
+            for (const auto &e : makeRange(children(v, resg))) {
+                if (!out_degree(e.target, resg)) {
+                    const auto &rName = get(ResourceGraph::NameTag{}, resg, e.target);
+                    names.emplace(rName);
+                } else {
+                    leafGather(e.target, resg, names);
+                }
+            }
+        };
+        leafGather(resID, resg, leaves);
+
+        auto iter = leaves.begin();
+        std::advance(iter, planeID);
+        return (*iter);
+    }
+
+    // cube
+
+    // UNREACHABLE
+    CC_ASSERT(false);
+    return "";
+}
+
 ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID, const ResourceGraph &resg, std::string_view name) {
     auto resName = get(ResourceGraph::NameTag{}, resg, resID);
     resName += "/";
@@ -129,15 +180,12 @@ ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor r
     return findVertex(resName, resg);
 }
 
-ResourceGraph::vertex_descriptor locateSubres(ResourceGraph::vertex_descriptor resID,
+ResourceGraph::vertex_descriptor locateSubres(const ccstd::pmr::string& originName,
                                               const ResourceGraph &resg,
-                                              uint32_t basePlane) {
-    auto ret = resID;
-    const auto &desc = get(ResourceGraph::DescTag{}, resg, resID);
-    if (desc.format == gfx::Format::DEPTH_STENCIL) {
-        ret = basePlane == 0 ? locateSubres(resID, resg, DEPTH_PLANE_NAME) : locateSubres(resID, resg, STENCIL_PLANE_NAME);
-    }
-    return ret;
+                                              uint32_t basePlane,
+                                              boost::container::pmr::memory_resource *scratch) {
+    const auto &resName = getSubresNameByPlane(originName, basePlane, resg, scratch);
+    return findVertex(resName, resg);
 }
 
 PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::buildDescriptorIndex(
@@ -152,7 +200,7 @@ PmrFlatMap<NameLocalID, ResourceGraph::vertex_descriptor> FrameGraphDispatcher::
                 const auto &name = computeView.name;
                 CC_EXPECTS(!name.empty());
                 const auto nameID = layoutGraph.attributeIndex.at(name);
-                auto subresID = locateSubres(resID, resourceGraph, computeView.plane);
+                auto subresID = locateSubres(resName, resourceGraph, computeView.plane, scratch);
                 resourceIndex.emplace(nameID, subresID);
             }
         }
@@ -813,16 +861,6 @@ void fillRenderPassInfo(const AttachmentMap &colorMap,
     }
 };
 
-[[nodiscard("concat")]] ccstd::pmr::string concatResName(
-    std::string_view name0,
-    std::string_view name1,
-    boost::container::pmr::memory_resource *scratch) {
-    ccstd::pmr::string name(name0, scratch);
-    name += "/";
-    name += name1;
-    return name;
-}
-
 void extractNames(const ccstd::pmr::string &resName,
                   const RasterView &view,
                   ccstd::pmr::vector<std::pair<ccstd::pmr::string, uint32_t>> &names) {
@@ -855,26 +893,6 @@ void extractNames(const ccstd::pmr::string &resName,
     if (names.empty()) {
         names.emplace_back(resName, 0);
     }
-}
-
-[[nodiscard("subresName")]] ccstd::pmr::string getSubresName(const ccstd::pmr::string &resName,
-                                                            uint32_t planeID, const ResourceGraph& resg,
-                                                            boost::container::pmr::memory_resource* scratch) {
-    const auto& desc = get(ResourceGraph::DescTag{}, resg, vertex(resName, resg));
-    if(desc.format == gfx::Format::DEPTH_STENCIL) {
-        auto nameView = planeID == 0 ? DEPTH_PLANE_NAME : STENCIL_PLANE_NAME;
-        const auto &subresName = concatResName(resName, nameView, scratch);
-        return subresName;
-    }
-    
-
-    // cube
-
-    // array
-
-    // UNREACHABLE
-    CC_ASSERT(false);
-    return "";
 }
 
 auto checkRasterViews(const Graphs &graphs,
@@ -965,8 +983,8 @@ bool checkComputeViews(const Graphs &graphs, ResourceAccessGraph::vertex_descrip
             tryAddEdge(lastVertId, ragVertID, relationGraph);
             dependent = lastVertId != EXPECT_START_ID;
             
-            if(out_degree(resID, resourceGraph)) {
-                const auto& subresFullName = getSubresName(resName, computeView.plane, resourceGraph, resourceAccessGraph.resource());
+            if (out_degree(resID, resourceGraph) && (computeView.plane != 0xFFFFFFFF)) {
+                const auto& subresFullName = getSubresNameByPlane(resName, computeView.plane, resourceGraph, resourceAccessGraph.resource());
                 resourceAccessGraph.resourceIndex.emplace(subresFullName, vertex(subresFullName, resourceGraph));
             }
         }
@@ -1458,7 +1476,7 @@ bool moveValidation(const MovePass& pass, ResourceAccessGraph& rag, const Resour
     return check;
 }
 
-ccstd::pmr::string getSubresourceName(
+[[nodiscard("subres_name")]] ccstd::pmr::string getSubresourceNameByRange(
     const ccstd::pmr::string &name,
     const ResourceDesc &desc,
     const gfx::ResourceRange &range,
@@ -1615,7 +1633,7 @@ void subresourceAnalysis(ResourceAccessGraph& rag, ResourceGraph& resg) {
                 const auto &targetDesc = get(ResourceGraph::DescTag{}, resg, targetResID);
                 const auto &srcResourceRange = rag.movedSourceStatus.at(subres).range;
                 const auto &targetTraits = get(ResourceGraph::TraitsTag{}, resg, targetResID);
-                const auto &subresName = getSubresourceName(targetName, targetDesc, srcResourceRange, rag.resource());
+                const auto &subresName = getSubresourceNameByRange(targetName, targetDesc, srcResourceRange, rag.resource());
                 const auto &indexName = concatResName(targetName, subresName, rag.resource());
                 auto subresID = findVertex(indexName, resg);
                 if (subresID == resg.null_vertex()) {
@@ -1774,6 +1792,10 @@ void buildAccessGraph(Graphs &graphs) {
 gfx::ResourceRange getOriginRange(ResourceGraph::vertex_descriptor v, const gfx::ResourceRange &currRange, const ResourceGraph &resg) {
     gfx::ResourceRange ret = currRange;
     auto resID = parent(v, resg);
+    if (resID == ResourceGraph::null_vertex()) {
+        return ret;
+    }
+
     while (resg.isTextureView(resID)) {
         const auto &subresView = get(SubresourceViewTag{}, resID, resg);
         ret.firstSlice += subresView.firstArraySlice;
