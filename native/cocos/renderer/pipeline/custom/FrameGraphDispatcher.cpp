@@ -1477,11 +1477,9 @@ bool moveValidation(const MovePass& pass, ResourceAccessGraph& rag, const Resour
 }
 
 [[nodiscard("subres_name")]] ccstd::pmr::string getSubresourceNameByRange(
-    const ccstd::pmr::string &name,
-    const ResourceDesc &desc,
     const gfx::ResourceRange &range,
     boost::container::pmr::memory_resource *scratch) {
-    ccstd::pmr::string subresName(name, scratch);
+    ccstd::pmr::string subresName(scratch);
     if (0) {
         switch (range.firstSlice) {
             case 0:
@@ -1536,7 +1534,7 @@ void startMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) 
 
             auto lastStatusIter = resourceAccessGraph.resourceAccess.at(pair.source).rbegin();
             resourceAccessGraph.movedSourceStatus.emplace(pair.source, AccessStatus{lastStatusIter->second.accessFlag, srcResourceRange});
-            resourceAccessGraph.movedTarget[pair.target].emplace_back(pair.source);
+            resourceAccessGraph.movedTarget[pair.target].emplace(getSubresourceNameByRange(srcResourceRange, resourceAccessGraph.resource()), pair.source);
             resourceAccessGraph.resourceAccess[pair.target] = resourceAccessGraph.resourceAccess[pair.source];
 
             auto targetResID = findVertex(pair.target, resourceGraph);
@@ -1549,7 +1547,7 @@ void startMovePass(const Graphs &graphs, uint32_t passID, const MovePass &pass) 
                 rag.resourceIndex[source] = v;
 
                 if (rag.movedTarget.find(source) != rag.movedTarget.end()) {
-                    for (const auto &prt : rag.movedTarget[source]) {
+                    for (const auto &[rangeStr, prt] : rag.movedTarget[source]) {
                         feedBack(prt, v);
                     }
                 }
@@ -1617,24 +1615,23 @@ struct DependencyVisitor : boost::dfs_visitor<> {
 };
 
 void subresourceAnalysis(ResourceAccessGraph& rag, ResourceGraph& resg) {
-    using RecursiveFuncType = std::function<void(const ccstd::pmr::vector<ccstd::pmr::string> &, const ccstd::pmr::string &)>;
-    RecursiveFuncType addSubres = [&](const ccstd::pmr::vector<ccstd::pmr::string> &subreses, const ccstd::pmr::string &resName) {
+    using RecursiveFuncType = std::function<void(const PmrFlatMap<ccstd::pmr::string, ccstd::pmr::string> &, const ccstd::pmr::string &)>;
+    RecursiveFuncType addSubres = [&](const PmrFlatMap<ccstd::pmr::string, ccstd::pmr::string> &subreses, const ccstd::pmr::string &resName) {
         if (subreses.size() == 1) {
-            const auto &src = subreses.front();
+            const auto &src = subreses.begin()->second;
             rag.resourceIndex[src] = rag.resourceIndex.at(resName);
 
             if (rag.movedTarget.find(src) != rag.movedTarget.end()) {
                 addSubres(rag.movedTarget.at(src), src);
             }
         } else {
-            for (const auto &subres : subreses) {
+            for (const auto &[rangeStr, subres] : subreses) {
                 auto targetResID = rag.resourceIndex.at(resName);
                 const auto &targetName = get(ResourceGraph::NameTag{}, resg, targetResID);
                 const auto &targetDesc = get(ResourceGraph::DescTag{}, resg, targetResID);
                 const auto &srcResourceRange = rag.movedSourceStatus.at(subres).range;
                 const auto &targetTraits = get(ResourceGraph::TraitsTag{}, resg, targetResID);
-                const auto &subresName = getSubresourceNameByRange(targetName, targetDesc, srcResourceRange, rag.resource());
-                const auto &indexName = concatResName(targetName, subresName, rag.resource());
+                const auto &indexName = concatResName(targetName, subres, rag.resource());
                 auto subresID = findVertex(indexName, resg);
                 if (subresID == resg.null_vertex()) {
                     const auto &subView = makeSubresourceView(targetDesc, srcResourceRange);

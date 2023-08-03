@@ -296,7 +296,7 @@ struct ResourceAccessGraph {
     PmrFlatMap<ccstd::pmr::string, ResourceLifeRecord> resourceLifeRecord;
     ccstd::pmr::vector<vertex_descriptor> topologicalOrder;
     PmrTransparentMap<ccstd::pmr::string, PmrFlatMap<uint32_t, AccessStatus>> resourceAccess;
-    PmrFlatMap<ccstd::pmr::string, ccstd::pmr::vector<ccstd::pmr::string>> movedTarget;
+    PmrFlatMap<ccstd::pmr::string, PmrFlatMap<ccstd::pmr::string, ccstd::pmr::string>> movedTarget;
     PmrFlatMap<ccstd::pmr::string, AccessStatus> movedSourceStatus;
     PmrFlatMap<ccstd::pmr::string, ResourceNode> movedTargetStatus;
 };
