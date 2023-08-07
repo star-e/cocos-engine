@@ -345,15 +345,13 @@ void addRenderObject(
             // check scene flags
             const bool bBlend = isBlend(pass);
             const bool bOpaqueOrMask = !bBlend;
-            if (!bDrawShadowCaster) {
-                if (!bDrawBlend && bBlend) {
-                    // skip transparent object
-                    continue;
-                }
-                if (!bDrawOpaqueOrMask && bOpaqueOrMask) {
-                    // skip opaque object
-                    continue;
-                }
+            if (!bDrawBlend && bBlend) {
+                // skip transparent object
+                continue;
+            }
+            if (!bDrawOpaqueOrMask && bOpaqueOrMask) {
+                // skip opaque object
+                continue;
             }
 
             // add object to queue
