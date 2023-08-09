@@ -1371,8 +1371,8 @@ void startRaytracePass(const Graphs &graphs, uint32_t passID, const RaytracePass
 }
 
 bool rangeCheck(ResourceNode &status,
-                const ResourceDesc &desc,
-                const PmrString &targetName,
+                const ResourceDesc &/*desc*/,
+                const PmrString &/*targetName*/,
                 uint32_t firstSlice, uint32_t numSlices,
                 uint32_t firstMip, uint32_t mipLevels,
                 uint32_t planeIndex) {
@@ -1480,27 +1480,27 @@ bool moveValidation(const MovePass& pass, ResourceAccessGraph& rag, const Resour
     const gfx::ResourceRange &range,
     boost::container::pmr::memory_resource *scratch) {
     ccstd::pmr::string subresName(scratch);
-    if (0) {
-        switch (range.firstSlice) {
-            case 0:
-                return CUBE_RIGHT_NAME.data();
-            case 1:
-                return CUBE_LEFT_NAME.data();
-            case 2:
-                return CUBE_TOP_NAME.data();
-            case 3:
-                return CUBE_BOTTOM_NAME.data();
-            case 4:
-                return CUBE_FRONT_NAME.data();
-            case 5:
-                return CUBE_REAR_NAME.data();
-            default:
-                break;
-        }
-    } else {
-        std::string suffix = std::to_string(range.basePlane) + "_" + std::to_string(range.planeCount) + "_" + std::to_string(range.firstSlice) + "_" + std::to_string(range.numSlices) + "_" + std::to_string(range.mipLevel) + "_" + std::to_string(range.levelCount);
-        subresName = suffix.c_str();
-    }
+    // if () {
+    //     switch (range.firstSlice) {
+    //         case 0:
+    //             return CUBE_RIGHT_NAME.data();
+    //         case 1:
+    //             return CUBE_LEFT_NAME.data();
+    //         case 2:
+    //             return CUBE_TOP_NAME.data();
+    //         case 3:
+    //             return CUBE_BOTTOM_NAME.data();
+    //         case 4:
+    //             return CUBE_FRONT_NAME.data();
+    //         case 5:
+    //             return CUBE_REAR_NAME.data();
+    //         default:
+    //             break;
+    //     }
+    // } else {
+    std::string suffix = std::to_string(range.basePlane) + "_" + std::to_string(range.planeCount) + "_" + std::to_string(range.firstSlice) + "_" + std::to_string(range.numSlices) + "_" + std::to_string(range.mipLevel) + "_" + std::to_string(range.levelCount);
+    subresName = suffix;
+    // }
     return subresName;
 }
 
@@ -1633,7 +1633,7 @@ void subresourceAnalysis(ResourceAccessGraph& rag, ResourceGraph& resg) {
                 const auto &targetTraits = get(ResourceGraph::TraitsTag{}, resg, targetResID);
                 const auto &indexName = concatResName(targetName, subres, rag.resource());
                 auto subresID = findVertex(indexName, resg);
-                if (subresID == resg.null_vertex()) {
+                if (subresID == ResourceGraph::null_vertex()) {
                     const auto &subView = makeSubresourceView(targetDesc, srcResourceRange);
                     // register to resourcegraph
                     subresID = addVertex(
