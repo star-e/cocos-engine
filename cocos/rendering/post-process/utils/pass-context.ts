@@ -23,6 +23,8 @@ export class PassContext {
 
     shadingScale = 1;
     viewport = new Rect();
+    windowWidth = 0;
+    windowHeight = 0;
     passViewport = new Rect();
 
     passPathName = '';
@@ -65,10 +67,10 @@ export class PassContext {
         Vec4.set(passContext.clearColor, 0, 0, 0, 1);
     }
 
-    addRenderPass (layoutName: string, passName: string): PassContext {
+    addRenderPass (layoutName: string, passName: string, fixedViewport: boolean = true): PassContext {
         const passViewport = this.passViewport;
 
-        const pass = this.ppl!.addRenderPass(passViewport.width, passViewport.height, layoutName);
+        const pass = this.ppl!.addRenderPass(this.windowWidth, this.windowHeight, layoutName);
         pass.name = passName;
         this.pass = pass;
         this.layoutName = layoutName;
@@ -76,8 +78,8 @@ export class PassContext {
         this.rasterWidth = passViewport.width;
         this.rasterHeight = passViewport.height;
 
-        pass.setViewport(new Viewport(passViewport.x, passViewport.y, passViewport.width, passViewport.height));
-
+        if (!fixedViewport) pass.setViewport(new Viewport(passViewport.x, passViewport.y, passViewport.width, passViewport.height));
+        else pass.setViewport(new Viewport(0, 0, this.windowWidth, this.windowHeight));
         return this;
     }
 
@@ -92,8 +94,9 @@ export class PassContext {
             shadingScale *= this.postProcess.shadingScale;
         }
         this.shadingScale = shadingScale;
-
-        const area = getRenderArea(camera, camera.window.width * shadingScale, camera.window.height * shadingScale, null, 0, this.viewport);
+        this.windowWidth = camera.window.width * shadingScale;
+        this.windowHeight = camera.window.height * shadingScale;
+        const area = getRenderArea(camera, this.windowWidth, this.windowHeight, null, 0, this.viewport);
         area.width = Math.floor(area.width);
         area.height = Math.floor(area.height);
     }
@@ -121,11 +124,11 @@ export class PassContext {
 
         if (!ppl.containsResource(name)) {
             if (format === Format.DEPTH_STENCIL) {
-                ppl.addDepthStencil(name, format, this.rasterWidth, this.rasterHeight, ResourceResidency.MANAGED);
+                ppl.addDepthStencil(name, format, this.windowWidth, this.windowHeight, ResourceResidency.MANAGED);
             } else if (offscreen) {
-                ppl.addRenderTarget(name, format, this.rasterWidth, this.rasterHeight, residency || ResourceResidency.MANAGED);
+                ppl.addRenderTarget(name, format, this.windowWidth, this.windowHeight, residency || ResourceResidency.MANAGED);
             } else {
-                ppl.addRenderWindow(name, format, this.rasterWidth, this.rasterHeight, camera.window);
+                ppl.addRenderWindow(name, format, this.windowWidth, this.windowHeight, camera.window);
             }
         }
 
@@ -133,10 +136,10 @@ export class PassContext {
             if (!offscreen) {
                 ppl.updateRenderWindow(name, camera.window);
             } else {
-                ppl.updateRenderTarget(name, this.rasterWidth, this.rasterHeight);
+                ppl.updateRenderTarget(name, this.windowWidth, this.windowHeight);
             }
         } else {
-            ppl.updateDepthStencil(name, this.rasterWidth, this.rasterHeight);
+            ppl.updateDepthStencil(name, this.windowWidth, this.windowHeight);
         }
 
         // let view: RasterView;

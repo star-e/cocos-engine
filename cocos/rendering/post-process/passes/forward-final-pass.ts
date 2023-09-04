@@ -36,7 +36,7 @@ export class ForwardFinalPass extends BasePass {
         const shadingScale = passContext.shadingScale;
         passContext
             .updatePassViewPort(1 / shadingScale, 1 / shadingScale)
-            .addRenderPass('post-process', `${this.name}${cameraID}`)
+            .addRenderPass('post-process', `${this.name}${cameraID}`, false)
             .setPassInput(input0, 'inputTexture')
             .addRasterView(slot0, format, isOffScreen)
             .blitScreen(0);
