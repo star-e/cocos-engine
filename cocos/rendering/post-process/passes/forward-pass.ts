@@ -38,7 +38,7 @@ export class ForwardPass extends BasePass {
 
     public render (camera: Camera, ppl: Pipeline): void {
         passContext.clearFlag = ClearFlagBit.COLOR | (camera.clearFlag & ClearFlagBit.DEPTH_STENCIL) | (camera.clearFlag & SKYBOX_FLAG);
-        Vec4.set(passContext.clearColor, 0, 0, 0, 0);
+        Vec4.set(passContext.clearColor, camera.clearColor.x, camera.clearColor.y, camera.clearColor.z, camera.clearColor.w);
         Vec4.set(passContext.clearDepthColor, camera.clearDepth, camera.clearStencil, 0, 0);
 
         this.calcDepthSlot(camera);

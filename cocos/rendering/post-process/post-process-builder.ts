@@ -19,10 +19,13 @@ import { PostProcess } from './components/post-process';
 import { director } from '../../game';
 
 import { Camera as CameraComponent } from '../../misc';
-import { BloomPass, ColorGradingPass, FloatOutputProcessPass, ForwardTransparencyPass,
+import { BloomPass, ColorGradingPass, FloatOutputProcessPass, ForwardScreenPass, ForwardTransparencyPass,
     ForwardTransparencySimplePass, FxaaPass, PostFinalPass, SkinPass } from './passes';
 import { PipelineEventType } from '../pipeline-event';
+import { Layers } from '../../scene-graph';
 
+const SceneGizmoLayer = Layers.Enum.SCENE_GIZMO;
+const onScreenPass = new ForwardScreenPass();
 export class PostProcessBuilder implements PipelineBuilder  {
     pipelines: Map<string, BasePass[]> = new Map();
     constructor () {
@@ -215,8 +218,8 @@ export class PostProcessBuilder implements PipelineBuilder  {
         passContext.camera = camera;
         passContext.updateViewPort();
 
-        const passes = this.getCameraPasses(camera);
-
+        let passes = this.getCameraPasses(camera);
+        if (camera.visibility === SceneGizmoLayer) passes = [onScreenPass];
         const taaPass = passes.find((p): boolean => p instanceof TAAPass) as TAAPass;
         if (taaPass && taaPass.checkEnable(camera)) {
             taaPass.applyCameraJitter(camera);
