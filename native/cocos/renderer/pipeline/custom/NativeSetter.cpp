@@ -192,8 +192,8 @@ void NativeSetter::setBuiltinSphereLightConstants(const scene::SphereLight *ligh
         Vec4(
             light->getSize(),
             light->getRange(),
-            0.f,
-            0.f));
+            0.F,
+            0.F));
 }
 
 void NativeSetter::setBuiltinSpotLightConstants(const scene::SpotLight *light, const scene::Camera *camera) {
@@ -265,10 +265,10 @@ void NativeSetter::setBuiltinPointLightConstants(const scene::PointLight *light,
     setVec4Impl(
         data, *layoutGraph, "cc_lightSizeRangeAngle",
         Vec4(
-            0.f,
+            0.F,
             light->getRange(),
-            0.f,
-            0.f));
+            0.F,
+            0.F));
 }
 
 void NativeSetter::setBuiltinRangedDirectionalLightConstants(const scene::RangedDirectionalLight *light, const scene::Camera *camera) {
@@ -300,7 +300,7 @@ void NativeSetter::setBuiltinRangedDirectionalLightConstants(const scene::Ranged
             light->getRight().x,
             light->getRight().y,
             light->getRight().z,
-            0.f));
+            0.F));
 
 }
 
