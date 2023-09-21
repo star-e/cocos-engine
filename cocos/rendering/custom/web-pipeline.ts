@@ -1394,7 +1394,7 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
     }
 
     addFullscreenQuad (material: Material, passID: number, sceneFlags = SceneFlags.NONE, name = 'FullscreenQuad'): void {
-        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF);
+        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT);
         const queueId = this._renderGraph.addVertex<RenderGraphValue.Queue>(
             RenderGraphValue.Queue,
             queue,
@@ -1416,7 +1416,7 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
     }
 
     addCameraQuad (camera: Camera, material: Material, passID: number, sceneFlags: SceneFlags, name = 'CameraQuad'): void {
-        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF);
+        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT);
         const queueId = this._renderGraph.addVertex<RenderGraphValue.Queue>(
             RenderGraphValue.Queue,
             queue,
@@ -1560,7 +1560,6 @@ export class WebComputePassBuilder extends WebSetter implements ComputePassBuild
             assert(layoutId !== 0xFFFFFFFF);
         }
         const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_OPAQUE, layoutId);
-        queue.phaseID = layoutId;
         const data = renderGraphPool.createRenderData();
         const queueID = this._renderGraph.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         const computeQueueBuilder = pipelinePool.computeQueueBuilder.add();
@@ -1754,7 +1753,7 @@ export class WebPipeline implements BasicPipeline {
             name,
 
             desc,
-            new ResourceTraits(),
+            new ResourceTraits(residency),
             new ResourceStates(),
             new SamplerInfo(Filter.LINEAR, Filter.LINEAR, Filter.NONE, Address.CLAMP, Address.CLAMP, Address.CLAMP),
         );
@@ -1789,7 +1788,7 @@ export class WebPipeline implements BasicPipeline {
             name,
 
             desc,
-            new ResourceTraits(),
+            new ResourceTraits(residency),
             new ResourceStates(),
             new SamplerInfo(Filter.LINEAR, Filter.LINEAR, Filter.NONE, Address.CLAMP, Address.CLAMP, Address.CLAMP),
         );
@@ -2149,7 +2148,7 @@ export class WebPipeline implements BasicPipeline {
             name,
 
             desc,
-            new ResourceTraits(),
+            new ResourceTraits(residency),
             new ResourceStates(),
             new SamplerInfo(Filter.LINEAR, Filter.LINEAR, Filter.NONE, Address.CLAMP, Address.CLAMP, Address.CLAMP),
         );
