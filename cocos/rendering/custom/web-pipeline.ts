@@ -77,12 +77,14 @@ const _samplerPointInfo = new SamplerInfo(
 const renderCommonObjectSetting = new RenderCommonObjectPoolSettings(16);
 const renderGraphPoolSetting: RenderGraphObjectPoolSettings = new RenderGraphObjectPoolSettings(16);
 class PipelinePool {
-    sceneBuilder = new RecyclePool<WebSceneBuilder>(() => new WebSceneBuilder(), 16);
-    renderPassBuilder = new RecyclePool<WebRenderPassBuilder>(() => new WebRenderPassBuilder(), 16);
-    computeQueueBuilder = new RecyclePool<WebComputeQueueBuilder>(() => new WebComputeQueueBuilder(), 16);
-    renderQueueBuilder = new RecyclePool<WebRenderQueueBuilder>(() => new WebRenderQueueBuilder(), 16);
-    renderSubpassBuilder = new RecyclePool<WebRenderSubpassBuilder>(() => new WebRenderSubpassBuilder(), 16);
-    computePassBuilder = new RecyclePool<WebComputePassBuilder>(() => new WebComputePassBuilder(), 16);
+    renderData = new RenderData();
+    layoutGraph = new LayoutGraphData();
+    sceneBuilder = new RecyclePool<WebSceneBuilder>(() => new WebSceneBuilder(this.renderData, this.layoutGraph), 16);
+    renderPassBuilder = new RecyclePool<WebRenderPassBuilder>(() => new WebRenderPassBuilder(this.renderData, this.layoutGraph), 16);
+    computeQueueBuilder = new RecyclePool<WebComputeQueueBuilder>(() => new WebComputeQueueBuilder(this.renderData, this.layoutGraph), 16);
+    renderQueueBuilder = new RecyclePool<WebRenderQueueBuilder>(() => new WebRenderQueueBuilder(this.renderData, this.layoutGraph), 16);
+    renderSubpassBuilder = new RecyclePool<WebRenderSubpassBuilder>(() => new WebRenderSubpassBuilder(this.renderData, this.layoutGraph), 16);
+    computePassBuilder = new RecyclePool<WebComputePassBuilder>(() => new WebComputePassBuilder(this.renderData, this.layoutGraph), 16);
     samplerInfo = new RecyclePool<SamplerInfo>(() => new SamplerInfo(), 16);
     color = new RecyclePool<Color>(() => new Color(), 16);
     renderCommonObjectPool = new RenderCommonObjectPool(renderCommonObjectSetting);
@@ -135,7 +137,7 @@ class PipelinePool {
 }
 
 export class WebSetter implements Setter {
-    constructor (data?: RenderData, lg?: LayoutGraphData) {
+    constructor (data: RenderData, lg: LayoutGraphData) {
         this._data = data;
         this._lg = lg;
     }
@@ -205,23 +207,23 @@ export class WebSetter implements Setter {
 
     protected _getCurrUniformBlock (): UniformBlock | undefined {
         const block: string = this._currBlock;
-        const nodeId = this._lg!.locateChild(0xFFFFFFFF, this._currStage);
-        const ppl = this._lg!.getLayout(nodeId);
+        const nodeId = this._lg.locateChild(0xFFFFFFFF, this._currStage);
+        const ppl = this._lg.getLayout(nodeId);
         const layout = ppl.descriptorSets.get(UpdateFrequency.PER_PASS)!.descriptorSetLayoutData;
-        const nameID: number = this._lg!.attributeIndex.get(block)!;
+        const nameID: number = this._lg.attributeIndex.get(block)!;
         return layout.uniformBlocks.get(nameID);
     }
 
     protected _getCurrDescSetLayoutData (): DescriptorSetLayoutData {
-        const nodeId = this._lg!.locateChild(0xFFFFFFFF, this._currStage);
-        const ppl = this._lg!.getLayout(nodeId);
+        const nodeId = this._lg.locateChild(0xFFFFFFFF, this._currStage);
+        const ppl = this._lg.getLayout(nodeId);
         const layout = ppl.descriptorSets.get(UpdateFrequency.PER_PASS)!.descriptorSetLayoutData;
         return layout;
     }
 
     protected _getCurrDescriptorBlock (block: string): number {
         const layout = this._getCurrDescSetLayoutData();
-        const nameID: number = this._lg!.attributeIndex.get(block)!;
+        const nameID: number = this._lg.attributeIndex.get(block)!;
         for (const block of layout.descriptorBlocks) {
             for (let i = 0; i !== block.descriptors.length; ++i) {
                 if (nameID === block.descriptors[i].descriptorID) {
@@ -235,14 +237,14 @@ export class WebSetter implements Setter {
     setCurrConstant (block: string, stage = 'default'): boolean {
         this._currBlock = block;
         this._currStage = stage;
-        const nameID: number = this._lg!.attributeIndex.get(block)!;
+        const nameID: number = this._lg.attributeIndex.get(block)!;
         this._currCount = 0;
         const currBlock = this._getCurrUniformBlock();
         if (!currBlock) return false;
         for (const uniform of currBlock.members) {
             this._currCount += getUBOTypeCount(uniform.type) * uniform.count;
         }
-        this._currConstant = this._data!.constants.get(nameID)!;
+        this._currConstant = this._data.constants.get(nameID)!;
         return true;
     }
 
@@ -253,17 +255,17 @@ export class WebSetter implements Setter {
     public addConstant (block: string, stage = 'default'): boolean {
         this._currBlock = block;
         this._currStage = stage;
-        const num = this._lg!.attributeIndex.get(block)!;
+        const num = this._lg.attributeIndex.get(block)!;
         this._currCount = 0;
         const currBlock = this._getCurrUniformBlock();
         if (!currBlock) return false;
         for (const uniform of currBlock.members) {
             this._currCount += getUBOTypeCount(uniform.type) * uniform.count;
         }
-        if (!this._data!.constants.get(num)) {
+        if (!this._data.constants.get(num)) {
             const value: number[] = new Array(this._currCount);
             value.fill(0);
-            this._data!.constants.set(num, value);
+            this._data.constants.set(num, value);
         }
         this.setCurrConstant(block, stage);
         return true;
@@ -314,8 +316,8 @@ export class WebSetter implements Setter {
         if (this._getCurrDescriptorBlock(name) === -1) {
             return;
         }
-        const num = this._lg!.attributeIndex.get(name)!;
-        this._data!.textures.set(num, texture);
+        const num = this._lg.attributeIndex.get(name)!;
+        this._data.textures.set(num, texture);
     }
     public setReadWriteBuffer (name: string, buffer: Buffer): void {
         // TODO
@@ -327,8 +329,8 @@ export class WebSetter implements Setter {
         if (this._getCurrDescriptorBlock(name) === -1) {
             return;
         }
-        const num = this._lg!.attributeIndex.get(name)!;
-        this._data!.samplers.set(num, sampler);
+        const num = this._lg.attributeIndex.get(name)!;
+        this._data.samplers.set(num, sampler);
     }
     public setBuiltinCameraConstants (camera: Camera): void {
         // TODO
@@ -358,26 +360,26 @@ export class WebSetter implements Setter {
         // TODO
     }
     public hasSampler (name: string): boolean {
-        const id = this._lg!.attributeIndex.get(name);
+        const id = this._lg.attributeIndex.get(name);
         if (id === undefined) {
             return false;
         }
-        return this._data!.samplers.has(id);
+        return this._data.samplers.has(id);
     }
     public hasTexture (name: string): boolean {
-        const id = this._lg!.attributeIndex.get(name);
+        const id = this._lg.attributeIndex.get(name);
         if (id === undefined) {
             return false;
         }
-        return this._data!.textures.has(id);
+        return this._data.textures.has(id);
     }
     public setCustomBehavior (name: string): void {
         throw new Error('Method not implemented.');
     }
 
     // protected
-    protected _data?: RenderData;
-    protected _lg?: LayoutGraphData;
+    protected _data: RenderData;
+    protected _lg: LayoutGraphData;
     protected _currBlock;
     protected _currStage: string = '';
     protected _currCount;
@@ -1003,7 +1005,7 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
 
     addSceneOfCamera (camera: Camera, light: LightInfo, sceneFlags = SceneFlags.NONE, name = 'Camera'): void {
         const sceneData = renderGraphPool.createSceneData(camera.scene, camera, sceneFlags, CullingFlags.NONE, light.light);
-        this._renderGraph!.addVertex<RenderGraphValue.Scene>(RenderGraphValue.Scene, sceneData, name, '', renderGraphPool.createRenderData(false), false, this._vertID);
+        this._renderGraph!.addVertex<RenderGraphValue.Scene>(RenderGraphValue.Scene, sceneData, name, '', renderGraphPool.createRenderData(), false, this._vertID);
         const layoutName = this.getLayoutName();
         const scene: Scene = cclegacy.director.getScene();
         setCameraUBOValues(
@@ -1019,14 +1021,14 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             setShadowUBOView(this, camera, layoutName);
         }
         setTextureUBOView(this, camera, this._pipeline!);
-        initGlobalDescBinding(this._data!, layoutName);
+        initGlobalDescBinding(this._data, layoutName);
     }
     addScene (camera: Camera, sceneFlags = SceneFlags.NONE, light: Light | undefined = undefined): SceneBuilder {
         const sceneData = renderGraphPool.createSceneData(camera.scene, camera, sceneFlags);
         if (light) {
             sceneData.light.light = light;
         }
-        const renderData = renderGraphPool.createRenderData(false);
+        const renderData = renderGraphPool.createRenderData();
         const sceneId = this._renderGraph!.addVertex<RenderGraphValue.Scene>(RenderGraphValue.Scene, sceneData, 'Scene', '', renderData, false, this._vertID);
         if (!(sceneFlags & SceneFlags.NON_BUILTIN)) {
             const layoutName = this.getLayoutName();
@@ -1039,10 +1041,10 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             );
             setShadowUBOView(this, camera, layoutName);
             setTextureUBOView(this, camera, this._pipeline!);
-            initGlobalDescBinding(this._data!, layoutName);
+            initGlobalDescBinding(this._data, layoutName);
         }
         const sceneBuilder = pipelinePool.sceneBuilder.add();
-        sceneBuilder.update(renderData, this._lg!, this._renderGraph!, sceneId, sceneData);
+        sceneBuilder.update(renderData, this._lg, this._renderGraph!, sceneId, sceneData);
         return sceneBuilder;
     }
     addFullscreenQuad (material: Material, passID: number, sceneFlags = SceneFlags.NONE, name = 'Quad'): void {
@@ -1051,7 +1053,7 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             renderGraphPool.createBlit(material, passID, sceneFlags, null),
             name,
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             this._vertID,
         );
@@ -1070,7 +1072,7 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             setShadowUBOView(this, null, layoutName);
         }
         setTextureUBOView(this, null, this._pipeline!);
-        initGlobalDescBinding(this._data!, layoutName);
+        initGlobalDescBinding(this._data, layoutName);
     }
     addCameraQuad (camera: Camera, material: Material, passID: number, sceneFlags = SceneFlags.NONE): void {
         this._renderGraph!.addVertex<RenderGraphValue.Blit>(
@@ -1078,7 +1080,7 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             renderGraphPool.createBlit(material, passID, sceneFlags, camera),
             'CameraQuad',
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             this._vertID,
         );
@@ -1097,17 +1099,17 @@ export class WebRenderQueueBuilder extends WebSetter implements RenderQueueBuild
             setShadowUBOView(this, camera, layoutName);
         }
         setTextureUBOView(this, camera, this._pipeline!);
-        initGlobalDescBinding(this._data!, layoutName);
+        initGlobalDescBinding(this._data, layoutName);
     }
     clearRenderTarget (name: string, color: Color = new Color()): void {
-        const clearView = renderGraphPool.createClearView(name, ClearFlagBit.COLOR, false);
+        const clearView = renderGraphPool.createClearView(name, ClearFlagBit.COLOR);
         clearView.clearColor.copy(color);
         this._renderGraph!.addVertex<RenderGraphValue.Clear>(
             RenderGraphValue.Clear,
             [clearView],
             'ClearRenderTarget',
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             this._vertID,
         );
@@ -1176,15 +1178,15 @@ export class WebRenderSubpassBuilder extends WebSetter implements RenderSubpassB
         throw new Error('Method not implemented.');
     }
     addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default'): RenderQueueBuilder {
-        const layoutId = this._lg!.locateChild(this._layoutID!, layoutName);
+        const layoutId = this._lg.locateChild(this._layoutID!, layoutName);
         if (DEBUG) {
             assert(layoutId !== 0xFFFFFFFF);
         }
-        const queue = renderGraphPool.createRenderQueue(hint, layoutId, false);
-        const data = renderGraphPool.createRenderData(false);
+        const queue = renderGraphPool.createRenderQueue(hint, layoutId);
+        const data = renderGraphPool.createRenderData();
         const queueID = this._renderGraph!.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         const queueBuilder = pipelinePool.renderQueueBuilder.add();
-        queueBuilder.update(data, this._renderGraph!, this._lg!, queueID, queue, this._pipeline!);
+        queueBuilder.update(data, this._renderGraph!, this._lg, queueID, queue, this._pipeline!);
         return queueBuilder;
     }
     get showStatistics (): boolean {
@@ -1284,7 +1286,7 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
             assert(Boolean(view.name));
             assert(Boolean(name && this._resourceGraph!.contains(name)));
             const descriptorName = view.name;
-            const descriptorID = this._lg!.attributeIndex.get(descriptorName);
+            const descriptorID = this._lg.attributeIndex.get(descriptorName);
             assert(descriptorID !== undefined);
         }
         if (this._pass!.computeViews.has(name)) {
@@ -1296,8 +1298,8 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
     addTexture (name: string, slotName: string, sampler: Sampler | null = null): void {
         this._addComputeResource(name, AccessType.READ, slotName);
         if (sampler) {
-            const descriptorID = this._lg!.attributeIndex.get(slotName)!;
-            this._data!.samplers.set(descriptorID, sampler);
+            const descriptorID = this._lg.attributeIndex.get(slotName)!;
+            this._data.samplers.set(descriptorID, sampler);
         }
     }
     addStorageBuffer (name: string, accessType: AccessType, slotName: string): void {
@@ -1311,33 +1313,33 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
         const subpassID = this._pass!.subpassGraph.numVertices();
         this._pass!.subpassGraph.addVertex(name, renderGraphPool.createSubpass());
         const subpass = renderGraphPool.createRasterSubpass(subpassID, 1, 0);
-        const data = renderGraphPool.createRenderData(false);
+        const data = renderGraphPool.createRenderData();
         const vertID = this._renderGraph!.addVertex<RenderGraphValue.RasterSubpass>(RenderGraphValue.RasterSubpass, subpass, name, layoutName, data, false);
         const result = pipelinePool.renderSubpassBuilder.add();
-        result.update(data, this._renderGraph!, this._lg!, vertID, subpass, this._pipeline!);
+        result.update(data, this._renderGraph!, this._lg, vertID, subpass, this._pipeline!);
         return result;
     }
     addQueue (hint: QueueHint = QueueHint.RENDER_OPAQUE, layoutName = 'default'): WebRenderQueueBuilder {
-        const layoutId = this._lg!.locateChild(this._layoutID!, layoutName);
+        const layoutId = this._lg.locateChild(this._layoutID!, layoutName);
         if (DEBUG) {
             assert(layoutId !== 0xFFFFFFFF);
         }
-        const queue = renderGraphPool.createRenderQueue(hint, layoutId, false);
-        const data = renderGraphPool.createRenderData(false);
+        const queue = renderGraphPool.createRenderQueue(hint, layoutId);
+        const data = renderGraphPool.createRenderData();
         const queueID = this._renderGraph!.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         const result = pipelinePool.renderQueueBuilder.add();
-        result.update(data, this._renderGraph!, this._lg!, queueID, queue, this._pipeline!);
+        result.update(data, this._renderGraph!, this._lg, queueID, queue, this._pipeline!);
         return result;
     }
 
     addFullscreenQuad (material: Material, passID: number, sceneFlags = SceneFlags.NONE, name = 'FullscreenQuad'): void {
-        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF, false);
+        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF);
         const queueId = this._renderGraph!.addVertex<RenderGraphValue.Queue>(
             RenderGraphValue.Queue,
             queue,
             'Queue',
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             this._vertID,
         );
@@ -1346,20 +1348,20 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
             renderGraphPool.createBlit(material, passID, sceneFlags, null),
             name,
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             queueId,
         );
     }
 
     addCameraQuad (camera: Camera, material: Material, passID: number, sceneFlags: SceneFlags, name = 'CameraQuad'): void {
-        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF, false);
+        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_TRANSPARENT, 0xFFFFFFFF);
         const queueId = this._renderGraph!.addVertex<RenderGraphValue.Queue>(
             RenderGraphValue.Queue,
             queue,
             'Queue',
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             this._vertID,
         );
@@ -1368,7 +1370,7 @@ export class WebRenderPassBuilder extends WebSetter implements BasicMultisampleR
             renderGraphPool.createBlit(material, passID, sceneFlags, camera),
             name,
             '',
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
             false,
             queueId,
         );
@@ -1423,7 +1425,7 @@ export class WebComputeQueueBuilder extends WebSetter implements ComputeQueueBui
 
             '',
 
-            renderGraphPool.createRenderData(false),
+            renderGraphPool.createRenderData(),
 
             false,
 
@@ -1478,12 +1480,12 @@ export class WebComputePassBuilder extends WebSetter implements ComputePassBuild
         if (DEBUG) {
             assert(layoutId !== 0xFFFFFFFF);
         }
-        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_OPAQUE, layoutId, false);
+        const queue = renderGraphPool.createRenderQueue(QueueHint.RENDER_OPAQUE, layoutId);
         queue.phaseID = layoutId;
-        const data = renderGraphPool.createRenderData(false);
+        const data = renderGraphPool.createRenderData();
         const queueID = this._renderGraph!.addVertex<RenderGraphValue.Queue>(RenderGraphValue.Queue, queue, '', layoutName, data, false, this._vertID);
         const computeQueueBuilder = pipelinePool.computeQueueBuilder.add();
-        computeQueueBuilder.update(data, this._renderGraph!, this._lg!, queueID, queue, this._pipeline!);
+        computeQueueBuilder.update(data, this._renderGraph!, this._lg, queueID, queue, this._pipeline!);
         return computeQueueBuilder;
     }
 
@@ -1750,7 +1752,7 @@ export class WebPipeline implements BasicPipeline {
         const name = 'Compute';
         const pass = renderGraphPool.createComputePass();
 
-        const data = renderGraphPool.createRenderData(false);
+        const data = renderGraphPool.createRenderData();
         const vertID = this._renderGraph!.addVertex<RenderGraphValue.Compute>(RenderGraphValue.Compute, pass, name, passName, data, false);
         const result = pipelinePool.computePassBuilder.add();
         result.update(data, this._renderGraph!, this._layoutGraph, this._resourceGraph, vertID, pass, this._pipelineSceneData);
@@ -1766,7 +1768,7 @@ export class WebPipeline implements BasicPipeline {
             pass.uploadPairs.push(up);
         }
 
-        const vertID = this._renderGraph!.addVertex<RenderGraphValue.Copy>(RenderGraphValue.Copy, pass, name, '', renderGraphPool.createRenderData(false), false);
+        const vertID = this._renderGraph!.addVertex<RenderGraphValue.Copy>(RenderGraphValue.Copy, pass, name, '', renderGraphPool.createRenderData(), false);
         // const result = new WebCopyPassBuilder(this._renderGraph!, vertID, pass);
     }
 
@@ -2240,7 +2242,7 @@ export class WebPipeline implements BasicPipeline {
         pass.count = count;
         pass.quality = quality;
 
-        const data = renderGraphPool.createRenderData(false);
+        const data = renderGraphPool.createRenderData();
         const vertID = this._renderGraph!.addVertex<RenderGraphValue.RasterPass>(RenderGraphValue.RasterPass, pass, name, layoutName, data, false);
         const result = pipelinePool.renderPassBuilder.add();
         result.update(data, this._renderGraph!, this._layoutGraph, this._resourceGraph, vertID, pass, this._pipelineSceneData);
