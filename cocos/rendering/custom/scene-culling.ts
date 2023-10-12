@@ -36,7 +36,9 @@ function computeCullingKey (
     const camera = sceneData.camera;
     const light = sceneData.light.light;
     const lightLevel = sceneData.light.level;
+    const culledByLight = sceneData.light.culledByLight;
     const reflectProbe = sceneData.light.probe;
+    const shadeLight = sceneData.shadingLight;
     if (camera) {
         // camera
         hashCode = hashCombineStr(`u${camera.node.uuid}`, hashCode);
@@ -71,6 +73,10 @@ function computeCullingKey (
         // default:
         // }
     }
+    if (shadeLight) {
+        hashCode = hashCombineStr(`shadeLight${shadeLight.node!.uuid}`, hashCode);
+    }
+    hashCode = hashCombineStr(`culledByLight${culledByLight}`, hashCode);
     hashCode = hashCombineStr(`cast${castShadows}`, hashCode);
     hashCode = hashCombineStr(`level${lightLevel}`, hashCode);
     if (reflectProbe) {
@@ -319,8 +325,11 @@ export class SceneCulling {
         this.resetPool();
         this.frustumCullings.clear();
         this.frustumCullingResults.length = 0;
+        this.lightBoundsCullings.clear();
+        this.lightBoundsCullingResults.length = 0;
         this.renderQueues.length = 0;
         this.renderQueueIndex.clear();
+        this.numLightBoundsCulling = 0;
         this.numFrustumCulling = 0;
         this.numRenderQueues = 0;
     }
@@ -583,7 +592,7 @@ export class SceneCulling {
                 assert(sceneData.camera.scene === scene);
                 assert(cullingID < this.frustumCullingResults.length);
                 const lightBoundsCullingResult = this.lightBoundsCullingResults[cullingID];
-                assert(lightBoundsCullingResult.instances.length !== 0);
+                assert(lightBoundsCullingResult.instances.length === 0);
                 switch (sceneData.shadingLight.type) {
                 case LightType.SPHERE:
                     {
@@ -684,7 +693,7 @@ export class SceneCulling {
 }
 
 export class LightResource {
-    private cpuBuffer: Array<number> = [];
+    private cpuBuffer!: Float32Array;
     private programLibrary?: WebProgramLibrary;
     private device: Device | null = null;
     private elementSize: number = 0;
@@ -711,7 +720,7 @@ export class LightResource {
             this.device.capabilities.uboOffsetAlignment,
         );
         this.maxNumLights = maxNumLights;
-        this.binding = programLib.localLayoutData.bindingMap[attrID];
+        this.binding = programLib.localLayoutData.bindingMap.get(attrID)!;
 
         const bufferSize = this.elementSize * this.maxNumLights;
 
@@ -727,7 +736,7 @@ export class LightResource {
             this.elementSize,
         ));
 
-        this.cpuBuffer = new Array<number>(bufferSize);
+        this.cpuBuffer = new Float32Array(bufferSize / Float32Array.BYTES_PER_ELEMENT);
         this.lights = new Array<Light | null>(this.maxNumLights);
         this.lightIndex = new Map<Light | null, number>();
 
@@ -817,7 +826,7 @@ export class LightResource {
                 0,
                 this.elementSize,
             ));
-            this.cpuBuffer = new Array<number>(bufferSize);
+            this.cpuBuffer = new Float32Array(bufferSize / Float32Array.BYTES_PER_ELEMENT);
             this.lights = new Array<Light | null>(this.maxNumLights);
             this.lightIndex = new Map<Light | null, number>();
         }
@@ -831,7 +840,7 @@ export class LightResource {
 
         // Update buffer
         const offset = this.elementSize * lightID;
-        SetLightUBO(light, bHDR, exposure, shadowInfo, new Float32Array(this.cpuBuffer.slice(offset, offset + this.elementSize)), this.elementSize);
+        SetLightUBO(light, bHDR, exposure, shadowInfo, this.cpuBuffer, offset, this.elementSize);
 
         return lightID * this.elementSize;
     }
@@ -839,8 +848,8 @@ export class LightResource {
     buildLightBuffer (cmdBuffer: CommandBuffer): void {
         cmdBuffer.updateBuffer(
             this.lightBuffer!,
-            new Float32Array(this.cpuBuffer),
-            this.lights.length * this.elementSize,
+            this.cpuBuffer,
+            (this.lights.length * this.elementSize) / Float32Array.BYTES_PER_ELEMENT,
         );
     }
 }

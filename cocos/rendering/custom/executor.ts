@@ -1281,23 +1281,15 @@ class DeviceSceneTransversal extends WebSceneTransversal {
     }
     get graphScene (): GraphScene { return this._graphScene; }
     public preRenderPass (visitor: WebSceneVisitor): DevicePreSceneTask {
-        if (!this._preSceneTask) {
-            this._preSceneTask = new DevicePreSceneTask(this._currentQueue, this._graphScene, visitor);
-        }
-        this._preSceneTask.apply(this._currentQueue, this.graphScene);
+        this._preSceneTask = new DevicePreSceneTask(this._currentQueue, this._graphScene, visitor);
         return this._preSceneTask;
     }
     public transverse (visitor: WebSceneVisitor): DeviceSceneTask {
-        if (!this._sceneTask) {
-            this._sceneTask = new DeviceSceneTask(this._currentQueue, this._graphScene, visitor);
-        }
-        this._sceneTask.apply(this._currentQueue, this.graphScene);
+        this._sceneTask = new DeviceSceneTask(this._currentQueue, this._graphScene, visitor);
         return this._sceneTask;
     }
     public postRenderPass (visitor: WebSceneVisitor): DevicePostSceneTask {
-        if (!this._postSceneTask) {
-            this._postSceneTask = new DevicePostSceneTask(this._sceneData, context.ubo, this._camera, visitor);
-        }
+        this._postSceneTask = new DevicePostSceneTask(this._sceneData, context.ubo, this._camera, visitor);
         return this._postSceneTask;
     }
 }
@@ -1376,15 +1368,6 @@ class DevicePreSceneTask extends WebSceneTask {
         }
         context.lightResource.buildLightBuffer(context.commandBuffer);
         context.lightResource.tryUpdateRenderSceneLocalDescriptorSet(context.culling);
-        // if (!this.camera) {
-        //     return;
-        // }
-        // const sceneFlag = this._graphScene.scene!.flags;
-        // if (sceneFlag & SceneFlags.DEFAULT_LIGHTING) {
-        //     this._sceneCulling();
-        //     validPunctualLightsCulling(context.pipeline, this.camera);
-        //     context.additiveLight.gatherLightPasses(this.camera, this._cmdBuff, this._currentQueue.devicePass.layoutName);
-        // }
     }
 
     public submit (): void {
@@ -1562,14 +1545,6 @@ class DeviceSceneTask extends WebSceneTask {
             this.visitor.setViewport(sceneViewport);
             this.visitor.setScissor(area);
         }
-    }
-
-    private _recordAdditiveLights (): void {
-        context.additiveLight?.recordCommandBuffer(
-            context.device,
-            this._renderPass,
-            context.commandBuffer,
-        );
     }
 
     public submit (): void {

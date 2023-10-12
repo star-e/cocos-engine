@@ -2484,17 +2484,10 @@ export function SetLightUBO (
     exposure: number,
     shadowInfo: Shadows | null,
     buffer: Float32Array,
-    bufferSize: number,
+    offset: number,
+    elemSize: number,
 ): void {
-    if (bufferSize % 4 !== 0) {
-        throw new Error('Invalid buffer size, must be a multiple of 4.');
-    }
-    const maxSize = bufferSize / 4;
-    const lightBufferData = buffer;
-
-    const offset = 0;
-
-    let position = new Vec3(0.0, 0.0, 0.0);
+    const vec4Array = new Float32Array(4);
     let size = 0.0;
     let range = 0.0;
     let luminanceHDR = 0.0;
@@ -2502,28 +2495,40 @@ export function SetLightUBO (
 
     if (light && light.type === LightType.SPHERE) {
         const sphereLight = light as SphereLight;
-        position = sphereLight.position;
+        vec4Array[0] = sphereLight.position.x;
+        vec4Array[1] = sphereLight.position.y;
+        vec4Array[2] = sphereLight.position.z;
+        vec4Array[3] = LightType.SPHERE;
         size = sphereLight.size;
         range = sphereLight.range;
         luminanceHDR = sphereLight.luminanceHDR;
         luminanceLDR = sphereLight.luminanceLDR;
     } else if (light && light.type === LightType.SPOT) {
         const spotLight = light as SpotLight;
-        position = spotLight.position;
+        vec4Array[0] = spotLight.position.x;
+        vec4Array[1] = spotLight.position.y;
+        vec4Array[2] = spotLight.position.z;
+        vec4Array[3] = LightType.SPOT;
         size = spotLight.size;
         range = spotLight.range;
         luminanceHDR = spotLight.luminanceHDR;
         luminanceLDR = spotLight.luminanceLDR;
     } else if (light && light.type === LightType.POINT) {
         const pointLight = light as PointLight;
-        position = pointLight.position;
+        vec4Array[0] = pointLight.position.x;
+        vec4Array[1] = pointLight.position.y;
+        vec4Array[2] = pointLight.position.z;
+        vec4Array[3] = LightType.POINT;
         size = 0.0;
         range = pointLight.range;
         luminanceHDR = pointLight.luminanceHDR;
         luminanceLDR = pointLight.luminanceLDR;
     } else if (light && light.type === LightType.RANGED_DIRECTIONAL) {
         const rangedDirLight = light as RangedDirectionalLight;
-        position = rangedDirLight.position;
+        vec4Array[0] = rangedDirLight.position.x;
+        vec4Array[1] = rangedDirLight.position.y;
+        vec4Array[2] = rangedDirLight.position.z;
+        vec4Array[3] = LightType.RANGED_DIRECTIONAL;
         size = 0.0;
         range = 0.0;
         luminanceHDR = rangedDirLight.illuminanceHDR;
@@ -2531,84 +2536,72 @@ export function SetLightUBO (
     }
 
     let index = offset + UBOForwardLight.LIGHT_POS_OFFSET;
-    if (index + 4 < maxSize) {
-        lightBufferData[index++] = position.x;
-        lightBufferData[index++] = position.y;
-        lightBufferData[index] = position.z;
-    }
+    buffer.set(vec4Array, index);
 
     index = offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET;
-    if (index + 4 < maxSize) {
-        lightBufferData[index++] = size;
-        lightBufferData[index] = range;
-    }
+    vec4Array.set([size, range, 0, 0]);
+    buffer.set(vec4Array, index);
 
     index = offset + UBOForwardLight.LIGHT_COLOR_OFFSET;
-    if (index + 4 < maxSize) {
-        const color = light ? light.color : new Color();
-        if (light && light.useColorTemperature) {
-            const tempRGB = light.colorTemperatureRGB;
-            lightBufferData[index++] = color.x * tempRGB.x;
-            lightBufferData[index++] = color.y * tempRGB.y;
-            lightBufferData[index++] = color.z * tempRGB.z;
-        } else {
-            lightBufferData[index++] = color.x;
-            lightBufferData[index++] = color.y;
-            lightBufferData[index++] = color.z;
-        }
+    const color = light ? light.color : new Color();
+    if (light && light.useColorTemperature) {
+        const tempRGB = light.colorTemperatureRGB;
+        buffer[index++] = color.x * tempRGB.x;
+        buffer[index++] = color.y * tempRGB.y;
+        buffer[index++] = color.z * tempRGB.z;
+    } else {
+        buffer[index++] = color.x;
+        buffer[index++] = color.y;
+        buffer[index++] = color.z;
     }
 
     if (bHDR) {
-        lightBufferData[index] = luminanceHDR * exposure * kLightMeterScale;
+        buffer[index] = luminanceHDR * exposure * kLightMeterScale;
     } else {
-        lightBufferData[index] = luminanceLDR;
+        buffer[index] = luminanceLDR;
     }
 
     switch (light ? light.type : LightType.UNKNOWN) {
     case LightType.SPHERE:
-        lightBufferData[offset + UBOForwardLight.LIGHT_POS_OFFSET + 3] = LightType.SPHERE;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = 0;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
         break;
     case LightType.SPOT: {
         const spotLight = light as SpotLight;
-        lightBufferData[offset + UBOForwardLight.LIGHT_POS_OFFSET + 3] = LightType.SPOT;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = spotLight.spotAngle;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] =                (shadowInfo && shadowInfo.enabled
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = spotLight.spotAngle;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] =                (shadowInfo && shadowInfo.enabled
                  && spotLight.shadowEnabled
                  && shadowInfo.type === ShadowType.ShadowMap) ? 1.0 : 0.0;
 
         index = offset + UBOForwardLight.LIGHT_DIR_OFFSET;
         const direction = spotLight.direction;
-        lightBufferData[index++] = direction.x;
-        lightBufferData[index++] = direction.y;
-        lightBufferData[index] = direction.z;
+        buffer[index++] = direction.x;
+        buffer[index++] = direction.y;
+        buffer[index] = direction.z;
     } break;
     case LightType.POINT:
-        lightBufferData[offset + UBOForwardLight.LIGHT_POS_OFFSET + 3] = LightType.POINT;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = 0;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
         break;
     case LightType.RANGED_DIRECTIONAL: {
-        lightBufferData[offset + UBOForwardLight.LIGHT_POS_OFFSET + 3] = LightType.RANGED_DIRECTIONAL;
         const rangedDirLight = light as RangedDirectionalLight;
         const right = rangedDirLight.right;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 0] = right.x;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 1] = right.y;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = right.z;
-        lightBufferData[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 0] = right.x;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 1] = right.y;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 2] = right.z;
+        buffer[offset + UBOForwardLight.LIGHT_SIZE_RANGE_ANGLE_OFFSET + 3] = 0;
 
         const direction = rangedDirLight.direction;
-        lightBufferData[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 0] = direction.x;
-        lightBufferData[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 1] = direction.y;
-        lightBufferData[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 2] = direction.z;
-        lightBufferData[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 3] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 0] = direction.x;
+        buffer[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 1] = direction.y;
+        buffer[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 2] = direction.z;
+        buffer[offset + UBOForwardLight.LIGHT_DIR_OFFSET + 3] = 0;
 
         const scale = rangedDirLight.scale;
-        lightBufferData[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 0] = scale.x * 0.5;
-        lightBufferData[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 1] = scale.y * 0.5;
-        lightBufferData[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 2] = scale.z * 0.5;
-        lightBufferData[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 3] = 0;
+        buffer[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 0] = scale.x * 0.5;
+        buffer[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 1] = scale.y * 0.5;
+        buffer[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 2] = scale.z * 0.5;
+        buffer[offset + UBOForwardLight.LIGHT_BOUNDING_SIZE_VS_OFFSET + 3] = 0;
     } break;
     default:
         break;
