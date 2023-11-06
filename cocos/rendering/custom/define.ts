@@ -672,21 +672,12 @@ export function buildShadowPass (
         shadowPass.name = passName;
         shadowPass.setViewport(new Viewport(0, 0, fboW, fboH));
         shadowPass.addRenderTarget(shadowMapName, LoadOp.CLEAR, StoreOp.STORE, new Color(1, 1, 1, camera.clearColor.w));
-        shadowPass.addDepthStencil(
-            `${shadowMapName}Depth`,
-            LoadOp.CLEAR,
-            StoreOp.DISCARD,
-            camera.clearDepth,
-            camera.clearStencil,
-            ClearFlagBit.DEPTH_STENCIL,
-        );
     }
     const queue = shadowPass.addQueue(QueueHint.RENDER_OPAQUE, 'shadow-caster');
-    queue.addSceneOfCamera(
+    queue.addScene(
         camera,
-        new LightInfo(light, level),
-        SceneFlags.SHADOW_CASTER | SceneFlags.OPAQUE_OBJECT | SceneFlags.TRANSPARENT_OBJECT,
-    );
+        SceneFlags.SHADOW_CASTER | SceneFlags.OPAQUE_OBJECT | SceneFlags.MASK,
+    ).useLightFrustum(light, light.type !== LightType.DIRECTIONAL ? 0 : level);
     queue.setViewport(new Viewport(area.x, area.y, area.width, area.height));
 }
 
